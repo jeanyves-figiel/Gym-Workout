@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { type Moderator, noModerator } from '../community/aiModeration.ts';
 import { assertClean, hasAcceptedGuidelines, VISIBILITIES } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { baseUpdatedAt, conflictsField, reviveUploaded, recordTombstone, sendPull, type SyncTable, syncId, syncIdParams, takeConflicts } from './sync.ts';
@@ -45,7 +46,16 @@ export const customWorkoutTable: SyncTable<Row> = {
   map: toWorkout,
 };
 
-export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
+/** Shared workout names new to the library (new, renamed or just shared): the ones the AI check (#871) still has to see. */
+const freshNames = (db: DB, userId: string, shared: { id: string; name: string }[]) =>
+  shared
+    .filter((w) => {
+      const row = db.prepare('SELECT data, visibility FROM custom_workouts WHERE id = ? AND user_id = ?').get(w.id, userId) as { data: string; visibility: string } | undefined;
+      return !row || row.visibility === 'private' || (JSON.parse(row.data) as { name?: string }).name !== w.name;
+    })
+    .map((w) => w.name);
+
+export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date, mod: Moderator = noModerator()) => {
   r.get('/me/custom-workouts', async (req, reply) =>
     sendPull(reply, db, customWorkoutTable, { key: 'workouts', kind: 'custom-workouts', userId: req.userId!, query: req.query, now }),
   );
@@ -58,6 +68,7 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
       // Same UGC rules as community posts (#61): guidelines accepted, objectionable names refused.
       if (!hasAcceptedGuidelines(db, userId)) throw new ApiError(403, 'community_profile_required', 'Create your community profile first.');
       assertClean(...shared.map((w) => w.name));
+      await mod.assertAllowed({ userId, texts: freshNames(db, userId, shared) });
     }
     const ts = now().toISOString();
     const up = db.prepare(

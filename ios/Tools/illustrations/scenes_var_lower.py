@@ -913,13 +913,13 @@ SS_TOE = (224, GROUND - 2)
 SS_POST = 268
 
 
-def sissy_pose(f, shin_up, a, h=None):
+def sissy_pose(f, shin_up, a, h=None, gy=16):
     """f = foot angle (heel rises), shin_up = angle ankle -> knee, a = angle knee -> hip (= torso)."""
     ank = pt(SS_TOE, f, -FT)
     knee = pt(ank, shin_up, SH)
     hip = pt(knee, a, TH)
     s = shoulder(hip, a)
-    g = (SS_POST - 6, s[1] + 16)
+    g = (SS_POST - 6, s[1] + gy)
     return body(hip, a, h=a if h is None else h, lN=(a + 180, angle(knee, ank), f), lF=(a + 181, angle(knee, ank) + 1, f),
                 gN=g, gF=(g[0] - 30, g[1] + 34), eN=1, eF=1, hN=-80)
 
@@ -932,10 +932,10 @@ def sissy_scene(doc, j, layer):
             if isinstance(j[name], tuple) and len(j[name]) == 2 and not name.startswith("_"):
                 j[name] = (j[name][0] + d[0], j[name][1] + d[1])
         floor(doc, 214, 90)
-        kit.post(doc, SS_POST + 4, 60)
+        kit.post(doc, SS_POST + 2, 60)  # #949: 2 px nearer so the deep frame's straight arm still reaches it
 
 
-SSQ = [sissy_pose(0, -90, -90), sissy_pose(36, -54, -112, h=-98), sissy_pose(62, -20, -134, h=-110)]
+SSQ = [sissy_pose(0, -90, -90), sissy_pose(36, -54, -112, h=-98), sissy_pose(62, -20, -134, h=-110, gy=2)]  # #949: grip near shoulder height so the hand reaches the post
 
 
 # -- band Spanish squat: heavy band behind the knees anchored low in front, shins stay vertical

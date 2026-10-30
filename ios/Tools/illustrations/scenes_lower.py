@@ -331,11 +331,13 @@ def leg_press_machine(doc, j, layer, s, po=2):
         art.tube(doc, (hip[0] + 6, hip[1] + 20), (hip[0] + 22, hip[1] + 6), 5)
         # Sled riding on the rail: carriage, foot plate, plate horn low on the sled.
         pc = art.add(art.add(LP_ANK, LP_RD, 6 + s), LP_PD, po)
-        car = art.add(art.add(pc, LP_RD, 14), LP_PD, -30)
+        # #949: the carriage sits on the rail (was a fixed 30px below the plate, floating ~8-40px above it).
+        lift = (pc[0] - r0[0]) * LP_PD[0] + (pc[1] - r0[1]) * LP_PD[1]
+        car = art.add(art.add(pc, LP_RD, 14), LP_PD, 12 - lift)
         art.tube(doc, art.add(car, LP_RD, -14), art.add(car, LP_RD, 22), 13)
         art.tube(doc, art.add(pc, LP_RD, 8), car, 7)
         art.tube(doc, art.add(art.add(pc, LP_PD, 22), LP_RD, 8), art.add(car, LP_RD, 10), 6)
-        art.plate(doc, art.add(art.add(car, LP_RD, -4), LP_PD, -12), 21)
+        art.plate(doc, art.add(art.add(car, LP_RD, -4), LP_PD, -4), 21)
         slab(doc, art.add(pc, LP_PD, -26), art.add(pc, LP_PD, 30), 9, LP_HIP, stitch=False)
     else:
         kit.handle(doc, grip(j))
@@ -830,8 +832,12 @@ def leg_ext_scene(doc, j, layer):
         td, n = tframe(LE_T)
         kit.feet(doc, 34, 262)
         # Cable from the stack over the column top, down behind the seat to the cam at the knee.
+        # #949: second top pulley at the beam end so the cable no longer bends round nothing in mid-air.
+        art.pulley(doc, (96, p[1]), 5.5)
         art.pulley(doc, (96, 236), 5.5)
-        art.cable(doc, [(p[0] + 5.5, p[1]), (96 + 5.5, 56), (101.5, 236), (knee[0] - 6, 236), (knee[0] - 6, knee[1] + 8)])
+        art.cable(doc, [(p[0], p[1] - 5.5), (96, p[1] - 5.5)])
+        art.cable(doc, [(101.5, p[1]), (101.5, 236)])
+        art.cable(doc, [(96, 241.5), (knee[0] - 6, 241.5), (knee[0] - 6, knee[1] + 8)])
         # Seat, backrest, frame.
         art.tube(doc, (hip[0], hip[1] + 18), (hip[0], GROUND - 2), 9, "butt")
         art.tube(doc, (100, GROUND - 2), (knee[0] + 14, GROUND - 2), 7)
@@ -1097,6 +1103,8 @@ def trx_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 200, 120)
         kit.mat(doc, 70, 330)
+        for dx in (-26, 26):  # #949: drop rods to the ceiling (the anchor bar floated under the frame top)
+            art.tube(doc, (TRX_A[0] + dx, TRX_A[1] - 8), (TRX_A[0] + dx, 40), 5)
         art.tube(doc, (TRX_A[0] - 34, TRX_A[1] - 8), (TRX_A[0] + 34, TRX_A[1] - 8), 9)
         doc.add(f'<circle cx="{TRX_A[0]:.1f}" cy="{TRX_A[1] - 2:.1f}" r="4" fill="none" stroke="#C8A06A" stroke-width="2.4"/>')
         kit.strap(doc, art.add(j["ankleF"], (2, -4)), TRX_A, handle=False)

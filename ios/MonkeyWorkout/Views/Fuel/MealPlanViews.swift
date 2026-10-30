@@ -235,8 +235,23 @@ struct GroceriesView: View {
                     ForEach(MealPlanner.aisles, id: \.id) { a in
                         let group = items.filter { $0.aisle == a.id }
                         if !group.isEmpty {
-                            Text("\(a.emoji) \(a.label)").font(Theme.display(17)).padding(.top, 4)
-                            ForEach(group) { i in row(i) }
+                            // One gradient card per aisle (#823), the items on dark rows inside it.
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 12) {
+                                    Text(a.emoji).font(.system(size: 22))
+                                        .frame(width: 44, height: 44)
+                                        .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.22)))
+                                    Text(a.label).font(Theme.display(17)).lineLimit(1).minimumScaleFactor(0.8)
+                                    Spacer(minLength: 4)
+                                    Text("\(group.count)").font(Theme.display(22)).monospacedDigit().opacity(0.9)
+                                }
+                                .foregroundStyle(.white)
+                                .accessibilityElement(children: .combine)
+                                .accessibilityAddTraits(.isHeader)
+                                ForEach(group) { i in row(i) }
+                            }
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Self.aisleGradient(a.id)))
                         }
                     }
                     if bought > 0 {
@@ -261,6 +276,20 @@ struct GroceriesView: View {
                         .accessibilityLabel("Share the list")
                 }
             }
+        }
+    }
+
+    /// One gradient per aisle (#823).
+    static func aisleGradient(_ id: String) -> LinearGradient {
+        switch id {
+        case "fruit-veg": .buddies
+        case "meat-fish": WorkoutEngine.Category.power.gradient
+        case "dairy-eggs": WorkoutEngine.Category.strength.gradient
+        case "bakery": .hiit
+        case "frozen": WorkoutEngine.Category.cardio.gradient
+        case "drinks": Theme.routineGradient(1)
+        case "snacks": WorkoutEngine.Category.mobility.gradient
+        default: Theme.routineGradient(3)
         }
     }
 
@@ -290,14 +319,15 @@ struct GroceriesView: View {
                             .accessibilityLabel("Price \(BudgetFormat.money(cost)), change")
                         }
                     }
-                    Text(packText(i)).font(Theme.label(11)).foregroundStyle(Theme.muted)
+                    Text(packText(i)).font(Theme.label(11)).foregroundStyle(.white.opacity(0.75))
                     Text(i.meals.prefix(3).joined(separator: " · ") + (i.meals.count > 3 ? " +\(i.meals.count - 3)" : ""))
-                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted).lineLimit(2)
+                        .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
                 }
             }
             .foregroundStyle(.white)
             .padding(12)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+            // Dark row on the aisle's gradient (#823), so the item stays readable.
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.black.opacity(0.35)))
             .opacity(on ? 0.6 : 1)
         }
         .buttonStyle(.plain)

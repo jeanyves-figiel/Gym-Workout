@@ -135,6 +135,12 @@ export const ensureCommunitySchema = (db: DB): void => {
       PRIMARY KEY (program_id, user_id)
     );
   `);
+  // AI moderation now refuses flagged content on the spot (#871 follow-up): the short-lived review queue goes. Photos it
+  // held were never shown, so they go too; held posts, plans and workouts stay hidden like reported ones.
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'moderation_holds'").get()) {
+    db.exec(`DELETE FROM community_avatars WHERE id IN (SELECT target_id FROM moderation_holds WHERE target_type = 'avatar' AND resolved_at IS NULL);
+      DROP TABLE moderation_holds;`);
+  }
   // Show my gym (#152): members opt in to being found by the gym they train at.
   const cols = db.prepare('PRAGMA table_info(community_profiles)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'show_gym')) db.exec('ALTER TABLE community_profiles ADD COLUMN show_gym INTEGER NOT NULL DEFAULT 0');

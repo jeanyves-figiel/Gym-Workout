@@ -434,7 +434,8 @@ struct BigScreenTimerView: View {
 
     private func cue(_ e: TimeInterval, _ st: WodTimer.State) {
         guard running else { return }
-        for c in timer.cues(from: cuedTo, to: e) { play(c) }
+        // Back from the background (#817): the cues slept through are not played in a burst.
+        if e - cuedTo <= 2 { for c in timer.cues(from: cuedTo, to: e) { play(c) } }
         cuedTo = e
         if st.finished {
             banked = e

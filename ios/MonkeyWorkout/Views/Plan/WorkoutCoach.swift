@@ -101,6 +101,16 @@ final class WorkoutCoach {
     /// Short answer to the player mic (#412): bubble + voice, even between key moments.
     func reply(_ text: String) { deliver(text, key: false, clips: []) }
 
+    /// Talk to Coach mid-set (#874 C): the answer out loud, unless Ask Coach's voice is Never or the pill muted it. No
+    /// subtitle bubble: the answer card shows the words.
+    func answer(_ text: String) {
+        #if DEBUG
+        guard !Demo.enabled else { return }
+        #endif
+        guard AskCoachPref.speak != .never, !muted else { return }
+        voice.speak(text, style: CoachPref.style)
+    }
+
     /// A resumed workout: what was already said before (e.g. "half") stays unsaid.
     func markSaid(_ key: String) { said.insert(key) }
 
@@ -294,7 +304,8 @@ private struct SoundBars: View {
     }
 }
 
-/// Subtitle bubble (A) over the picture: what the coach just said, about 3.5 s. Doesn't take layout space.
+/// Subtitle bubble (A) over the picture: what the coach just said, about 3.5 s. Doesn't take layout space, and is
+/// see-through (#823) so the set values under it stay readable until it fades.
 struct CoachBubble: View {
     let call: WorkoutCoach.Call
 
@@ -306,9 +317,8 @@ struct CoachBubble: View {
         .foregroundStyle(Theme.ink)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.lime, lineWidth: 2.5))
-        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.62)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.lime.opacity(0.7), lineWidth: 2))
         .frame(maxWidth: 300)
         .allowsHitTesting(false)
         .accessibilityIdentifier("player.coachBubble")

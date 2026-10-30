@@ -104,7 +104,7 @@ struct StyleCard: View {
                         }
                     }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.75)
+                    Text(title).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.75) // never "Volume progressi…" (#823)
                     Text(subtitle).font(.footnote.weight(.semibold)).opacity(0.85)
                         .fixedSize(horizontal: false, vertical: true)
                 }

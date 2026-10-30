@@ -241,14 +241,18 @@ struct TrainCustomiseSheet: View {
                 ContentTitle(title: "Customise Train", subtitle: "Drag ≡ to reorder · swipe left to remove")
                     .cardRow()
                 Section("Presets") {
-                    ForEach(TrainLayout.Preset.allCases) { p in
+                    // Gradient tiles, number left (#823), like the widget rows below.
+                    ForEach(Array(TrainLayout.Preset.allCases.enumerated()), id: \.element) { i, p in
                         Button {
                             withAnimation { model.setTrainLayout(model.presetLayout(p)) }
                         } label: {
-                            HStack {
+                            HStack(spacing: 10) {
+                                Text("\(i + 1)").font(Theme.display(16))
+                                    .frame(width: 30, height: 30)
+                                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.2)))
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(p.title).font(Theme.label(15))
-                                    Text(p.detail).font(.caption).foregroundStyle(Theme.muted)
+                                    Text(p.detail).font(.caption.weight(.semibold)).opacity(0.85)
                                 }
                                 Spacer()
                                 SquareToggle(on: model.trainPreset == p)
@@ -257,7 +261,7 @@ struct TrainCustomiseSheet: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(model.trainPreset == p ? .isSelected : [])
-                        .darkCardRow()
+                        .gradientRow(Theme.routineGradient(i))
                     }
                 }
                 Section("On Train") {
@@ -323,7 +327,8 @@ struct TrainCustomiseSheet: View {
     private func row(_ w: TrainWidget) -> some View {
         HStack(spacing: 10) {
             icon(w.kind)
-            Text(w.kind.title).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
+            // Two lines ahead of the look and size menus: "Trainin…" (#823).
+            Text(w.kind.title).font(Theme.label(14)).lineLimit(2).minimumScaleFactor(0.8).layoutPriority(1)
             Spacer(minLength: 4)
             if !w.kind.looks.isEmpty {
                 Menu {

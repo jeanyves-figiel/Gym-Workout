@@ -2,8 +2,9 @@
 
 /// Every catalog exercise is illustrated with MonkeyWorkout's own art (#170): the movement in 17 frames, more
 /// for fast, large movements (#256: `frameCounts`) (#229: start, eased in-betweens, middle key, end), worked
-/// muscles highlighted, equipment drawn. Asset names: `illustration-<id>-<frame>` in the app's
-/// Illustrations.xcassets. Source + license of each exercise's media: ios/EXERCISE_MEDIA.md.
+/// muscles highlighted, equipment drawn. The app bundles `liteFrameCount` light frames per exercise
+/// (`illustration-<id>-<k>` in Illustrations.xcassets, #932); all frames come with the downloaded HD pack
+/// (`HDAnimations`). Source + license of each exercise's media: ios/EXERCISE_MEDIA.md.
 public enum ExerciseIllustrations {
     /// Frames of most illustrations: start (0), eased in-betweens, end (frameCount - 1).
     public static let frameCount = 17
@@ -15,7 +16,7 @@ public enum ExerciseIllustrations {
         "arnold-press": 25,
         "back-extension": 25,
         "back-lever": 33,
-        "ball-slam": 49,
+        "ball-slam": 33,
         "band-dislocates": 49,
         "band-external-rotation": 25,
         "band-good-morning": 25,
@@ -644,11 +645,21 @@ public enum ExerciseIllustrations {
         ids.contains(exerciseId) ? frameCounts[exerciseId] ?? frameCount : 0
     }
 
+    /// Frames of each exercise bundled in the app (#932): `liteFrames`-chosen HD frames at half size (#944: start, middle
+    /// and end; the movement plays from its clip).
+    public static let liteFrameCount = 3
+
+    /// HD frame shown by each bundled light frame: evenly spread, start, middle and end included (lite.py).
+    public static func liteFrames(_ count: Int) -> [Int] {
+        (0..<liteFrameCount).map { k in (k * (count - 1) + (liteFrameCount - 1) / 2) / (liteFrameCount - 1) }
+    }
+
     /// Start, middle and end frames of `count` frames (the hand-drawn key poses).
     public static func keyFrames(_ count: Int) -> [Int] {
         [0, count / 2, count - 1]
     }
 
+    /// Bundled light frame `frame` (0 ..< liteFrameCount).
     public static func assetName(_ exerciseId: String, frame: Int) -> String {
         "illustration-\(exerciseId)-\(frame)"
     }
@@ -658,9 +669,9 @@ extension Exercise {
     /// True when the exercise has one of the app's illustrations (every catalog exercise does).
     public var hasIllustration: Bool { ExerciseIllustrations.ids.contains(id) }
 
-    /// Asset names of the illustration frames (start … end). Empty without an illustration.
+    /// Asset names of the bundled light frames (start … end, #932). Empty without an illustration.
     public var illustrationAssets: [String] {
-        (0..<ExerciseIllustrations.frameCount(of: id)).map { ExerciseIllustrations.assetName(id, frame: $0) }
+        (hasIllustration ? 0..<ExerciseIllustrations.liteFrameCount : 0..<0).map { ExerciseIllustrations.assetName(id, frame: $0) }
     }
 
     /// Every catalog exercise has media.

@@ -100,7 +100,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
 | GET | `/v1/me/custom-workouts` | Bearer | → `{workouts, deleted?, serverTime}` member-built workouts (`id`, `name`, `items[].exerciseId`, `visibility`; other app fields kept as sent, e.g. `routine` `{color, symbol}` for own daily routines, #732) | |
-| POST | `/v1/me/custom-workouts` | Bearer | `{workouts[≤100]}` → `{saved, serverTime, conflicts?}`; `visibility` members/public shares it to the library | 403 `community_profile_required` to share; 409 `quota_exceeded`; 413 `too_large` |
+| POST | `/v1/me/custom-workouts` | Bearer | `{workouts[≤100]}` → `{saved, serverTime, conflicts?}`; `visibility` members/public shares it to the library; new or renamed shared names are AI-checked (#871) | 400 `objectionable_content` (word filter or AI check); 403 `community_profile_required` to share; 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/custom-workouts/:id` | Bearer | → 204 | |
 | GET | `/v1/me/custom-exercises` | Bearer | → `{exercises, deleted: [], serverTime}` (deletion = `archived` flag) | |
 | POST | `/v1/me/custom-exercises` | Bearer | `{exercises[≤20]}` (photo base64 JPEG inside, metadata stripped) → `{saved, serverTime, conflicts?}` | 400 `invalid_image`; 409 `quota_exceeded`; 413 `too_large` |
@@ -110,10 +110,10 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | GET | `/v1/me/body-measurements` | Bearer | → `{measurements, deleted?, serverTime}` (`date`, `girthsCm`, `weightKg`, `bodyFatPct`) | |
 | POST | `/v1/me/body-measurements` | Bearer | `{measurements[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/body-measurements/:id` | Bearer | → 204 | |
-| GET | `/v1/me/climbs` | Bearer | → `{climbs, deleted?, serverTime}` climbing sessions | |
+| GET | `/v1/me/climbs` | Bearer | → `{climbs, deleted?, serverTime}` climbing sessions (optional `place` `{id, name, address?, latitude?, longitude?, gymId?, kind?}`, #832; `kind` = place type such as `climbingGym`, `crag`, `skiResort`, #960) | |
 | POST | `/v1/me/climbs` | Bearer | `{climbs[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/climbs/:id` | Bearer | → 204 | |
-| GET | `/v1/me/sports` | Bearer | → `{sports, deleted?, serverTime}` other sport sessions (snowboard, MTB, Hyrox…) | |
+| GET | `/v1/me/sports` | Bearer | → `{sports, deleted?, serverTime}` other sport sessions (snowboard, MTB, Hyrox…; optional `place` as climbs, #832) | |
 | POST | `/v1/me/sports` | Bearer | `{sports[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/sports/:id` | Bearer | → 204 | |
 | POST | `/v1/me/watch-key` | Bearer | → `{key}`: upload key for the Apple Watch's direct sport upload (replaces the previous one) | |
@@ -134,7 +134,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | DELETE | `/v1/me/push-device/:token` | Bearer | → 204; apps before #762 (path redacted in logs) | |
 | GET | `/v1/me/notification-prefs` | Bearer | → `{prefs, pushConfigured}`: toggles, reminder / check-in times, quiet hours (minutes after midnight) | |
 | PUT | `/v1/me/notification-prefs` | Bearer | `{prefs}` (any subset; what it leaves out keeps its saved value) → `{prefs}` | |
-| POST | `/v1/me/achievements` | Bearer | `{achievements[≤30]: {id, type, text}}` → `{announced}`; each new id pushed once to followers, at most 20 a day per member | 30/min |
+| POST | `/v1/me/achievements` | Bearer | `{achievements[≤30]: {id, type, text}}` → `{announced}`; each new id pushed once to followers, at most 20 a day per member; text with a link or domain → 400 `links_not_allowed` (#922) | 30/min |
 | POST | `/v1/me/push-test` | Bearer | Test push to own devices → `{devices, sent, pushConfigured}` | 5/min |
 
 ## Community
@@ -143,10 +143,10 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 |---|---|---|---|---|
 | GET | `/v1/me/public-profile` | Bearer | → `{profile}` account profile (nickname, about, photo), joined or not | |
 | PUT | `/v1/me/public-profile` | Bearer | `{nickname?, bio?}` → `{profile}` | 409 `nickname_taken`; 400 `objectionable_content` |
-| PUT | `/v1/me/public-profile/avatar` | Bearer | Raw `image/jpeg` ≤ 512 KB, 64–1024 px, metadata stripped → `{profile}` | 413 `image_too_large`; 400 `invalid_image`; 415 |
+| PUT | `/v1/me/public-profile/avatar` | Bearer | Raw `image/jpeg` ≤ 512 KB, 64–1024 px, metadata stripped → `{profile}`; AI-checked (#871), a flagged photo is refused and the old one stays | 400 `objectionable_content`; 413 `image_too_large`; 400 `invalid_image`; 415 |
 | DELETE | `/v1/me/public-profile/avatar` | Bearer | → `{profile}` | |
 | GET | `/v1/community/me` | Bearer | → community profile (`nickname`, `bio`, `defaultVisibility` private\|members\|public, `autoShare`, gym) or null | |
-| PUT | `/v1/community/me` | Bearer | Join / update; joining needs `acceptGuidelines: true` → profile | 400 `guidelines_required`, `nickname_required`; 409 `nickname_taken` |
+| PUT | `/v1/community/me` | Bearer | Join / update; joining needs `acceptGuidelines: true` → profile | 400 `guidelines_required`, `nickname_required`, `objectionable_content` (word filter or AI check, #871); 409 `nickname_taken` |
 | DELETE | `/v1/community/me` | Bearer | Leave: profile, photo, posts, cheers and the reports you filed removed → 204 | |
 | PUT | `/v1/community/me/level` | Bearer | `{level 1–999}` → `{level}` | 404 `not_member` |
 | PUT | `/v1/community/me/pronouns` | Bearer | `{pronouns: string \| null}` (≤ 24 chars) → `{pronouns}` | 404 `not_member` |
@@ -155,7 +155,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | DELETE | `/v1/community/me/avatar` | Bearer | Removes the photo | |
 | GET | `/v1/community/avatars/:id` | – | Avatar JPEG; unguessable id, immutable cache | 404 |
 | GET | `/v1/community/feed` | Bearer | `?scope=members\|following\|mine&before=ISO&beforeId=&limit=` → `{posts, nextBefore, nextBeforeId}`; blocks applied both ways | 403 `community_profile_required` |
-| POST | `/v1/community/posts` | Bearer | Share a win: `{id (client UUID), kind workout\|badge\|record\|climb\|note, refId?, payload, caption?, visibility?}` (`refId` dedupes; an update keeps the caption and visibility it leaves out) → post. `payload`: `{title, subtitle?, metric?, style?, stats?, exercises?}`; a workout sends up to 40 `exercises` `{id, name, sets, reps?, kg?}` so members can open and copy it (#779) | 400 `objectionable_content`; 429 `daily_limit` |
+| POST | `/v1/community/posts` | Bearer | Share a win: `{id (client UUID), kind workout\|badge\|record\|climb\|note, refId?, payload, caption?, visibility?}` (`refId` dedupes; an update keeps the caption and visibility it leaves out) → post; text members haven't seen yet is AI-checked (#871): flagged → 400 `objectionable_content`, nothing stored. `payload`: `{title, subtitle?, metric?, style?, stats?, exercises?}`; a workout sends up to 40 `exercises` `{id, name, sets, reps?, kg?}` so members can open and copy it (#779) | 400 `objectionable_content`; 429 `daily_limit` |
 | PATCH | `/v1/community/posts/:id` | Bearer | Own post: `{visibility?, caption?}` → post | 404 `not_found` |
 | DELETE | `/v1/community/posts/:id` | Bearer | Own post → 204 (also when already gone) | 404 `not_found` (someone else's post) |
 | PUT | `/v1/community/posts/:id/reactions/:kind` | Bearer | Cheer (`like`, `strong`, `fire`, `clap`, `beast`, `banana`), not on own posts → `{post}` | 400 `own_post`; 404 |
@@ -186,7 +186,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | PUT | `/v1/community/challenge/vote` | Bearer | `{suggestionId}` one of the finalists → `{week, suggestionId}`; one vote per member for the next member week, changeable until it starts | 400 `not_finalist` |
 | GET | `/v1/community/programs` | Bearer | Shared plans (#666), newest first: `?q=` name, `?level=beginner\|intermediate\|advanced`, `?mine=1` your own (private too), `?before=&beforeId=` (creation time), `?limit=` → `{programs: [{id, name, about, level, goal, weeks, sessionsPerWeek, programme, author, mine, visibility, copies, copiedByMe, hidden}], nextBefore, nextBeforeId}`; blocked and auto-hidden left out | 403 `community_profile_required` |
 | GET | `/v1/community/programs/:id` | Bearer | One plan → `{program}` | 404 `not_found` |
-| PUT | `/v1/community/programs/:id` | Bearer | Create or update your plan: `{name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)}` → `{program}` | 400 `objectionable_content`, 409 `conflict`, 413, 429 `daily_limit` (20 new/day) |
+| PUT | `/v1/community/programs/:id` | Bearer | Create or update your plan: `{name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)}` → `{program}`; shared text is AI-checked (#871) | 400 `objectionable_content` (word filter or AI check), 409 `conflict`, 413, 429 `daily_limit` (20 new/day) |
 | DELETE | `/v1/community/programs/:id` | Bearer | Remove your plan → 204 (also when already gone) | 404 `not_found` (someone else's plan) |
 | POST | `/v1/community/programs/:id/copy` | Bearer | Counts a copy into My programmes (once per member; the app saves the copy) → `{program}` | 404 |
 | POST | `/v1/community/programs/:id/report` | Bearer | `{reason, details?}` → 202 `{status: received, hidden}`; auto-hidden after 3 distinct reporters | 20/hour |
@@ -230,9 +230,15 @@ Paid model calls: Pro once subscriptions are enforced, per-member daily caps, gl
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
 | GET | `/v1/me/coach-chat` | Bearer | → `{available, remainingToday}` | |
-| POST | `/v1/me/coach-chat` | Bearer | `{turns[1–30]{role member\|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory}}` → `{reply, workout?, action?, suggestions, remainingToday}` | 402 `pro_required`; 429 `daily_limit`, `busy`; 502 `coach_failed`; 503 `coach_unavailable` |
+| POST | `/v1/me/coach-chat` | Bearer | `{turns[1–30]{role member\|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory, exercises[≤400 names]}, photo?}` (photo: base64 JPEG ≤1.5 MB of a machine, sent with the last message, #856) → `{reply, workout?, action?, suggestions, exercises, protect?{area neck\|shoulder\|elbow\|wrist\|lower-back\|hip\|knee\|ankle, side left\|right\|both, level mild\|loaded\|sharp, seeDoctor} (#870 train around pain), remainingToday}` (exercises: ≤4 names from `context.exercises`, screens freestyle and picker #934) | 400 `bad_photo`; 402 `pro_required`; 429 `daily_limit`, `busy`; 502 `coach_failed`; 503 `coach_unavailable` |
+| POST | `/v1/me/coach-review` | Bearer | Weekly Coach review (#867): `{digest{weekOf YYYY-MM-DD, goal?, level?, days[]{weekday 1–7, title, done, minutes?}, bests[], sleepHours?, hrv?, mood? 1–5, moodAbout[], next[]{id, weekday, title, lifts[]{uid, name, sets}}, offDays[]}}` → `{weekOf, score 0–100, headline, summary, changes[≤3]{kind move\|skip\|lighter\|addSet, sessionId, weekday?, uid?, label}}`; changes only name `next` workouts and lifts; 3/day per member | 400; 402 `pro_required`; 429 `daily_limit`, `busy`; 502 `coach_failed`; 503 `coach_unavailable` |
+| POST | `/v1/me/coach-set` | Bearer | Talk to Coach mid-set (#874): `{question 1–300, context{exercise, set, sets, kg?, reps?, step 0.25–20 (2.5), done[]{kg, reps, rir?}, lastTime?, restSec?, swaps[≤4]{id, name}}}` → `{answer ≤240, actions[≤2]{kind weight\|swap\|rest, kg? \| exerciseId? \| sec?}}`; weight 60–130 % of `kg` on the `step` grid, swap only from `swaps`, rest 30–600 s, one per kind; 30/day per member. The app tries its own rules and the on-device model first | 400; 402 `pro_required`; 429 `daily_limit`, `busy`; 502 `coach_failed`; 503 `coach_unavailable` |
+| POST | `/v1/me/coach-plan` | Bearer | Set up the plan with Coach (#873), "say it once": `{text 3–500}` → plan form values `{goal balanced\|build\|strength\|climbing\|endurance\|athletic, experience, sessions 2–6, weekdays[1–7], minutes 45\|60\|75\|90\|null, climbs, climbDays 1–4\|null, protect{area neck\|shoulder\|elbow\|wrist\|lower-back\|hip\|knee\|ankle, side left\|right\|both, level mild\|loaded\|sharp}\|null (turns on pain mode #870), summary}`. Free (onboarding); 15 a day per member with `/help` | 400, 429 `daily_limit` / `busy`, 502 `coach_failed`, 503 `coach_unavailable` |
+| POST | `/v1/me/coach-plan/help` | Bearer | "Not sure? Ask Coach" on a plan form step (#873): `{step, options[1–12]{id, label}, so[] (answers so far), question?}` → `{answer, pick (an option id) \| null}`; same cap as `/v1/me/coach-plan` | 400, 429, 502, 503 |
 | POST | `/v1/me/gym-scan` | Bearer | `{photo (base64 JPEG ≤ 1.5 MB), catalog[≤150]{id, label}}` → `{items, remainingToday}` equipment seen | 402; 403 `verification_required`; 429; 502 `scan_failed`; 503 `scan_unavailable` |
 | POST | `/v1/me/food-scan` | Bearer | `{photo, catalog[≤400], mode? fridge\|plate\|auto}` → `{items, found[{id \| new food, sure, alcohol, per100}], remainingToday}`; `plate` (#723, a cooked meal) adds `dish` and per food `grams`, `caffeine` (mg/100 g); `auto` (#733, Magic Snap) answers like `plate` plus `kind` meal\|stock (stock: `dish` ""); one daily count for all modes | as gym scan |
+| POST | `/v1/me/meal-ideas` | Bearer | `{pantry[1–300]{id, label}, meal breakfast\|lunch\|dinner\|snack, left{protein, carbs} (g still to eat today), diet?, avoid[]?}` → `{ideas[≤3]{name, minutes, foods[{id, grams}] (pantry ids only), steps[≤5]}, remainingToday}` (#869, "What can I eat?"; macros added up on the device) | 402; 403 `verification_required`; 429 `daily_limit` (20/day), `busy`; 502 `ideas_failed`; 503 `ideas_unavailable` |
+| POST | `/v1/me/workout-import` | Bearer | `{link? (≤500), caption? (≤4000), text? (≤2000, member's own words), photos[≤4] (base64 JPEG ≤ 1.5 MB each), catalog[1–600]{id, label}}` → `{name, minutes, items[≤40]{said, id (catalog id or ""), sets, reps, unit reps\|sec\|min, sure}, source?{platform tiktok\|instagram\|youtube\|web, url (tracking dropped), author?}, remainingToday}` (#909, save a workout seen on TikTok / Instagram; no caption → TikTok / YouTube public oEmbed; video never fetched, photos not kept) | 400 `bad_link`, `bad_photo`; 402; 403 `verification_required`; 422 `nothing_to_read`; 429 `daily_limit` (20/day), `busy`; 502 `import_failed`; 503 `import_unavailable` |
 | GET | `/v1/me/coach-voices` | Bearer | → `{available, voices, lines[{id, text, hash}]}`; `available: false` (200) when voices aren't configured | |
 | GET | `/v1/me/coach-voices/:voice/:line` | Bearer | MP3 of one line (made once with Polly, cached on the volume) | 404; 502 `voice_failed`; 600/min |
 | GET | `/v1/me/coach-voices/:voice/call/:style` | Bearer | MP3 of the short call with the member's name (`X-Call-Name` header); kept in memory for an hour, never on disk; a new name counts against `AI_DAILY_LIMIT` | 400 `bad_name`; 429 `daily_limit`, `busy`; 30/min |
@@ -245,7 +251,7 @@ See [`../subscriptions.md`](../subscriptions.md).
 |---|---|---|---|---|
 | GET | `/v1/me/entitlement` | Bearer | → `{mode, pro, access, source subscription\|grant\|none, productId, expiresAt, trial, willRenew, grant, products, test?}` | |
 | POST | `/v1/me/subscriptions/transactions` | Bearer | `{signedTransaction, signedRenewalInfo?}` StoreKit 2 JWS, verified to Apple Root CA - G3 → entitlement | 400 `invalid_transaction`, `unknown_product`, `sandbox_transaction`; 403/409 `subscription_other_account` |
-| PUT | `/v1/me/subscriptions/test` | Bearer | Staging only (`SUBSCRIPTION_TESTS=on`, else 404): `{mode off\|preview\|enforced\|null}` for this account → entitlement | 404 |
+| PUT | `/v1/me/subscriptions/test` | Bearer | Staging only (`SUBSCRIPTION_TESTS=on` and account in `SUBSCRIPTION_TEST_EMAILS`, else 404, #924): `{mode off\|preview\|enforced\|null}` for this account → entitlement | 404 |
 | POST | `/v1/me/subscriptions/test/purchase` | Bearer | Staging only: fake purchase `{productId}` → entitlement | 404 |
 | POST | `/v1/me/subscriptions/test/cancel` | Bearer | Staging only: `{end?}` → entitlement | 404 |
 | POST | `/v1/app-store/notifications` | Apple JWS | App Store Server Notifications V2 `{signedPayload}` → 200 / 400 | 300/min |

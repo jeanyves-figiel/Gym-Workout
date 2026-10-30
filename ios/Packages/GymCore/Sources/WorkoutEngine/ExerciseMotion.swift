@@ -41,6 +41,17 @@ public struct ExerciseMotion: Sendable, Equatable {
         return (pts[i].x + (pts[j].x - pts[i].x) * k, pts[i].y + (pts[j].y - pts[i].y) * k)
     }
 
+    /// The movement at these frames only (#932: the bundled light frames, `ExerciseIllustrations.liteFrames`).
+    public func sampled(_ frames: [Int]) -> ExerciseMotion {
+        let pts = points
+        guard !pts.isEmpty else { return self }
+        let path = frames.flatMap { f -> [Double] in
+            let p = pts[min(max(f, 0), pts.count - 1)]
+            return [p.x, p.y]
+        }
+        return ExerciseMotion(first, second, effortFirst: effortFirst, path: path, cyclic: cyclic)
+    }
+
     /// One half of a repetition as shown on the tempo chip.
     public struct Phase: Sendable, Equatable {
         public let label: String
@@ -181,4 +192,39 @@ public struct MotionPlayback: Sendable, Equatable {
 
     /// Part of each frame step spent dissolving to the next frame in the app (#241): a quick switch.
     public static let switchWindow = 0.2
+
+    /// Movement clips (#944, ios/Tools/illustrations/video.py): frames from start to end, played at `clipFPS`. A clip
+    /// runs start → end → start (2 × clipFrames - 1 frames), so the way back plays forward in the file too.
+    public static let clipFrames = 61
+    public static let clipFPS = 60.0
+
+    /// `length` clip frames from frame `start`, stretched over `duration` seconds (a hold: one frame).
+    public struct ClipPiece: Sendable, Equatable {
+        public let start: Double
+        public let length: Double
+        public let duration: Double
+
+        public init(start: Double, length: Double, duration: Double) {
+            self.start = start
+            self.length = length
+            self.duration = duration
+        }
+    }
+
+    /// This play (positions out of `frames` frames) as pieces of a movement clip played one after another: the same
+    /// tempo, holds and reps as the frames, drawn from 60 fps in-betweens.
+    public func clipPieces(frames: Int, clipFrames: Int = MotionPlayback.clipFrames) -> [ClipPiece] {
+        let scale = Double(clipFrames - 1) / Double(max(frames - 1, 1))
+        let back = Double(2 * (clipFrames - 1))
+        return segments.compactMap { seg in
+            guard seg.duration > 0 else { return nil }
+            let a = seg.from * scale, b = seg.to * scale
+            if abs(a - b) < 1e-9 {
+                return ClipPiece(start: a.rounded(), length: 1, duration: seg.duration)
+            }
+            // Back towards the start: the same frames in the clip's second half.
+            return a < b ? ClipPiece(start: a, length: b - a, duration: seg.duration)
+                : ClipPiece(start: back - a, length: a - b, duration: seg.duration)
+        }
+    }
 }

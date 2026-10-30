@@ -35,6 +35,8 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
       GITHUB_REPORTS_TOKEN: ${{ secrets.GITHUB_REPORTS_TOKEN }}
+      # Staging test-mode allow-list (#924): comma list of emails. Never sent to production.
+      SUBSCRIPTION_TEST_EMAILS: ${{ inputs.environment != 'production' && secrets.SUBSCRIPTION_TEST_EMAILS || '' }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -45,10 +47,19 @@ jobs:
         run: |
           if flyctl status -a "$FLY_APP" >/dev/null 2>&1; then echo "app exists"
           else flyctl apps create "$FLY_APP" --org "$ORG"; fi
+      # Production gets 10 GB (#923; volumes only grow, never shrink); staging keeps 1 GB.
       - name: Volume
+        env:
+          SIZE_GB: ${{ inputs.environment == 'production' && '10' || '1' }}
         run: |
-          if [ "$(flyctl volumes list -a "$FLY_APP" --json | jq length)" -gt 0 ]; then echo "volume exists"
-          else flyctl volumes create data -a "$FLY_APP" -r "$REGION" -s 1 -y; fi
+          vols=$(flyctl volumes list -a "$FLY_APP" --json)
+          if [ "$(echo "$vols" | jq length)" -eq 0 ]; then flyctl volumes create data -a "$FLY_APP" -r "$REGION" -s "$SIZE_GB" -y
+          else
+            echo "$vols" | jq -r '.[] | "\(.id) \(.size_gb // .SizeGb)"' | while read -r id size; do
+              if [ "$size" -lt "$SIZE_GB" ]; then echo "extending $id from ${size} GB to ${SIZE_GB} GB"; flyctl volumes extend "$id" -a "$FLY_APP" -s "$SIZE_GB" -y
+              else echo "volume $id is ${size} GB"; fi
+            done
+          fi
       # Generated in the runner, sent via stdin, never printed. Existing secrets are kept.
       - name: Secrets
         run: |
@@ -63,6 +74,7 @@ jobs:
               echo "SES_REGION=$SES_REGION"
             elif [ -n "$SMTP_URL" ]; then echo "SMTP_URL=$SMTP_URL"
             else echo "$have" | grep -qxE 'SES_ACCESS_KEY_ID|SMTP_URL|MAIL_TRANSPORT' || echo "MAIL_TRANSPORT=console"; fi
+            if [ -n "$SUBSCRIPTION_TEST_EMAILS" ]; then echo "SUBSCRIPTION_TEST_EMAILS=$SUBSCRIPTION_TEST_EMAILS"; fi
           } > "$RUNNER_TEMP/secrets.env"
           # Real mail configured → drop the console fallback (and the old SES SMTP URL when using the API).
           if { [ -n "$SES_ACCESS_KEY_ID" ] || [ -n "$SMTP_URL" ]; } && echo "$have" | grep -qx MAIL_TRANSPORT; then flyctl secrets unset --stage -a "$FLY_APP" MAIL_TRANSPORT; fi

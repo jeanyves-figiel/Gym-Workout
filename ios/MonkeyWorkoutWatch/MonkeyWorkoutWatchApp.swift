@@ -195,6 +195,10 @@ struct WatchRootView: View {
     /// Timers (#622) and swims (#624) take the whole screen too.
     @State private var wod = WodTracker.shared
     @State private var swim = SwimTracker.shared
+    /// Breathing (#834) too.
+    @State private var calm = CalmTracker.shared
+    /// Opened from a Mind Smart Stack card (#834).
+    @State private var showMind = false
 
     var body: some View {
         #if DEBUG
@@ -209,6 +213,8 @@ struct WatchRootView: View {
             .overlay(alignment: .top) { BuddyPingView() }
             .onAppear(perform: startFromActionButton)
             .onChange(of: ActionButton.shared.startRequested) { _, on in if on { startFromActionButton() } }
+            .onOpenURL { url in if url.host == "mind" { showMind = true } }
+            .sheet(isPresented: $showMind) { WatchMindView() }
     }
 
     /// First Action button press (#349): start Next up (Pro lock as on the home screen).
@@ -233,6 +239,10 @@ struct WatchRootView: View {
             TimerRunView()
         } else if let summary = wod.summary, player == nil {
             TimerSummaryView(summary: summary)
+        } else if calm.running, player == nil {
+            CalmRunView()
+        } else if let summary = calm.summary, player == nil {
+            CalmSummaryView(summary: summary)
         } else if swim.running, player == nil {
             SwimRunView()
         } else if let summary = swim.summary, player == nil {

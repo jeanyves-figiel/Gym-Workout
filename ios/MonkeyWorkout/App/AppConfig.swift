@@ -14,5 +14,15 @@ enum AppConfig {
     static let termsURL = apiBaseURL.appendingPathComponent("terms")
     static let supportURL = apiBaseURL.appendingPathComponent("support")
 
+    /// Web base for links members send to others (invites, shared posts) (#823): the API base when it is a public
+    /// https host, never the DEV http://localhost one, which nobody else can open.
+    static let publicWebURL: URL = {
+        if apiBaseURL.scheme == "https", let host = apiBaseURL.host(), host != "localhost", host != "127.0.0.1" { return apiBaseURL }
+        return URL(string: "https://workout.monkeygrade.cloud")!
+    }()
+
+    /// Absolute public link for a server-relative path such as "/i/CODE" (#823).
+    static func publicLink(_ path: String) -> URL? { URL(string: path, relativeTo: publicWebURL)?.absoluteURL }
+
     static let keychainService = (Bundle.main.bundleIdentifier ?? "Com.app.MonkeyWorkout") + ".auth"
 }

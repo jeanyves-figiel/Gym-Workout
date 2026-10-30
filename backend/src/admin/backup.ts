@@ -8,7 +8,7 @@ import { OffsiteStore } from '../offsite.ts';
 
 // CLI (#310), run on the Fly machine by the "Fly backups" workflow:
 //   node src/admin/backup.ts list | now | verify <file> | stage-restore <file>
-//   offsite-list | offsite-upload <file> | offsite-fetch <YYYY-MM-DD>  (encrypted Tigris copy, #313)
+//   offsite-list | offsite-upload <file> | offsite-fetch <YYYY-MM-DD[THH]>  (encrypted Tigris copy, #313)
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, file] = process.argv.slice(2);
   const path = process.env.DB_PATH ?? '/data/app.db';
@@ -32,15 +32,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const c = loadConfig().offsite;
     if (!c) throw new Error('off-site copy not configured (Tigris bucket secrets + BACKUP_KEY)');
     const store = new OffsiteStore(c);
-    if (cmd === 'offsite-list') out({ bucket: c.bucket, copies: await store.list() });
+    if (cmd === 'offsite-list') out({ bucket: c.bucket, copies: await store.list(), hourly: await store.listHourly() });
     else if (cmd === 'offsite-upload' && file && /^app-\d{4}-\d{2}-\d{2}\.db$/.test(file)) out(await store.upload(join(dir, file), file.slice(4, 14)));
-    else if (cmd === 'offsite-fetch' && file && /^\d{4}-\d{2}-\d{2}$/.test(file)) {
+    else if (cmd === 'offsite-fetch' && file && /^\d{4}-\d{2}-\d{2}(T\d{2})?$/.test(file)) {
       // Own name next to the local backups (never overwrites one, not pruned); `verify` / `stage-restore` work on it.
-      const name = `app-${file}.offsite.db`;
+      // An hourly copy (YYYY-MM-DDTHH, #923) lands under its day's name: fetch one copy per day at a time.
+      const name = `app-${file.slice(0, 10)}.offsite.db`;
       const dest = join(dir, name);
       await store.download(file, dest);
       out({ fetched: file, file: name, ...inspectCopy(dest) });
-    } else throw new Error('usage: offsite-list | offsite-upload app-YYYY-MM-DD.db | offsite-fetch YYYY-MM-DD');
+    } else throw new Error('usage: offsite-list | offsite-upload app-YYYY-MM-DD.db | offsite-fetch YYYY-MM-DD[THH]');
   } else {
     console.error('usage: backup.ts list | now | verify <file> | stage-restore <file> | offsite-list | offsite-upload <file> | offsite-fetch <day>');
     process.exit(2);

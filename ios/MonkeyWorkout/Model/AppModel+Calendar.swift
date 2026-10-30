@@ -8,6 +8,17 @@ extension AppModel {
     /// All away periods, earliest first.
     var away: [AwayPeriod] { (state.synced?.away ?? []).sorted { ($0.start, $0.end) < ($1.start, $1.end) } }
 
+    /// The sport of a day: away days (holiday, trip, can't train) drop the weekly sport; a sport added for that
+    /// day still counts.
+    func daySport(onWeekday weekday: Int, key: String?, date: Date = Date()) -> Sport? {
+        profile?.sport(onWeekday: weekday, key: key, date: date, away: away)
+    }
+
+    /// Other sports' days of a week without the ones on away days.
+    func sportDays(on date: Date, calendar cal: Calendar = Progression.calendar()) -> [SportDay] {
+        profile?.sportDays(on: date, calendar: cal, away: away) ?? []
+    }
+
     /// Away periods that end today or later.
     var upcomingAway: [AwayPeriod] {
         let today = PlanCalendar.key(Date(), planCalendar)
@@ -103,10 +114,17 @@ extension AppModel {
     }
 
     /// Planned, not yet done sessions with their date, from `from` to `to` inclusive (e.g. for reminders).
+    /// Skipped and removed ones (#643, #784) aren't planned any more (#818): no reminder, no agenda line.
     func plannedSessions(from: Date, to: Date) -> [(date: Date, session: Session)] {
         let cal = planCalendar
-        let weeks = Int(ceil(to.timeIntervalSince(Progression.weekStart(Date(), cal)) / (7 * 86_400))) + 1
-        return PlanCalendar.planned(in: calendarWeeks(count: min(52, max(1, weeks))), from: from, to: to, done: doneIds, calendar: cal)
+        let count = Int(ceil(to.timeIntervalSince(Progression.weekStart(Date(), cal)) / (7 * 86_400))) + 1
+        let weeks = calendarWeeks(count: min(52, max(1, count))).enumerated().map { i, w -> PlanCalendar.Week in
+            let week = w
+            var out = w
+            out.plan.sessions.removeAll { isSkipped($0.id, in: week, current: i == 0) }
+            return out
+        }
+        return PlanCalendar.planned(in: weeks, from: from, to: to, done: doneIds, calendar: cal)
     }
 
     /// The away period covering a weekday of the current week, if any.
@@ -137,8 +155,9 @@ extension AppModel {
         Task { await sync() }
     }
 
-    /// Moves a session of this week to the next free day by marking its day as "can't train"
-    /// (today when the session has no weekday). Returns the session's new date, nil if it no longer fits.
+    /// Moves a session of this week to the next free day: a missed one with a plain move (#822), a later one by marking
+    /// its day as "can't train" (today when the session has no weekday). Returns the session's new date, nil if it no
+    /// longer fits (a missed one then stays where it was).
     @discardableResult
     func reschedule(sessionId: String, now: Date = Date()) -> Date? {
         let cal = planCalendar
@@ -146,9 +165,19 @@ extension AppModel {
         let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
         guard let session = plan?.sessions.first(where: { $0.id == sessionId }) else { return nil }
         let weekday = session.weekday ?? today
+        // A missed earlier day (#822): moved to the next free day from today, not saved as a "can't train" day.
+        // Nil = nothing changed (no free day left).
+        if weekday < today {
+            let busy = Set((calendarWeeks(count: 1, now: now).first?.plan.sessions ?? []).filter { $0.id != sessionId }.compactMap(\.weekday))
+            guard let free = moveTargets(sessionId, now: now).first(where: { !busy.contains($0) }) else { return nil }
+            state.skipped?[sessionId] = nil
+            moveSession(sessionId, to: free, swap: false, now: now)
+            guard let moved = plan?.sessions.first(where: { $0.id == sessionId })?.weekday, moved != weekday else { return nil }
+            return cal.date(byAdding: .day, value: moved - 1, to: monday)
+        }
         let key = PlanCalendar.dayKeys(weekStart: monday, cal)[weekday - 1]
         if !away.contains(where: { $0.kind == .off && $0.covers(key) }) {
-            saveAway(AwayPeriod(kind: .off, start: key, end: key, note: weekday < today ? "Missed" : "Moved"))
+            saveAway(AwayPeriod(kind: .off, start: key, end: key, note: "Moved"))
         }
         guard let moved = plan?.sessions.first(where: { $0.id == sessionId })?.weekday else { return nil }
         return cal.date(byAdding: .day, value: moved - 1, to: monday)
@@ -202,7 +231,8 @@ extension AppModel {
     func moveTargets(_ sessionId: String, now: Date = Date()) -> [Int] {
         guard let week = calendarWeeks(count: 1, now: now).first,
               let s = week.plan.sessions.first(where: { $0.id == sessionId }), !doneIds.contains(sessionId) else { return [] }
-        return WeekSchedule.weekdays.filter { $0 != s.weekday && week.off[$0] == nil }
+        // Never an earlier day (#818): a session there could only be missed, as Add workout already knows (#537).
+        return WeekSchedule.weekdays.filter { $0 != s.weekday && week.off[$0] == nil && $0 >= todayWeekday }
     }
 
     /// Moves a session of this week to `weekday`, this week only; a session already there (not done) takes its day

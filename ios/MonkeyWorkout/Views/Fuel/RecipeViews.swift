@@ -343,7 +343,7 @@ struct RecipeDetailView: View {
         lines += ["", "Steps:"]
         lines += recipe.steps.enumerated().map { "\($0.offset + 1). \($0.element)" }
         if let tip = recipe.tip { lines += ["", "Tip: \(tip)"] }
-        lines += ["", "From MonkeyFit"]
+        lines += ["", "From MonkeyWorkout"]
         return lines.joined(separator: "\n")
     }
 }
@@ -367,76 +367,78 @@ struct CookModeView: View {
     }
 
     var body: some View {
-        VStack(spacing: 18) {
-            HStack {
-                Button { showIngredients.toggle() } label: {
-                    Label(showIngredients ? "Steps" : "Ingredients", systemImage: showIngredients ? "list.number" : "basket.fill")
-                        .font(Theme.label(14))
-                }
-                Spacer()
-                Text("\(step + 1) / \(recipe.steps.count)").font(Theme.label(15)).monospacedDigit()
-                Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 17, weight: .bold)) }
-                    .accessibilityLabel("Close")
-            }
-            .foregroundStyle(.white)
-            Text("\(recipe.emoji) \(recipe.name)").font(Theme.label(14)).foregroundStyle(Theme.muted)
-            if showIngredients {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { _, l in
-                            Text("• " + recipe.ingredient(l, servings: servings)).font(.title3.weight(.semibold))
-                        }
+        NavigationStack {
+            VStack(spacing: 18) {
+                HStack {
+                    Button { showIngredients.toggle() } label: {
+                        Label(showIngredients ? "Steps" : "Ingredients", systemImage: showIngredients ? "list.number" : "basket.fill")
+                            .font(Theme.label(14))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Spacer()
+                    Text("\(step + 1) / \(recipe.steps.count)").font(Theme.label(15)).monospacedDigit()
+                    Spacer()
                 }
-            } else {
-                Spacer()
-                Text(recipe.steps[step]).font(Theme.display(28)).multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.5)
-                    .id(step)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-                if let m = minutes {
-                    if let ends {
-                        TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                            let left = max(0, Int(ends.timeIntervalSince(ctx.date)))
-                            Text(Format.elapsed(TimeInterval(left))).font(Theme.display(54)).monospacedDigit()
-                                .foregroundStyle(left == 0 ? Theme.lime : .white)
+                .foregroundStyle(.white)
+                Text("\(recipe.emoji) \(recipe.name)").font(Theme.label(14)).foregroundStyle(Theme.muted)
+                if showIngredients {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { _, l in
+                                Text("• " + recipe.ingredient(l, servings: servings)).font(.title3.weight(.semibold))
+                            }
                         }
-                        Button("Stop timer") { self.ends = nil }.font(Theme.label(15)).foregroundStyle(Theme.muted)
-                    } else {
-                        Button { ends = Date().addingTimeInterval(Double(m) * 60) } label: {
-                            Label("Start \(m) min timer", systemImage: "timer")
-                        }
-                        .buttonStyle(LimeButtonStyle(fill: Theme.cardStrong, text: .white))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }
-                Spacer()
-            }
-            HStack(spacing: 10) {
-                Button { withAnimation(.snappy) { step = max(0, step - 1); ends = nil } } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 20, weight: .heavy)).frame(width: 64, height: 56)
-                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
-                }
-                .buttonStyle(.plain)
-                .disabled(step == 0)
-                .accessibilityLabel("Previous step")
-                if step < recipe.steps.count - 1 {
-                    Button { withAnimation(.snappy) { step += 1; ends = nil } } label: { Text("NEXT STEP") }
-                        .buttonStyle(LimeButtonStyle())
                 } else {
-                    Button { dismiss() } label: { Text("DONE · ENJOY") }
-                        .buttonStyle(LimeButtonStyle())
+                    Spacer()
+                    Text(recipe.steps[step]).font(Theme.display(28)).multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.5)
+                        .id(step)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                    if let m = minutes {
+                        if let ends {
+                            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                                let left = max(0, Int(ends.timeIntervalSince(ctx.date)))
+                                Text(Format.elapsed(TimeInterval(left))).font(Theme.display(54)).monospacedDigit()
+                                    .foregroundStyle(left == 0 ? Theme.lime : .white)
+                            }
+                            Button("Stop timer") { self.ends = nil }.font(Theme.label(15)).foregroundStyle(Theme.muted)
+                        } else {
+                            Button { ends = Date().addingTimeInterval(Double(m) * 60) } label: {
+                                Label("Start \(m) min timer", systemImage: "timer")
+                            }
+                            .buttonStyle(LimeButtonStyle(fill: Theme.cardStrong, text: .white))
+                        }
+                    }
+                    Spacer()
                 }
+                HStack(spacing: 10) {
+                    Button { withAnimation(.snappy) { step = max(0, step - 1); ends = nil } } label: {
+                        Image(systemName: "chevron.left").font(.system(size: 20, weight: .heavy)).frame(width: 64, height: 56)
+                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(step == 0)
+                    .accessibilityLabel("Previous step")
+                    if step < recipe.steps.count - 1 {
+                        Button { withAnimation(.snappy) { step += 1; ends = nil } } label: { Text("NEXT STEP") }
+                            .buttonStyle(LimeButtonStyle())
+                    } else {
+                        Button { dismiss() } label: { Text("DONE · ENJOY") }
+                            .buttonStyle(LimeButtonStyle())
+                    }
+                }
+                .foregroundStyle(.white)
             }
-            .foregroundStyle(.white)
+            .padding(20)
+            .background(recipe.gradient.opacity(0.35).ignoresSafeArea())
+            .background(Theme.bg.ignoresSafeArea())
+            .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+            .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+            .sensoryFeedback(.selection, trigger: step)
+            // Standard ✕ top right (#823): was a plain white ✕ beside the step count.
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
-        .padding(20)
-        .background(recipe.gradient.opacity(0.35).ignoresSafeArea())
-        .background(Theme.bg.ignoresSafeArea())
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
-        .sensoryFeedback(.selection, trigger: step)
     }
 }
 

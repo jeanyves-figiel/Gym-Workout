@@ -62,6 +62,18 @@ import Testing
         #expect(log.foods(at: breakfast.id)?.key == FuelDayLog.foodKey(breakfast.id))
     }
 
+    @Test func recipeAfterFoodsKeepsTheFoods() throws {
+        // #819: foods logged first, then a recipe on the same meal: both stay.
+        let breakfast = try #require(plan.slots.first { $0.kind == .breakfast })
+        let r = try #require(RecipeBook.catalog.first { $0.slots.contains(.breakfast) })
+        var log = FuelDayLog()
+        log.log([FoodServing(foodId: "coffee")], at: breakfast)
+        log.tick(breakfast, recipe: r)
+        #expect(log.ticks[breakfast.id]?.recipeId == r.id)
+        #expect(log.foods(at: breakfast.id)?.items.map(\.foodId) == ["coffee"])
+        #expect(log.foodCaffeineMg == 80)
+    }
+
     @Test func oldLogsDecode() throws {
         let json = #"{"glasses":2,"eaten":{"palms":1,"cups":0,"fists":0,"thumbs":0},"ticks":{"b":{"recipeId":"x","added":{"palms":1,"cups":0,"fists":0,"thumbs":0}}}}"#
         let log = try JSONDecoder().decode(FuelDayLog.self, from: Data(json.utf8))

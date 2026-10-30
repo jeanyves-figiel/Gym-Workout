@@ -57,9 +57,9 @@ struct ReadinessSheet: View {
                     Text("The markers").eyebrow()
                     marker(
                         "HRV", "Heart rate variability", "waveform.path.ecg",
-                        value: snapshot.hrv.map { "\(Int($0)) ms" }, avg: snapshot.hrvBaseline.map { "\(Int($0)) ms" },
+                        value: (snapshot.hrvWeek ?? snapshot.hrv).map { "\(Int($0)) ms" }, avg: snapshot.hrvBaseline.map { "\(Int($0)) ms" },
                         what: "Tiny changes in time between heartbeats, in milliseconds. Higher than your normal = well recovered. Lower = stress, poor sleep, illness or hard training is still in your body.",
-                        rule: "Counts as off when more than \(Int((1 - Readiness.hrvFloor) * 100)) % below your 30-day average.",
+                        rule: "Counts as off when your 7-day average is more than \(Int((1 - Readiness.hrvFloor) * 100)) % below your 30-day average.",
                         off: flags.contains("HRV below your baseline"), gradient: WorkoutEngine.Category.mobility.gradient)
                     marker(
                         "Rest HR", "Resting heart rate", "heart.fill",
@@ -209,31 +209,26 @@ struct WeekPhaseSheet: View {
         ("Deload", "−40% volume", "Recovery week: fewer sets, RPE 2 lower, shorter sessions. You come back stronger."),
     ]
 
+    /// Base, Build, Peak, Deload (#823).
+    private static let fills: [(gradient: LinearGradient, ink: Color)] = [
+        (WorkoutEngine.Category.cardio.gradient, Color.white), (WorkoutEngine.Category.mobility.gradient, Color.white),
+        (LinearGradient.hiit, Color.white), (WorkoutEngine.Category.stretch.gradient, WorkoutEngine.Category.stretch.ink),
+    ]
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Your plan runs in 4-week cycles. Each week has a job; the chip on Train shows this week's.")
                         .font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted)
+                    // Gradient tiles, number left (#823): this week ringed in lime.
                     ForEach(Array(phases.enumerated()), id: \.offset) { i, p in
                         let current = i == Generator.phaseIndex(week)
-                        HStack(alignment: .top, spacing: 14) {
-                            Text("\(i + 1)").font(Theme.display(34)).foregroundStyle(current ? Theme.ink : .white)
-                                .frame(width: 52, height: 52)
-                                .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(current ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.1))))
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(p.0).font(Theme.display(20))
-                                    Text(p.1).font(Theme.label(12)).foregroundStyle(Theme.lime)
-                                    Spacer()
-                                    if current { Text("This week").font(Theme.label(11)).foregroundStyle(Theme.lime) }
-                                }
-                                Text(p.2).font(.footnote.weight(.medium)).foregroundStyle(Theme.muted)
-                            }
-                        }
-                        .card(padding: 14)
-                        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(current ? Theme.lime : .clear, lineWidth: 2))
+                        let fill = Self.fills[i % Self.fills.count]
+                        GradientTile(gradient: fill.gradient, number: "\(i + 1)", title: current ? "\(p.0) · this week" : p.0,
+                                     detail: "\(p.1) · \(p.2)", ink: fill.ink, outlined: current)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityAddTraits(current ? .isSelected : [])
                     }
                     RPEExplainer()
                 }

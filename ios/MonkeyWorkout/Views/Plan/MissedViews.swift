@@ -14,9 +14,41 @@ struct MissedActionsRow: View {
     var body: some View {
         HStack(spacing: 6) {
             action("Log it", "square.and.pencil", fill: primary, ink: primaryInk, onLog)
-            action("Mark done", "checkmark") { withAnimation { model.markMissedDone(session) } }
-            action("Do today", "arrow.uturn.forward") { withAnimation { model.doMissedToday(session.id) } }
-            action("Skip", "nosign") { withAnimation { model.skipMissed(session.id) } }
+            action("Mark done", "checkmark") { markDone() }
+            action("Do today", "arrow.uturn.forward") { doToday() }
+            action("Skip", "nosign") { skip() }
+        }
+    }
+
+    // Each one at once with the Undo bar (#822), as Skip and Remove elsewhere.
+
+    private func markDone() {
+        let s = session
+        let r = withAnimation { model.markMissedDone(s) }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) done", detail: "Logged on \(s.dayLabel)", symbol: "checkmark") { [model] in
+            withAnimation { _ = model.undoWorkout(r.id) }
+        }
+    }
+
+    private func doToday() {
+        let s = session
+        let wasSkipped = model.skippedIds.contains(s.id)
+        withAnimation { model.doMissedToday(s.id) }
+        guard let from = s.weekday else { return }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) moved to today", detail: "Back to \(WeekSchedule.name(from)) on Undo",
+                                       symbol: "arrow.uturn.forward") { [model] in
+            withAnimation {
+                model.moveSession(s.id, to: from, swap: false)
+                if wasSkipped { model.skipSession(s.id) }
+            }
+        }
+    }
+
+    private func skip() {
+        let s = session
+        withAnimation { model.skipSession(s.id) }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "Gone from \(s.dayLabel)", symbol: "nosign") { [model] in
+            withAnimation { model.unskip(s.id) }
         }
     }
 
@@ -230,8 +262,6 @@ struct WeekDayStrip: View {
     @State private var addingDay: DayPick?
     /// Long press on any day, any week (#671): the same moves as its day card's tiles.
     @State private var movingLater: LaterPick?
-    /// Remove… from the long press (#784).
-    @State private var removing: RemoveRequest?
     @State private var movingHere: LaterDay?
     @State private var editingTrip: SportTrip?
     @State private var restRequest: SportOffRequest?
@@ -253,12 +283,13 @@ struct WeekDayStrip: View {
             let todayOffset = model.todayWeekday - 1
             // Coming weeks as the calendar plans them (index 0 = this week).
             let weeks = model.calendarWeeks(count: 3)
-            let pastDays = Set(model.historyItems(health: health).map { cal.startOfDay(for: $0.start) })
+            // Days with a logged workout or sport (#902): last week's and this week's rest days show them done.
+            let logged = PlanCalendar.loggedDays(model.historyItems(health: health).map(\.start), cal)
             // Shared lens strip (#486, #510): offsets from today, picks count from this week's Monday.
             LensDayStrip(range: -Self.daysBack...Self.daysAhead,
                          selected: selected.map { $0 - 1 - todayOffset } ?? 0,
                          onPick: { onPick(todayOffset + $0 + 1) }) { o in
-                day(o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, pastDays: pastDays, cal: cal)
+                day(o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, logged: logged, cal: cal)
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
             .sheet(item: $moving) { MoveSessionSheet(sessionId: $0.id) }
@@ -267,7 +298,6 @@ struct WeekDayStrip: View {
             }
             .sheet(item: $addingDay) { AddWorkoutSheet(weekday: $0.id) }
             .sheet(item: $movingLater) { MoveSessionSheet(sessionId: $0.session, later: $0.week) }
-            .removeWorkoutFlow($removing)
             .sheet(item: $movingHere) { MoveHereSheet(week: $0.week, weekday: $0.weekday) }
             .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
             .sportOffFlow($restRequest)
@@ -285,7 +315,7 @@ struct WeekDayStrip: View {
             if !swaps.isEmpty {
                 Menu("Swap with…", systemImage: "arrow.up.arrow.down") {
                     ForEach(swaps, id: \.id) { o in
-                        Button("\(o.displayTitle) · \(o.weekday.map(WeekSchedule.name) ?? "")") { model.swapDays(s, with: o) }
+                        Button("\(o.displayTitle) · \(o.weekday.map(WeekSchedule.name) ?? "")") { swapWithUndo(model, s, with: o) }
                     }
                 }
             }
@@ -297,13 +327,12 @@ struct WeekDayStrip: View {
         Button("Add workout this day", systemImage: "plus") { addingDay = DayPick(id: wd) }
         if model.canSkip(s) {
             Button(wd == model.todayWeekday ? "Skip today" : "Skip \(WeekSchedule.name(wd))", systemImage: "nosign", role: .destructive) {
-                skipWithUndo(model, s)
+                skipDay(model, s, in: nil)
             }
-        } else if model.skippedIds.contains(s.id), wd >= model.todayWeekday {
-            Button("Unskip", systemImage: "arrow.uturn.backward") { withAnimation { model.unskip(s.id) } }
         }
-        if !model.doneIds.contains(s.id), model.state.activeWorkout?.sessionId != s.id {
-            Button("Remove…", systemImage: "trash", role: .destructive) { removing = model.removeRequest(s, weekday: wd, in: nil) }
+        if !model.doneIds.contains(s.id), model.state.activeWorkout?.sessionId != s.id,
+           let stop = stopWeekdayTitle(model, s, weekday: wd, in: nil) {
+            Button(stop, systemImage: "arrow.triangle.2.circlepath", role: .destructive) { stopWeekday(model, s, weekday: wd) }
         }
     }
 
@@ -313,12 +342,12 @@ struct WeekDayStrip: View {
     private func laterMenu(_ s: Session?, week w: PlanCalendar.Week, wd: Int, date: Date, day: Int) -> some View {
         Button("Show in card", systemImage: "rectangle.on.rectangle") { onPick(day) }
         if let s {
-            let skipped = model.isSkipped(s.id, in: w)
             Button("Move to…", systemImage: "arrow.left.arrow.right") { movingLater = LaterPick(session: s.id, week: w) }
             Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = w.days[wd - 1] }
-            Button(skipped ? "Unskip" : "Skip \(WeekSchedule.name(wd))", systemImage: skipped ? "arrow.uturn.backward" : "nosign",
-                   role: skipped ? nil : .destructive) { toggleSkip(model, s, in: w) }
-            Button("Remove…", systemImage: "trash", role: .destructive) { removing = model.removeRequest(s, weekday: wd, in: w) }
+            Button("Skip \(WeekSchedule.name(wd))", systemImage: "nosign", role: .destructive) { skipDay(model, s, in: w) }
+            if let stop = stopWeekdayTitle(model, s, weekday: wd, in: w) {
+                Button(stop, systemImage: "arrow.triangle.2.circlepath", role: .destructive) { stopWeekday(model, s, weekday: wd) }
+            }
         } else {
             Button("Workout here", systemImage: "plus") { movingHere = LaterDay(week: w, weekday: wd) }
             sportMenu(key: w.days[wd - 1], wd: wd, date: date)
@@ -361,7 +390,7 @@ struct WeekDayStrip: View {
     /// Leftmost cell that puts the selected day (today when none) under the lens (#486).
     /// The day `offset` days from today (#464): this week as before, later weeks from the calendar, last week from History.
     @ViewBuilder
-    private func day(_ offset: Int, todayOffset: Int, weekStart: Date, weeks: [PlanCalendar.Week], pastDays: Set<Date>, cal: Calendar) -> some View {
+    private func day(_ offset: Int, todayOffset: Int, weekStart: Date, weeks: [PlanCalendar.Week], logged: Set<String>, cal: Calendar) -> some View {
         let fromMonday = todayOffset + offset
         let week = Int((Double(fromMonday) / 7).rounded(.down))
         let wd = fromMonday - week * 7 + 1
@@ -372,15 +401,17 @@ struct WeekDayStrip: View {
         if offset < -Self.daysBack || offset > Self.daysAhead {
             cell(wd, day: n, isToday: false, state: .rest).opacity(0.25).accessibilityHidden(true)
         } else if week == 0 {
-            thisWeek(wd, day: n, isToday: isToday, date: date)
+            thisWeek(wd, day: n, isToday: isToday, date: date, logged: logged.contains(PlanCalendar.key(date, cal)))
         } else if week > 0, week < weeks.count {
             let w = weeks[week]
-            let session = w.plan.sessions.first { $0.weekday == wd }
+            // Skipped workouts are gone (#849): all skipped leaves a rest day (#818) with its rest-day menu.
+            let daySessions = w.plan.sessions.filter { $0.weekday == wd }
+            let session = daySessions.first { !model.isSkipped($0.id, in: w) }
             // The same sport the day card shows (#670): dated days first, then weekly climbing and other sports.
-            let daySport = w.off[wd] == nil ? model.profile?.sport(onWeekday: wd, key: w.days[wd - 1], date: date) : nil
+            let daySport = w.off[wd] == nil ? model.daySport(onWeekday: wd, key: w.days[wd - 1], date: date) : nil
             let climb = daySport == .climbing
             let sport = climb ? nil : daySport
-            let skipped = session.map { model.isSkipped($0.id, in: w) } ?? false
+            let skipped = !daySessions.isEmpty && daySessions.allSatisfy { model.isSkipped($0.id, in: w) }
             // A skipped day with nothing else on it is a rest day (#698): moon, or its sport.
             let state: DayState = session != nil && !skipped ? (session?.hiit != nil ? .hiit : .planned) : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
             Button { onPick(fromMonday + 1) } label: { cell(wd, day: n, isToday: false, state: state, picked: selected == fromMonday + 1) }
@@ -390,7 +421,7 @@ struct WeekDayStrip: View {
                 .accessibilityAddTraits(selected == fromMonday + 1 ? .isSelected : [])
                 .accessibilityLabel("\(label): \(session?.displayTitle ?? (climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day"))")
         } else if week < 0 {
-            let trained = pastDays.contains(cal.startOfDay(for: date))
+            let trained = logged.contains(PlanCalendar.key(date, cal))
             let picked = selected == fromMonday + 1
             Button { onPick(fromMonday + 1) } label: {
                 cell(wd, day: n, isToday: false, state: trained ? .done : .rest, picked: picked).opacity(trained || picked ? 1 : 0.6)
@@ -404,41 +435,36 @@ struct WeekDayStrip: View {
     }
 
     @ViewBuilder
-    private func thisWeek(_ wd: Int, day n: Int, isToday: Bool, date: Date) -> some View {
+    private func thisWeek(_ wd: Int, day n: Int, isToday: Bool, date: Date, logged: Bool) -> some View {
         let sessions = model.plan?.sessions ?? []
         let day = sessions.filter { $0.weekday == wd }
         let dayMissed = model.missedSessions.filter { $0.weekday == wd }
         if !dayMissed.isEmpty {
-            // A day whose missed sessions were all skipped (#340) is picked like any other day.
-            let allSkipped = dayMissed.allSatisfy { model.skippedIds.contains($0.id) }
-            Button { if allSkipped { onPick(wd) } else { catchUp = DayPick(id: wd) } } label: {
-                cell(wd, day: n, isToday: isToday, state: .missed(skipped: allSkipped), picked: allSkipped && selected == wd)
-            }
+            // Skipped ones aren't missed (#854): their day is a rest day below.
+            Button { catchUp = DayPick(id: wd) } label: { cell(wd, day: n, isToday: isToday, state: .missed) }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(WeekSchedule.name(wd)): \(dayMissed.map(\.displayTitle).joined(separator: ", ")) \(allSkipped ? "skipped" : "missed")")
-            .accessibilityHint(allSkipped ? "" : "Log it, mark it done, do it today or skip")
-        } else if let s = day.first {
-            let allDone = day.allSatisfy { model.doneIds.contains($0.id) }
-            // Today's or a later day skipped (#643): with nothing else on it, a rest day (#698), moon or its sport.
-            let anyDone = day.contains { model.doneIds.contains($0.id) }
-            let skipped = !allDone && day.allSatisfy { model.doneIds.contains($0.id) || model.skippedIds.contains($0.id) }
-            let daySport = model.profile?.sport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
-            let restState: DayState = daySport == .climbing ? .climb : daySport.map { DayState.sport($0) } ?? .rest
+            .accessibilityLabel("\(WeekSchedule.name(wd)): \(dayMissed.map(\.displayTitle).joined(separator: ", ")) missed")
+            .accessibilityHint("Log it, mark it done, do it today or skip")
+        } else if let s = day.first(where: { !model.skippedOff($0) }) {
+            // Today's or a later day's skipped workouts are gone (#849): all skipped leaves a rest day (#698), moon or its sport.
+            let on = day.filter { !model.skippedOff($0) }
+            let allDone = on.allSatisfy { model.doneIds.contains($0.id) }
             Button { onPick(wd) } label: {
-                cell(wd, day: n, isToday: isToday, state: allDone || skipped && anyDone ? .done : skipped ? restState : day.contains { $0.hiit != nil } ? .hiit : .planned,
+                cell(wd, day: n, isToday: isToday, state: allDone ? .done : on.contains { $0.hiit != nil } ? .hiit : .planned,
                      picked: selected == wd)
             }
                 .buttonStyle(.plain)
                 .contextMenu { workoutMenu(s, wd: wd, date: date) } preview: { workoutPreview(s, date: date) }
-                .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : skipped ? ", skipped" : "")")
+                .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : "")")
                 .accessibilityAddTraits(selected == wd ? .isSelected : [])
         } else {
             // Climbing days of a climber show orange (#277); other sports' days (#416) show their icon. Dated days first (#658).
-            let daySport = model.profile?.sport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
+            let daySport = model.daySport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
             let climb = daySport == .climbing
             let sport = climb ? nil : daySport
+            // An extra workout or sport logged on a day with no plan session is a workout day (#902), not a rest day.
             Button { onPick(wd) } label: {
-                cell(wd, day: n, isToday: isToday, state: climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
+                cell(wd, day: n, isToday: isToday, state: logged ? .done : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
             }
                 .buttonStyle(.plain)
                 // Same moves as the day card's tiles (#671); earlier days are logged on their card.
@@ -449,13 +475,13 @@ struct WeekDayStrip: View {
                         sportMenu(key: PlanCalendar.key(date, model.planCalendar), wd: wd, date: date)
                     }
                 }
-                .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
+                .accessibilityLabel("\(WeekSchedule.name(wd)): \(logged ? "trained" : climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
                 .accessibilityHint("Add a workout")
                 .accessibilityAddTraits(selected == wd ? .isSelected : [])
         }
     }
 
-    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest, climb, sport(Sport)
+    private enum DayState: Equatable { case missed, done, planned, rest, climb, sport(Sport)
         /// A planned HIIT day (#757): ⚡ instead of the dot.
         case hiit
     }
@@ -472,7 +498,7 @@ struct WeekDayStrip: View {
         let fill = picked ? AnyShapeStyle(Color.white) : base
         let ink: Color = picked ? Color(hex: 0x2A1D6E) : state == .done ? Theme.ink : state == .rest ? .white.opacity(0.55) : .white
         let symbol: String = switch state {
-        case .missed(let skipped): skipped ? "minus" : "exclamationmark"
+        case .missed: "exclamationmark"
         case .done: "checkmark"
         case .planned: "circle.fill"
         case .hiit: "bolt.heart.fill"
@@ -489,7 +515,7 @@ struct WeekDayStrip: View {
         .frame(maxWidth: .infinity)
         // Slimmer cells (#752, design C).
         .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill).opacity(state == .missed(skipped: true) ? 0.5 : 1))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.lime, lineWidth: isToday ? 2 : 0))
     }
 }
@@ -533,7 +559,7 @@ struct MissedCatchUpSheet: View {
     @State private var logging: Session?
 
     var body: some View {
-        let missed = model.missedToHandle.filter { weekday == nil || $0.weekday == weekday }
+        let missed = model.missedSessions.filter { weekday == nil || $0.weekday == weekday }
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -570,17 +596,21 @@ struct MissedCatchUpSheet: View {
         }
         .presentationDetents([.medium, .large])
         .preferredColorScheme(.dark)
-        .sheet(item: $logging, onDismiss: { if model.missedToHandle.allSatisfy({ weekday != nil && $0.weekday != weekday }) { dismiss() } }) { s in
+        .sheet(item: $logging, onDismiss: { if model.missedSessions.allSatisfy({ weekday != nil && $0.weekday != weekday }) { dismiss() } }) { s in
             MissedLogSheet(session: s)
         }
         .onChange(of: missed.map(\.id)) { _, ids in if ids.isEmpty && logging == nil { dismiss() } }
     }
 }
 
-/// Skips a session of today or later this week (#643): at once, with the Undo bar (no confirmation, #285).
-@MainActor func skipWithUndo(_ model: AppModel, _ s: Session) {
-    withAnimation { model.skipSession(s.id) }
-    UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "This week only", symbol: "nosign") { [model] in
-        withAnimation { model.unskip(s.id) }
-    }
+/// Swap with… from the strip's long press (#822): swapped at once, the Undo bar swaps back (as Focus' swap does).
+@MainActor func swapWithUndo(_ model: AppModel, _ s: Session, with other: Session) {
+    guard let day = s.weekday, let otherDay = other.weekday else { return }
+    withAnimation { model.swapDays(s, with: other) }
+    let otherId = other.id
+    UndoCloseCenter.shared.show(UndoOffer(
+        title: "\(other.displayTitle) on \(WeekSchedule.shortName(day))",
+        detail: "\(s.displayTitle) moved to \(WeekSchedule.shortName(otherDay))",
+        symbol: "arrow.up.arrow.down", colors: other.focus.palette.colors, reopen: { AnyView(EmptyView()) },
+        revert: { [model] in withAnimation { model.moveSession(otherId, to: otherDay) } }))
 }

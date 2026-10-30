@@ -114,48 +114,58 @@ struct EditExercisesSheet: View {
         .undoableClose(closeGuard, offer: undoOffer)
     }
 
+    /// Two-line row (#823, design A): line 1 the thumbnail, the name with the whole width (2 lines) and its reps;
+    /// line 2 sets, Swap and Split. The list's own ⊖ (remove) and ≡ (drag) stay at the row's edges, so swipe-to-remove
+    /// and reorder work as before.
     private func row(_ item: PlannedExercise, block: Block) -> some View {
         let e = Exercise.get(item.exerciseId)
-        return HStack(spacing: 10) {
-            ExerciseThumbnail(exercise: e, size: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    if let g = item.group {
-                        Text(g).font(Theme.label(10)).foregroundStyle(Theme.ink)
-                            .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(RoundedRectangle(cornerRadius: 5).fill(Theme.lime))
-                    }
-                    Text(e.name).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
-                }
-                HStack(spacing: 6) {
-                    Text(item.prescription.reps).font(.caption.weight(.semibold)).opacity(0.85)
-                    // Split a superset / circuit into straight sets (#352), on its first member.
-                    if item.group?.hasSuffix("1") == true, item.supersetWith == nil {
-                        Button { withAnimation { blocks.split(item.uid) } } label: {
-                            Label("Split", systemImage: "scissors")
-                                .font(Theme.label(10))
-                                .padding(.horizontal, 7).padding(.vertical, 2)
-                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                ExerciseThumbnail(exercise: e, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if let g = item.group {
+                            Text(g).font(Theme.label(10)).foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 4).padding(.vertical, 1)
+                                .background(RoundedRectangle(cornerRadius: 5).fill(Theme.lime))
                         }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Split \(item.group?.first.map(String.init) ?? "") into straight sets")
+                        Text(e.name).font(Theme.label(15)).lineLimit(2).minimumScaleFactor(0.85)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    Text(item.prescription.reps).font(.caption.weight(.semibold)).opacity(0.85)
                 }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 4)
-            SetsStepper(sets: item.prescription.sets) { n in withAnimation { blocks.setSets(item.uid, n) } }
-            Button { swapping = item } label: {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 13, weight: .heavy))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.lime))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            HStack(spacing: 8) {
+                SetsStepper(sets: item.prescription.sets) { n in withAnimation { blocks.setSets(item.uid, n) } }
+                Button { swapping = item } label: {
+                    Label("Swap", systemImage: "arrow.triangle.2.circlepath")
+                        .font(Theme.label(12))
+                        .foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.lime))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Swap \(e.name)")
+                // Split a superset / circuit into straight sets (#352), on its first member.
+                if item.group?.hasSuffix("1") == true, item.supersetWith == nil {
+                    Button { withAnimation { blocks.split(item.uid) } } label: {
+                        Label("Split", systemImage: "scissors")
+                            .font(Theme.label(10))
+                            .padding(.horizontal, 7).padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Split \(item.group?.first.map(String.init) ?? "") into straight sets")
+                }
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Swap \(e.name)")
         }
         .padding(.leading, item.supersetWith == nil ? 0 : 14)
     }

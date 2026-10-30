@@ -297,7 +297,7 @@ struct MeasurementLogSheet: View {
 
                     section("Body")
                     field(Self.weightKey, metric: .weight, hint: previous?.weightKg)
-                    field(Self.fatKey, metric: .bodyFat, hint: previous?.bodyFatPct, howTo: "From a smart scale, calipers or a scan")
+                    field(Self.fatKey, metric: .bodyFat, hint: previous?.bodyFatPct, howTo: "Smart scale, calipers or a scan") // fits two lines (#823)
 
                     section("Girths · cm")
                     Toggle(isOn: $perSide) {
@@ -317,7 +317,8 @@ struct MeasurementLogSheet: View {
                         }
                     }
 
-                    if health.connected {
+                    // Only a new entry goes to Health (#822): editing one never did, so no toggle there.
+                    if health.connected && isNew {
                         Toggle(isOn: $toHealth) {
                             Text("Also save weight, body fat & waist to Health").font(.body.weight(.semibold))
                         }

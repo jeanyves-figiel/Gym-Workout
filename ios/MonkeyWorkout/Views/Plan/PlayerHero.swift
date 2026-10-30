@@ -57,13 +57,14 @@ struct ExerciseHeroCard: View {
     /// The member's setup for this exercise at this gym (#355); `onSetup` nil = no setups (bodyweight).
     var setup: MachineNote?
     var onSetup: (() -> Void)?
-    var onSetupPhoto: (() -> Void)?
     /// Superset / circuit (#352): split it into straight sets in one tap.
     var onSplit: (() -> Void)?
     /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
     var onGroup: (() -> Void)?
     /// Build as I go (#490 C): add an exercise to the queue at any time.
     var onAdd: (() -> Void)?
+    /// Form check (#833): film this set; nil when the camera can't check the exercise.
+    var onFilm: (() -> Void)?
     /// Landscape player (#362, #373 design A): smaller type, the picture takes all the height left with Form /
     /// Change / Setup stacked beside it, no note.
     var compact = false
@@ -137,11 +138,6 @@ struct ExerciseHeroCard: View {
                     .layoutPriority(1)
                 }
             }
-            // Setup strip (#355): takes its line from the picture, which shrinks, so the player still never scrolls.
-            if let setup, let onSetup {
-                MachineNoteStrip(note: setup, hasPhoto: setup.photoId != nil || MachineNotePhotos.load(setup.id) != nil,
-                                 onEdit: onSetup, onPhoto: onSetupPhoto ?? onSetup)
-            }
             // #373: the picture takes all the height left on screen (the player never scrolls, #206), and nothing sits on
             // it but its own "Play movement" / tempo chip: Form, Change and Setup have their own places, so they never
             // overlap each other or the rep counter.
@@ -190,7 +186,7 @@ struct ExerciseHeroCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    /// Form, Change, Add (freestyle) and the add-setup chip, each in its own slot.
+    /// Form, Change, Add (freestyle) and the Setup chip, each in its own slot.
     @ViewBuilder
     private var actionButtons: some View {
         Button(action: onForm) {
@@ -198,6 +194,14 @@ struct ExerciseHeroCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Setup and technique")
+        if let onFilm {
+            Button(action: onFilm) {
+                Image(systemName: "video.fill").heroChip()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Film this set")
+            .accessibilityIdentifier("player.film")
+        }
         if let onChange {
             Button(action: onChange) {
                 Label("Change", systemImage: "arrow.triangle.2.circlepath")
@@ -214,8 +218,9 @@ struct ExerciseHeroCard: View {
             .accessibilityIdentifier("player.change")
         }
         if let onAdd { FreestyleAddChip(action: onAdd) }
-        if setup == nil, let onSetup {
-            MachineNoteAddChip(action: onSetup)
+        // Setup (#355) stays in its slot once saved (#809): filled with a tick, so the picture keeps its height.
+        if let onSetup {
+            MachineNoteChip(note: setup, action: onSetup)
         }
     }
 

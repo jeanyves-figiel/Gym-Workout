@@ -1,6 +1,393 @@
 {
   "releases": [
     {
+      "id": "2026-10-30.2",
+      "build": 88,
+      "date": "2026-10-30",
+      "items": [
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "power",
+          "title": "Moves are back",
+          "body": "Exercise animations play again on every exercise, smooth at 60 fps."
+        },
+        {
+          "symbol": "video.fill",
+          "tint": "strength",
+          "title": "Film my workout",
+          "body": "Show the weight, lift, and MonkeyFit names the move, counts reps, checks form and logs it. Video never leaves your iPhone."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "cardio",
+          "title": "Climb on a gym day",
+          "body": "Tap Climb on the day to track it live or log it."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-30.1",
+      "build": 87,
+      "date": "2026-10-30",
+      "items": [
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "power",
+          "title": "Silky moves",
+          "body": "Every exercise animation now plays at 60 fps, smooth from start to finish at your tempo."
+        },
+        {
+          "symbol": "scope",
+          "tint": "strength",
+          "title": "Focus next to Ask Coach",
+          "body": "With A bit of everything, the Focus tile now sits right beside the Insights ask bar: one line, less scrolling."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-29.3",
+      "build": 86,
+      "date": "2026-10-29",
+      "items": [
+        {
+          "symbol": "scope",
+          "tint": "strength",
+          "title": "Insights, your way",
+          "body": "Pick what matters most (strength, muscle, weight loss, endurance, mind or your sport) and Insights opens on it. Switch any time."
+        },
+        {
+          "symbol": "bubble.left.and.text.bubble.right.fill",
+          "tint": "power",
+          "title": "Ask Coach about your training",
+          "body": "A clearer ask bar on Insights with one-tap BEST, COMPARE, COUNT and VOLUME questions."
+        },
+        {
+          "symbol": "arrow.down.circle.fill",
+          "tint": "mobility",
+          "title": "Lighter app, HD moves on download",
+          "body": "MonkeyFit is about 130 MB smaller. Get every exercise in full detail with one tap on Wi-Fi, or anytime in Settings → HD animations."
+        },
+        {
+          "symbol": "camera.viewfinder",
+          "tint": "cardio",
+          "title": "Coach in Add exercises",
+          "body": "Ask Coach or snap your machine right from Add exercises: Coach's picks tick straight into your list."
+        },
+        {
+          "symbol": "fork.knife",
+          "tint": "warmup",
+          "title": "Fuel follows skips",
+          "body": "Skip a workout and Fuel, the Calendar widget and Home Screen week dots treat the day as a rest day."
+        },
+        {
+          "symbol": "lock.shield",
+          "tint": "stretch",
+          "title": "Safer and steadier",
+          "body": "Security fixes and a stronger server keep your data safe and the app fast."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-29.2",
+      "build": 85,
+      "date": "2026-10-29",
+      "items": [
+        {
+          "symbol": "number",
+          "tint": "mobility",
+          "title": "Build number in Account",
+          "body": "The bottom of Account now shows the build next to the version, like Version 1.0 (85), so you always know which update you run."
+        },
+        {
+          "symbol": "lock.shield",
+          "tint": "stretch",
+          "title": "Under the hood",
+          "body": "Fresher sign-in, email and Coach libraries keep the app secure and up to date."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-29.1",
+      "build": 84,
+      "date": "2026-10-29",
+      "items": [
+        {
+          "symbol": "sparkles",
+          "tint": "strength",
+          "title": "Progress is now Insights",
+          "body": "Same board with Body + Mind today, Mind, records and widgets, under a name that fits it all."
+        },
+        {
+          "symbol": "play.rectangle.on.rectangle.fill",
+          "tint": "power",
+          "title": "Save a workout from a video",
+          "body": "Saw a cool workout on TikTok or Instagram? Share → MonkeyFit, paste the link, add screenshots or tell Coach, and it becomes your own workout."
+        },
+        {
+          "symbol": "wind",
+          "tint": "mobility",
+          "title": "5 minutes of breathing",
+          "body": "Box breathing, physio sigh and wake-up now start at 5 minutes, the dose tested in research."
+        },
+        {
+          "symbol": "dumbbell.fill",
+          "tint": "power",
+          "title": "Machines, whole picture",
+          "body": "Machine pages show the full picture, and the body map lights each muscle by its share of the work."
+        },
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "cardio",
+          "title": "Explore by type, in colour",
+          "body": "Type pages now group exercises by muscle in gradient sections."
+        },
+        {
+          "symbol": "flag.checkered",
+          "tint": "warmup",
+          "title": "More in My plan",
+          "body": "Get ready for… and Skill tree now in My plan too."
+        },
+        {
+          "symbol": "calendar",
+          "tint": "stretch",
+          "title": "Rest day, still a workout",
+          "body": "A workout logged on a rest day now shows as a workout day in the week strip and the Calendar."
+        },
+        {
+          "symbol": "trash",
+          "tint": "strength",
+          "title": "Discarded means gone",
+          "body": "A discarded custom gym session is gone once Undo runs out: no more Resume."
+        },
+        {
+          "symbol": "square.and.arrow.up",
+          "tint": "cardio",
+          "title": "Share nudges step aside",
+          "body": "Share nudges now slide away on their own, or swipe them down."
+        },
+        {
+          "symbol": "checkmark.shield.fill",
+          "tint": "mobility",
+          "title": "Friendly shares, right away",
+          "body": "Anything unfriendly is turned back on the spot, so you can fix it and share again. No more waiting in review."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-28.2",
+      "build": 83,
+      "date": "2026-10-29",
+      "items": [
+        {
+          "symbol": "sparkles",
+          "tint": "strength",
+          "title": "Coach's week review",
+          "body": "Every Sunday Coach scores your week and suggests up to 3 changes for the next one, applied in a tap."
+        },
+        {
+          "symbol": "mic.fill",
+          "tint": "power",
+          "title": "Talk to Coach mid-set",
+          "body": "Hold the mic in Up next, ask \"too heavy?\" and Coach answers out loud with a one-tap fix."
+        },
+        {
+          "symbol": "cross.case.fill",
+          "tint": "mobility",
+          "title": "Train around pain",
+          "body": "Tap where it hurts or tell Coach, and your plan swaps the moves that load it until it feels better."
+        },
+        {
+          "symbol": "text.bubble.fill",
+          "tint": "cardio",
+          "title": "Tell Coach your goal",
+          "body": "Say what you want in one sentence: Coach fills in your plan and protects a sore spot. Not sure on a step? Ask Coach."
+        },
+        {
+          "symbol": "chart.bar.xaxis",
+          "tint": "strength",
+          "title": "Ask your history",
+          "body": "\"Am I squatting more than in June?\" Progress answers with the number and a mini chart, right on your iPhone."
+        },
+        {
+          "symbol": "chart.line.flattrend.xyaxis",
+          "tint": "power",
+          "title": "Plateau explainer",
+          "body": "Stuck on a lift? Coach spots a plateau, says why and gives one fix you apply in a tap (Apple Intelligence iPhones)."
+        },
+        {
+          "symbol": "fork.knife",
+          "tint": "warmup",
+          "title": "What can I eat?",
+          "body": "Monkey turns what's in your fridge into 3 meals that hit what's left today."
+        },
+        {
+          "symbol": "tag.fill",
+          "tint": "stretch",
+          "title": "Read a nutrition label",
+          "body": "Snap it → Label: point at the nutrition table, values fill in live, save it as your own food. Free, offline."
+        },
+        {
+          "symbol": "bell.badge.fill",
+          "tint": "cardio",
+          "title": "Smarter reminders",
+          "body": "Coach writes your reminders: last time's lift and the number to beat. Drifting? One kind nudge with a 20′ workout, now or tonight."
+        },
+        {
+          "symbol": "checkmark.shield.fill",
+          "tint": "mobility",
+          "title": "Safer community",
+          "body": "New posts, plans and photos get a quick check before others see them. Anything unfriendly is turned back on the spot, so you can fix it and share again."
+        },
+        {
+          "symbol": "bubble.left.and.text.bubble.right.fill",
+          "tint": "strength",
+          "title": "Ask Coach as you go",
+          "body": "Building a workout as you go? Ask Coach right on the start screen: name a muscle, describe or snap the machine in front of you, then start an exercise at once or line them up."
+        },
+        {
+          "symbol": "plus.circle.fill",
+          "tint": "power",
+          "title": "Add any workout",
+          "body": "Add any workout to a day: your own, the library, HIIT or a generated one from 20 min to 2 h. Your sport stays."
+        },
+        {
+          "symbol": "forward.end.fill",
+          "tint": "cardio",
+          "title": "Skip in one tap",
+          "body": "Skip is one tap now: 5 seconds to undo, then it's gone, also from past days and the Calendar. Long press for Stop training Tuesdays."
+        },
+        {
+          "symbol": "brain.head.profile",
+          "tint": "mobility",
+          "title": "Body and Mind today",
+          "body": "Progress now opens on Today: your Body and Mind scores side by side with Coach's call, plus a Mind tile and a 4-week mood calendar."
+        },
+        {
+          "symbol": "flask.fill",
+          "tint": "stretch",
+          "title": "Backed by science",
+          "body": "4-7-8 counts breaths (4, or 8 once easy), training days lift your Mind score, readiness and Mind use your 7-day HRV, and carb loading follows the 10 g/kg guideline."
+        },
+        {
+          "symbol": "wrench.and.screwdriver.fill",
+          "tint": "warmup",
+          "title": "Fixes",
+          "body": "Undo on the bar works again, ✕ leaves an empty freestyle workout at once, Track live goes dark after you discard a climb, and the Mind check-in chips are explained."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-28.1",
+      "build": 82,
+      "date": "2026-10-28",
+      "items": [
+        {
+          "symbol": "figure.climbing",
+          "tint": "cardio",
+          "title": "Climbing live",
+          "body": "Track live on a climbing day times your goes: grade chips, Flash, Sent or Fell in one tap, rest timer and today's pyramid. With a Watch, tap goes on your wrist too."
+        },
+        {
+          "symbol": "brain.head.profile",
+          "tint": "mobility",
+          "title": "Mind: check in and breathe",
+          "body": "A quick mood check-in on Train, Calm breathing sessions in Explore and a Mind score from mood, HRV, sleep and training. On your Watch too."
+        },
+        {
+          "symbol": "video.fill",
+          "tint": "strength",
+          "title": "Check your form",
+          "body": "Prop your phone up: the camera counts reps, flags short reps, lean or caving knees, and shows the right position as a ghost. Data stays on your phone."
+        },
+        {
+          "symbol": "mappin.and.ellipse",
+          "tint": "power",
+          "title": "Where you climbed",
+          "body": "Log climb and Log sport now keep the gym, crag or ski resort. Pick a chip or search maps."
+        },
+        {
+          "symbol": "airplane",
+          "tint": "cardio",
+          "title": "Holidays clear the week",
+          "body": "Weekly climbing and sport no longer show on away days. Climbing there anyway? Add it for that day with Sport."
+        },
+        {
+          "symbol": "calendar",
+          "tint": "strength",
+          "title": "Calendar touch-ups",
+          "body": "Tap a workout in the Calendar day sheet to open it, the Remove sheet fits its content, and your HIIT day is named HIIT."
+        },
+        {
+          "symbol": "face.smiling",
+          "tint": "power",
+          "title": "A friendlier icon",
+          "body": "MonkeyFit now winks at you. The Iron, Titan and Legend reward icons got the same new face."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-27.3",
+      "build": 81,
+      "date": "2026-10-27",
+      "items": [
+        {
+          "symbol": "sparkles",
+          "tint": "strength",
+          "title": "Big polish, every corner",
+          "body": "The player keeps every set, your week stays right after skips and moves, and Undo is there after Move, Swap and finishing a workout."
+        },
+        {
+          "symbol": "applewatch",
+          "tint": "cardio",
+          "title": "Watch workout, live on iPhone",
+          "body": "Train shows the workout running on your Watch. Open it on iPhone, and finish it from there with its summary."
+        },
+        {
+          "symbol": "arrow.up.arrow.down",
+          "tint": "power",
+          "title": "Push or lower weight where it fits",
+          "body": "Separate push and lower weights now show only on machines that can take them."
+        },
+        {
+          "symbol": "slider.horizontal.3",
+          "tint": "mobility",
+          "title": "Tidier player",
+          "body": "The Change sheet fits its options, Setup stays in place once saved, and the Undo bar dismisses with a tap or swipe."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "cardio",
+          "title": "Plan sport on a rest day",
+          "body": "Planning a sport on a day you made a rest day brings the sport back."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-27.2",
+      "build": 80,
+      "date": "2026-10-27",
+      "items": [
+        {
+          "symbol": "chart.xyaxis.line",
+          "tint": "strength",
+          "title": "Progress on the finish screen",
+          "body": "See your volume and est. 1-rep max charts, and every lift against last time: +2.5 kg, +1 rep, new best."
+        },
+        {
+          "symbol": "calendar.badge.plus",
+          "tint": "cardio",
+          "title": "Log any workout on a past day",
+          "body": "Did something off-plan? A past day's Workout tile now lists My workouts, the Library, Custom gym session, HIIT and Sport."
+        },
+        {
+          "symbol": "timer",
+          "tint": "power",
+          "title": "Clock stays on one line",
+          "body": "The workout clock in the player never wraps, even with a full toolbar."
+        }
+      ]
+    },
+    {
       "id": "2026-10-27.1",
       "build": 79,
       "date": "2026-10-27",

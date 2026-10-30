@@ -33,6 +33,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var trainLayout: TrainLayout?
     /// Customised Progress page (#444); nil = the default board.
     var progressBoard: ProgressBoard?
+    /// Insights focus (#939); nil = not picked yet, the picker shows on the next open of Insights.
+    var insightsFocus: InsightsFocus?
     /// Programmes the member made or copied (#269).
     var customProgrammes: [Programme]?
     /// Lift Focus block in progress (#499).
@@ -63,10 +65,14 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var bikeFTPTestedAt: Date?
     /// Life-stage programme check-in (#625): due date, birth, weeks off, doctor's OK.
     var lifeStage: LifeStageCheckIn?
+    /// Train around pain (#870): the spot protected across the plan until it feels better; nil = none.
+    var pain: PainProtect?
     /// New member onboarding (#664): steps done and the set-up card closed; nil = member from before it.
     var onboarding: OnboardingProgress?
     /// One-off places (#700): day ("yyyy-MM-dd") → saved gym id, picked on Train for just that day.
     var placeOnDay: [String: String]?
+    /// Your places (#960): typed places and the home spot of each group; nil = none yet.
+    var placeBook: PlaceBook?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {
@@ -150,8 +156,6 @@ struct LocalState: Codable {
     var skipped: [String: Bool]?
     /// Sessions of later weeks skipped ahead (#671): that week's Monday ("yyyy-MM-dd") → session ids.
     var skippedAhead: [String: [String]]?
-    /// Workouts removed from their day only (#784): "Monday key:session id". Skipped too, without the Unskip line.
-    var removed: [String]?
     /// Today's auto-tune choices (#495).
     var dayTune: DayTune?
     var logs: [LogEntry] = []
@@ -210,6 +214,9 @@ struct LocalState: Codable {
     var feels: [UUID: Int]?
     /// Apple effort 1–10 per workout (#614), by record id. Local only (Apple Health keeps its own copy).
     var efforts: [UUID: Int]?
+    /// Garmin inbox events already applied (#820), newest last: one applied but not acknowledged (app closed, offline)
+    /// isn't applied again by the next pull. Local only.
+    var garminHandledIds: [String]?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.
@@ -228,6 +235,8 @@ struct ActiveWorkout: Codable, Equatable {
     var interrupted: Bool? = nil
     var restEnd: Date? = nil
     var restTotal: Int? = nil
+    /// Superset/circuit member the rest leads to (#817), so a restore keeps the round order.
+    var restJumpUid: String? = nil
     /// When the workout began (#716): its sets stay its own past midnight. Nil for runs saved before.
     var startedAt: Date? = nil
 }
@@ -298,7 +307,6 @@ extension LocalState {
         ticked = (try? c.decodeIfPresent([String: Bool].self, forKey: .ticked)) ?? [:]
         skipped = try? c.decodeIfPresent([String: Bool].self, forKey: .skipped)
         skippedAhead = try? c.decodeIfPresent([String: [String]].self, forKey: .skippedAhead)
-        removed = try? c.decodeIfPresent([String].self, forKey: .removed)
         let logList = lossy(LogEntry.self, .logs)
         logs = logList?.elements ?? []
         pendingLogIds = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingLogIds)) ?? []
@@ -340,5 +348,6 @@ extension LocalState {
         dayTune = try? c.decodeIfPresent(DayTune.self, forKey: .dayTune)
         feels = try? c.decodeIfPresent([UUID: Int].self, forKey: .feels)
         efforts = try? c.decodeIfPresent([UUID: Int].self, forKey: .efforts)
+        garminHandledIds = try? c.decodeIfPresent([String].self, forKey: .garminHandledIds)
     }
 }

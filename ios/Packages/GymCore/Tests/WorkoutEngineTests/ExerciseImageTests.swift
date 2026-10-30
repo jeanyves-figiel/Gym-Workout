@@ -26,13 +26,48 @@ import Testing
         let assets = ios.appendingPathComponent("MonkeyWorkout/Resources/Illustrations.xcassets")
         for e in Exercise.catalog {
             let names = e.illustrationAssets
-            #expect(names.count == ExerciseIllustrations.frameCount(of: e.id), "\(e.id)")
+            #expect(names.count == (e.hasIllustration ? ExerciseIllustrations.liteFrameCount : 0), "\(e.id)")
             for name in names {
                 let png = assets.appendingPathComponent("\(name).imageset/\(name).png")
                 #expect(FileManager.default.fileExists(atPath: png.path), "\(png.path)")
             }
         }
-        #expect(Exercise.get("back-squat").illustrationAssets == (0..<ExerciseIllustrations.frameCount(of: "back-squat")).map { "illustration-back-squat-\($0)" })
+        #expect(Exercise.get("back-squat").illustrationAssets == (0..<ExerciseIllustrations.liteFrameCount).map { "illustration-back-squat-\($0)" })
+    }
+
+    /// #932: every HD frame is in ios/HDAnimations (the downloaded pack); the light frames include start, middle, end.
+    @Test func hdFramesAndLightFrames() {
+        let ios = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let hd = ios.appendingPathComponent("HDAnimations")
+        for id in ExerciseIllustrations.ids {
+            let n = ExerciseIllustrations.frameCount(of: id)
+            for f in 0..<n {
+                #expect(FileManager.default.fileExists(atPath: hd.appendingPathComponent("\(id)/\(f).png").path), "\(id) \(f)")
+            }
+            #expect(!FileManager.default.fileExists(atPath: hd.appendingPathComponent("\(id)/\(n).png").path), "\(id) extra frame")
+            let lite = ExerciseIllustrations.liteFrames(n)
+            #expect(lite.count == ExerciseIllustrations.liteFrameCount && lite.first == 0 && lite.last == n - 1, "\(id)")
+            #expect(zip(lite, lite.dropFirst()).allSatisfy { $0 < $1 }, "\(id)")
+            #expect(ExerciseIllustrations.keyFrames(n).allSatisfy(lite.contains), "\(id)")
+        }
+        let squat = Exercise.get("back-squat").motion!
+        let lite = squat.sampled(ExerciseIllustrations.liteFrames(ExerciseIllustrations.frameCount(of: "back-squat")))
+        #expect(lite.points.count == ExerciseIllustrations.liteFrameCount && lite.points.first! == squat.points.first!)
+    }
+
+    /// #944: every illustrated exercise has its light movement clip in the app and its HD clip for the pack.
+    @Test func everyIllustrationHasClips() {
+        let ios = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let light = ios.appendingPathComponent("MonkeyWorkout/Resources/Motion")
+        let hd = ios.appendingPathComponent("HDMotion")
+        for id in ExerciseIllustrations.ids {
+            #expect(FileManager.default.fileExists(atPath: light.appendingPathComponent("motion-\(id).mp4").path), "\(id)")
+            #expect(FileManager.default.fileExists(atPath: hd.appendingPathComponent("\(id).mp4").path), "\(id)")
+        }
     }
 
     @Test func everyIllustrationHasMotion() {
@@ -132,5 +167,23 @@ import Testing
         #expect(MotionPlayback.blend(2.5, frames: 9, window: 0.2).upper == 0)
         #expect(abs(MotionPlayback.blend(2.9, frames: 9, window: 0.2).upper - 0.5) < 1e-9)
         #expect(MotionPlayback.blend(2.999, frames: 9, window: 0.2).upper > 0.99)
+    }
+
+    @Test func playbackAsClipPieces() {
+        // #944: start → end from the clip's first half, holds as one frame (from the first half, the same picture), the
+        // way back from its second half.
+        let p = MotionPlayback(frames: 17, cycles: 1, out: 1, back: 2, hold: 0.5)
+        let pieces = p.clipPieces(frames: 17, clipFrames: 61)
+        #expect(pieces == [
+            .init(start: 0, length: 60, duration: 1), .init(start: 60, length: 1, duration: 0.5),
+            .init(start: 60, length: 60, duration: 2), .init(start: 0, length: 1, duration: 0.5),
+        ])
+        #expect(pieces.reduce(0) { $0 + $1.duration } == p.duration)
+        // A glide in from the middle frame back to the start plays the second half too.
+        let lead = MotionPlayback(frames: 3, cycles: 1, out: 1, back: 1, hold: 0, from: 1).clipPieces(frames: 3, clipFrames: 61)
+        #expect(lead.first == .init(start: 90, length: 30, duration: 0.25))
+        // A gait only plays forward.
+        let walk = MotionPlayback(frames: 9, cycles: 2, out: 0.5, back: 0.5, hold: 0.35, cyclic: true).clipPieces(frames: 9)
+        #expect(walk == Array(repeating: .init(start: 0, length: 60, duration: 1), count: 2))
     }
 }

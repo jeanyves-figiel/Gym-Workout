@@ -79,7 +79,7 @@ struct HomeStatRows: View {
             .buttonStyle(.plain)
             NavigationLink { ProgressScreen() } label: {
                 // Real counts on the right (#541), not a bare "›".
-                HomeRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
+                HomeRow(symbol: "sparkles", title: "Insights",
                         value: "\(p.records.count)", tint: (0x3D5AFF, 0x7B3DFF), unit: "PR")
             }
             .buttonStyle(.plain)
@@ -92,6 +92,18 @@ struct HomeStatRows: View {
                 .sensoryFeedback(.increase, trigger: water.today())
                 .accessibilityLabel("Add a glass of water")
                 .accessibilityValue("\(water.today()) of \(water.target) glasses today")
+            }
+            // Mind (#834): check in, Mind score, Coach's breathing pick and Calm sessions.
+            if let mind = snap.mind {
+                NavigationLink { WatchMindView() } label: {
+                    if mind.checkedInToday() {
+                        HomeRow(symbol: "brain.head.profile", title: "Mind", value: mind.score.map { "\($0)" } ?? "›",
+                                tint: (0x3B3F8F, 0x7A2CFF), unit: mind.score == nil ? nil : mind.level?.uppercased())
+                    } else {
+                        HomeRow(symbol: "sun.horizon.fill", title: "Check in", value: "😊", tint: (0xFF3D9A, 0x7A2CFF), unit: "MIND")
+                    }
+                }
+                .buttonStyle(.plain)
             }
             // Other sports (#418): snowboard, MTB, hike, Hyrox… tracked in the background with GPS.
             NavigationLink { SportPickerView() } label: {

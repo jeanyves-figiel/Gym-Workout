@@ -40,6 +40,7 @@ struct AccountView: View {
         static let pro = "MonkeyWorkout Pro membership subscription trial lifetime"
         static let profile = "Your profile name nickname photo about avatar community social gym buddies live sharing blocked gender pronouns coach calls you how we talk to you share prompts story stories instagram tiktok socials moments"
         static let gym = "Your gym equipment trip travel"
+        static let places = "Your places climbing gym crag ski resort snow park trail pool court studio home spot boulder wall"
         static let body = "Body & Health height weight sex figure apple health"
         static let onboarding = "Onboarding set up setup guide tour show me round gym machines map first plan programme start again"
         static let method = "Training method block dup rir volume minimal"
@@ -55,6 +56,7 @@ struct AccountView: View {
         static let bike = "Bike sensors power meter cadence heart rate strap ftp zones cycling watts"
         static let style = "Style look theme monkey coach watch face home"
         static let widgets = "Home Screen widgets"
+        static let hd = "HD animations exercise movement download quality storage size wi-fi"
         static let monkeyGrade = "MonkeyGrade climbing connected apps"
         static let password = "Password sign in"
         static let email = "Email sign in"
@@ -70,10 +72,10 @@ struct AccountView: View {
         static let support = "Support help contact"
         static let report = "Report a problem bug feedback broken idea shake screenshot"
 
-        static let you = [pro, profile, gym, body, onboarding]
+        static let you = [pro, profile, gym, places, body, onboarding]
         static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift, garmin, bike]
-        static let look = [style, widgets, monkeyGrade]
+        static let look = [style, widgets, hd, monkeyGrade]
         static let account = [password, email, security, devices, lock, export, signOut, delete]
         static let help = [whatsNew, report, privacy, terms, support]
         static let all = you + training + watch + look + account + help
@@ -99,7 +101,7 @@ struct AccountView: View {
                                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
                                     .frame(maxWidth: .infinity).padding(.vertical, 30)
                             }
-                            Text("MonkeyWorkout · Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
+                            Text("MonkeyWorkout · Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"))")
                                 .font(.caption).foregroundStyle(Theme.muted)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
@@ -223,6 +225,14 @@ struct AccountView: View {
                 }
                 // Current gym (#160): home gym, or the trip's while away.
                 if search.matches(Find.gym) { YourGymCard(compact: true) }
+                // Your places (#960): climbing gyms, crags, resorts, trails… with a home spot each.
+                if search.matches(Find.places) {
+                    NavigationLink { YourPlacesView() } label: {
+                        SettingsRow(symbol: "mappin.and.ellipse", title: "Your places",
+                                    value: model.placeBook.homes.isEmpty ? nil : "\(model.placeBook.homes.count) home spot\(model.placeBook.homes.count == 1 ? "" : "s")")
+                    }
+                    .buttonStyle(.plain)
+                }
                 if search.matches(Find.body) {
                     NavigationLink { BodyHealthView() } label: {
                         let kg = health.snapshot.weightKg ?? model.body.weightKg
@@ -348,6 +358,8 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                // HD animations (#932 B): the full-frame pack, downloaded on Wi-Fi.
+                if search.matches(Find.hd) { HDAnimationsSettingsCard() }
                 if search.matches(Find.monkeyGrade) { monkeyGradeRow(user) }
             }
         }
@@ -569,7 +581,8 @@ struct AccountView: View {
         let named = user.name?.trimmingCharacters(in: .whitespaces).isEmpty == false
         let words = ((named ? user.name : user.email) ?? "?").split(whereSeparator: { " @.".contains($0) })
         if named && words.count >= 2 { return String(words.prefix(2).compactMap(\.first)).uppercased() }
-        return String((words.first ?? "?").prefix(named ? 2 : 1)).uppercased()
+        // One letter for a one-word name, as the header photo shows it ("J", not "JY") (#823).
+        return String((words.first ?? "?").prefix(1)).uppercased()
     }
 
     private func export() {

@@ -5,6 +5,7 @@ import { z, ZodError } from 'zod';
 import type { AppleVerifier } from './apple.ts';
 import { AppleTokenService, type Fetch } from './appleTokens.ts';
 import { AuthService, publicUser } from './auth.ts';
+import { aiModerator, claudeModeration, type ModerationModel } from './community/aiModeration.ts';
 import type { Config } from './config.ts';
 import type { DB } from './db.ts';
 import { EmailChangeService } from './emailChange.ts';
@@ -20,9 +21,21 @@ import { liveRoutes } from './routes/live.ts';
 import { referralPublicRoutes, referralRoutes } from './routes/referrals.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
+import { coachReviewRoutes } from './routes/coachReview.ts';
+import { type MealIdeasModel, claudeMealIdeas } from './coach/mealIdeas.ts';
+import { coachSetRoutes } from './routes/coachSet.ts';
 import { type FoodScanModel, type PlateScanModel, type SnapScanModel, claudeFoodScan, claudePlateScan, claudeSnapScan } from './coach/foodScan.ts';
 import { type GymScanModel, claudeGymScan } from './coach/gymScan.ts';
+import { type WorkoutImportModel, claudeWorkoutImport } from './coach/workoutImport.ts';
+import { type ReviewModel, claudeWeekReview } from './coach/review.ts';
+import { type SetTalkModel, claudeSetTalk } from './coach/setTalk.ts';
+import { coachPlanRoutes } from './routes/coachPlan.ts';
+import { type PlanSetupModel, claudePlanSetup } from './coach/planSetup.ts';
+import { onAiCall } from './coach/models.ts';
+import { aiCallRecorder } from './aiUsage.ts';
 import { foodScanRoutes } from './routes/foodScan.ts';
+import { mealIdeasRoutes } from './routes/mealIdeas.ts';
+import { workoutImportRoutes } from './routes/workoutImport.ts';
 import { gymScanRoutes } from './routes/gymScan.ts';
 import { coachVoiceRoutes } from './routes/coachVoices.ts';
 import { pollySynthesizer, type Synthesize } from './coach/polly.ts';
@@ -75,6 +88,12 @@ export interface AppDeps {
   webauthn?: WebAuthnVerifier;
   /** Workout chat model (#381); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   coach?: CoachModel;
+  /** Weekly Coach review model (#867); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  review?: ReviewModel;
+  /** Talk to Coach mid-set model (#874); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  setTalk?: SetTalkModel;
+  /** Plan set-up with Coach (#873); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  planSetup?: PlanSetupModel;
   /** Gym scan photo model (#406); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   gymScan?: GymScanModel;
   /** Food scan photo model (#496); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
@@ -82,6 +101,12 @@ export interface AppDeps {
   plateScan?: PlateScanModel;
   /** Magic Snap (#733), `mode: "auto"`. */
   snapScan?: SnapScanModel;
+  /** Meal ideas from the pantry (#869); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  mealIdeas?: MealIdeasModel;
+  /** Save a workout from a video (#909); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  workoutImport?: WorkoutImportModel;
+  /** AI moderation of shared names, captions and photos (#871); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  moderation?: ModerationModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
   synth?: Synthesize;
   /** Sees every route as it is registered (`src/docsReference.ts`, #586). */
@@ -122,6 +147,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   const now = deps.now ?? (() => new Date());
   const outbound: Fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const warn = (msg: string) => app.log.warn(msg);
+  // AI usage report (#877): every paid model call counted per day, feature and model.
+  onAiCall(aiCallRecorder(deps.db, now));
   const auth = new AuthService({
     ...deps,
     now,
@@ -152,6 +179,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     mode: deps.config.subscriptions.mode,
     productIds: deps.config.subscriptions.productIds,
     tests: deps.config.subscriptions.tests,
+    testEmails: deps.config.subscriptions.testEmails,
     sandbox: deps.config.subscriptions.sandbox,
     bundleIds: deps.config.appleBundleIds,
     log: warn,
@@ -179,6 +207,10 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   // Personal data must not land in HTTP caches on the device or in between (#310).
   app.addHook('onSend', async (req, reply) => {
     if (req.headers.authorization && !reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+    // Browsers opening share, invite and legal pages stay on HTTPS (#925). No includeSubDomains: the parent domain
+    // hosts other apps.
+    if (req.protocol === 'https') reply.header('strict-transport-security', 'max-age=31536000');
+    reply.header('x-content-type-options', 'nosniff').header('referrer-policy', 'no-referrer');
   });
 
   // Mail transport is exposed so the staging smoke test can tell real delivery from console logging.
@@ -305,8 +337,11 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth, (id) => subscriptions.export(id));
       accountRoutes(r, emailChange, security, deps.config.authRateLimitPerMin);
       securityRoutes(r, security, deps.config.authRateLimitPerMin);
-      customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
-      communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
+      const cc = deps.config.coachChat;
+      const moderationModel = deps.moderation ?? (cc.apiKey ? claudeModeration(cc.apiKey, cc.workspaceId, cc.models.moderate) : undefined);
+      const mod = aiModerator(deps.db, now, moderationModel, deps.config.moderationDailyLimit, r.log);
+      customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()), mod);
+      communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       liveRoutes(r, deps.db, now, push);
       referralRoutes(r, deps.db, now);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
@@ -319,17 +354,27 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
-      programRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
+      programRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
-      const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
       coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
-      const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      const review = deps.review ?? (deps.config.coachChat.apiKey ? claudeWeekReview(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
+      coachReviewRoutes(r, deps.db, now, review, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
+      const setTalk = deps.setTalk ?? (deps.config.coachChat.apiKey ? claudeSetTalk(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
+      coachSetRoutes(r, deps.db, now, setTalk, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
+      const planSetup = deps.planSetup ?? (deps.config.coachChat.apiKey ? claudePlanSetup(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
+      coachPlanRoutes(r, deps.db, now, planSetup, deps.config.aiDailyLimit);
+      const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
       gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
-      const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      const snapScan = deps.snapScan ?? (deps.config.coachChat.apiKey ? claudeSnapScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
+      const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
+      const snapScan = deps.snapScan ?? (deps.config.coachChat.apiKey ? claudeSnapScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
       foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, plateScan, snapScan);
+      const mealIdeas = deps.mealIdeas ?? (deps.config.coachChat.apiKey ? claudeMealIdeas(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
+      mealIdeasRoutes(r, deps.db, now, mealIdeas, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
+      const workoutImport = deps.workoutImport ?? (deps.config.coachChat.apiKey ? claudeWorkoutImport(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
+      workoutImportRoutes(r, deps.db, now, workoutImport, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, outbound);
       const voices = deps.config.coachVoices;
       forgetVoices = coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',

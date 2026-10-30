@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { type Moderator, noModerator } from '../community/aiModeration.ts';
 import { AVATAR_MAX_BYTES, sanitizeJpeg } from '../community/image.ts';
 import {
   assertClean as checkClean,
@@ -155,7 +156,7 @@ export const communityExport = (db: DB, userId: string) => ({
   following: db.prepare('SELECT followed_id, created_at FROM community_follows WHERE follower_id = ?').all(userId),
 });
 
-export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mailer: Mailer, moderationEmail?: string) => {
+export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mailer: Mailer, moderationEmail?: string, mod: Moderator = noModerator()) => {
   r.addContentTypeParser('image/jpeg', { parseAs: 'buffer', bodyLimit: AVATAR_MAX_BYTES + 1024 }, (_req, body, done) => done(null, body));
 
   const profileRow = (userId: string) =>
@@ -192,15 +193,28 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       ).run(userId, id, ts);
   };
 
-  const storeAvatar = (userId: string, body: unknown) => {
+  /** A photo AI moderation flags (#871) is refused; the current photo stays. */
+  const storeAvatar = async (userId: string, body: unknown) => {
     if (!Buffer.isBuffer(body)) throw new ApiError(415, 'unsupported_media_type', 'Send the photo as image/jpeg.');
     const img = sanitizeJpeg(body);
     const id = randomUUID();
+    await mod.assertAllowed({ userId, texts: [], jpeg: img.data });
     tx(db, () => {
       db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(userId);
       db.prepare('INSERT INTO community_avatars (id, user_id, data, created_at) VALUES (?, ?, ?, ?)').run(id, userId, img.data, now().toISOString());
       setAvatarId(userId, id);
     });
+  };
+
+  /** AI check (#871) of a nickname / about that changed: refused like the word filter. */
+  const assertProfileClean = async (
+    userId: string,
+    before: { nickname?: string | null; bio?: string | null },
+    nick: string | null | undefined,
+    bioText: string | null | undefined,
+  ) => {
+    const changed = [nick !== before.nickname ? nick : null, bioText !== before.bio ? bioText : null];
+    await mod.assertAllowed({ userId, texts: changed });
   };
 
   const clearAvatar = (userId: string) =>
@@ -302,8 +316,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   };
 
   const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id, cp.level, cp.pronouns FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
-  /** Posts `viewer` may see that are not their own. */
-  const VISIBLE_TO_OTHERS = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')}`;
+  /** Posts `viewer` may see that are not their own; none from a member hidden by reports (#819, as their page and search). */
+  const VISIBLE_TO_OTHERS = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')} AND ${memberNotHiddenSql('p.user_id')}`;
 
   const toPosts = (rows: PostRow[], viewer: string) => {
     if (!rows.length) return [];
@@ -350,6 +364,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const nick = b.nickname === undefined ? undefined : b.nickname ? nickname.parse(b.nickname) : null;
     checkClean(nick, b.bio);
     if (nick) assertNicknameFree(nick, uid);
+    await assertProfileClean(uid, accountProfile(uid), nick, b.bio);
     const ts = now().toISOString();
     const member = profileRow(uid);
     if (member) {
@@ -368,7 +383,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   });
 
   r.put('/me/public-profile/avatar', async (req) => {
-    storeAvatar(req.userId!, req.body);
+    await storeAvatar(req.userId!, req.body);
     return { profile: accountProfile(req.userId!) };
   });
 
@@ -404,6 +419,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const nick = b.nickname ?? existing?.nickname ?? account?.nickname;
     if (!nick) throw new ApiError(400, 'nickname_required', 'Choose a nickname.');
     assertNicknameFree(nick, req.userId!);
+    await assertProfileClean(req.userId!, existing ?? account ?? {}, nick, b.bio);
     const ts = now().toISOString();
     if (existing) {
       db.prepare(
@@ -497,7 +513,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
 
   r.put('/community/me/avatar', async (req) => {
     requireProfile(req.userId!);
-    storeAvatar(req.userId!, req.body);
+    await storeAvatar(req.userId!, req.body);
     return { profile: ownProfile(profileRow(req.userId!)!) };
   });
 
@@ -551,14 +567,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       })
       .parse(req.body);
     const prof = requireProfile(req.userId!);
-    checkClean(
-      b.caption,
-      b.payload.title,
-      b.payload.subtitle,
-      b.payload.metric?.unit,
-      ...(b.payload.stats ?? []).flatMap((s) => [s.label, s.value]),
-      ...(b.payload.exercises ?? []).map((e) => e.name),
-    );
+    const shownTexts = [b.caption, b.payload.title, b.payload.subtitle, ...(b.payload.exercises ?? []).map((e) => e.name)];
+    checkClean(...shownTexts, b.payload.metric?.unit, ...(b.payload.stats ?? []).flatMap((s) => [s.label, s.value]));
     const id = b.id.toLowerCase();
     const owner = db.prepare('SELECT user_id FROM community_posts WHERE id = ?').get(id) as { user_id: string } | undefined;
     if (owner && owner.user_id !== req.userId) throw new ApiError(409, 'conflict', 'Post id already used.');
@@ -569,8 +579,14 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       ? (db.prepare('SELECT id FROM community_posts WHERE user_id = ? AND kind = ? AND ref_id = ?').get(req.userId!, b.kind, b.refId) as { id: string } | undefined)
       : undefined;
     const target = dup?.id ?? id;
-    const existing = dup || owner ? (db.prepare('SELECT visibility, caption FROM community_posts WHERE id = ?').get(target) as { visibility: Visibility; caption: string | null }) : undefined;
+    const existing = dup || owner
+      ? (db.prepare('SELECT visibility, caption, payload FROM community_posts WHERE id = ?').get(target) as { visibility: Visibility; caption: string | null; payload: string })
+      : undefined;
     const vis = b.visibility ?? existing?.visibility ?? prof.default_visibility;
+    // AI check (#871) of what members read, only when it is new: an auto re-share of the same workout costs nothing.
+    const old = existing && existing.visibility !== 'private' ? (JSON.parse(existing.payload) as typeof b.payload) : undefined;
+    const seen = new Set(old ? [existing!.caption, old.title, old.subtitle, ...(old.exercises ?? []).map((e) => e.name)] : []);
+    if (vis !== 'private') await mod.assertAllowed({ userId: req.userId!, texts: shownTexts.filter((t) => !seen.has(t ?? null)) });
     if (existing) {
       // An update keeps the caption and visibility it doesn't send (#714): re-sharing a workout doesn't wipe the caption.
       const cap = b.caption === undefined ? existing.caption : b.caption || null;
@@ -591,6 +607,18 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     checkClean(b.caption);
     const row = db.prepare('SELECT * FROM community_posts WHERE id = ? AND user_id = ?').get(id.toLowerCase(), req.userId!) as PostRow | undefined;
     if (!row) throw new ApiError(404, 'not_found', 'Post not found.');
+    // AI check (#871): a new caption, or the whole post when it stops being private.
+    if ((b.visibility ?? row.visibility) !== 'private') {
+      const card = JSON.parse(row.payload) as { title?: string; subtitle?: string; exercises?: { name: string }[] };
+      const opening = row.visibility === 'private';
+      await mod.assertAllowed({
+        userId: req.userId!,
+        texts: [
+          b.caption && b.caption !== row.caption ? b.caption : opening && b.caption === undefined ? row.caption : null,
+          ...(opening ? [card.title, card.subtitle, ...(card.exercises ?? []).map((e) => e.name)] : []),
+        ],
+      });
+    }
     db.prepare('UPDATE community_posts SET visibility = ?, caption = ?, updated_at = ? WHERE id = ?').run(
       b.visibility ?? row.visibility,
       b.caption === undefined ? row.caption : (b.caption || null),
@@ -854,7 +882,7 @@ export const communityPublicRoutes = (app: FastifyInstance, db: DB, appName: str
     const p = db
       .prepare(
         `SELECT p.caption, p.payload, p.created_at, cp.nickname, cp.avatar_id FROM community_posts p JOIN community_profiles cp ON cp.user_id = p.user_id
-         WHERE p.id = ? AND p.visibility = 'public' AND p.hidden_at IS NULL`,
+         WHERE p.id = ? AND p.visibility = 'public' AND p.hidden_at IS NULL AND ${memberNotHiddenSql('p.user_id')}`,
       )
       .get(id.toLowerCase()) as { caption: string | null; payload: string; created_at: string; nickname: string; avatar_id: string | null } | undefined;
     reply.header('Content-Type', 'text/html; charset=utf-8').header('X-Content-Type-Options', 'nosniff')

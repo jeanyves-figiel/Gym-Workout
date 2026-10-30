@@ -34,7 +34,7 @@ public enum HowItWorks {
     public static func topic(_ id: String) -> Topic? { topics.first { $0.id == id } }
 
     public static let topics: [Topic] = [xp, move, streaks, plan, methods, load, readiness, growth, zones, effort,
-                                         cardio, fuel, water, caffeine, recovery, body]
+                                         cardio, fuel, water, caffeine, recovery, body, form, mind]
 
     // MARK: Game
 
@@ -80,7 +80,7 @@ public enum HowItWorks {
         id: "streaks", title: "Streaks & badges", symbol: "flame.fill",
         summary: "Goal weeks in a row, shields, milestones",
         colors: [0xDB2777, 0x7C3AED],
-        shows: "Progress, Levels, badges, finish sheet",
+        shows: "Insights, Levels, badges, finish sheet",
         parts: [
             Part("Week streak", "A week counts when you reach your sessions-a-week goal. The running week never breaks the streak.",
                  rule: ["1 shield every \(StreakRun.weeksPerShield) goal weeks in a row, \(StreakRun.maxShields) held at most",
@@ -155,7 +155,8 @@ public enum HowItWorks {
             Part("Estimated 1RM", "Used for bests, Growth and PR attempts, from sets of 1–12 reps.",
                  rule: ["1RM = kg × (1 + reps ÷ 30)  (Epley)"]),
         ],
-        sources: ["Epley B. Poundage chart. Boyd Epley Workout. Lincoln, NE: Body Enterprises; 1985.",
+        sources: ["Starting-load ratios (pattern, sex, level, age, implement) are app design, set light on purpose; the first session calibrates.",
+                  "Epley B. Poundage chart. Boyd Epley Workout. Lincoln, NE: Body Enterprises; 1985.",
                   "Helms ER et al. RPE vs. percentage 1RM loading in periodized programs matched for sets and repetitions. Front Physiol 2018;9:247.",
                   "Graham T, Cleather DJ. Autoregulation by \"repetitions in reserve\" leads to greater improvements in strength over a 12-week training program than fixed loading. J Strength Cond Res 2021;35(9):2451-2456."])
 
@@ -166,7 +167,7 @@ public enum HowItWorks {
         shows: "Train readiness pill, Auto-tune card",
         parts: [
             Part("Auto-tune score", "Starts at \(AutoTune.base); each factor adds or takes points. Health values are compared with your own normal.",
-                 rule: ["HRV: % vs normal, −30…+10",
+                 rule: ["HRV: 7-day average % vs 30-day normal, −30…+10 (a single reading is too noisy)",
                         "resting HR: −3 per bpm over normal, −20…+5",
                         "sleep: −10 per hour under 7 h (max −25), +5 from 8 h",
                         "last workout near failure (RIR ≤ 1) −8 · easy (RIR ≥ 3) +3",
@@ -179,7 +180,7 @@ public enum HowItWorks {
                         "≥ \(AutoTune.pushFrom) with Health data: \(TuneLevel.push.title), \(TuneLevel.push.rule)",
                         "sore group: its moves swap to ones that spare it"]),
             Part("Readiness pill", "A quick read of Apple Health markers; advice only.",
-                 rule: ["flags: HRV < 85 % of 30-day normal · resting HR > normal + 5 · sleep < 6 h",
+                 rule: ["flags: 7-day HRV < 85 % of 30-day normal · resting HR > normal + 5 · sleep < 6 h",
                         "0 flags Ready · 1 Normal · 2+ Easy"]),
         ],
         sources: ["Plews DJ, Laursen PB, Stanley J, Kilding AE, Buchheit M. Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. Sports Med 2013;43(9):773-781.",
@@ -273,7 +274,7 @@ public enum HowItWorks {
             Part("Carbs", "By day load, shifted by goal.",
                  rule: ["g/kg rest \(fmt(Fuel.carbsPerKg(.rest, goal: .maintain))) · normal \(fmt(Fuel.carbsPerKg(.normal, goal: .maintain))) · big \(fmt(Fuel.carbsPerKg(.big, goal: .maintain)))",
                         "lose −1 · build +0.5 · perform +1 (never under 2)",
-                        "big day tomorrow +1 g/kg · carb loading before a long event 8 g/kg",
+                        "big day tomorrow +1 g/kg · carb loading 1–2 days before a long event \(fmt(Fuel.carbLoadPerKg)) g/kg",
                         "rounded to 10 g"]),
             Part("Fat and calories", "Fat stays steady; calories follow from the three.",
                  rule: ["fat \(fmt(Fuel.fatPerKg(.lose))) g/kg to lose, else \(fmt(Fuel.fatPerKg(.maintain)))",
@@ -299,7 +300,9 @@ public enum HowItWorks {
                         "creatine day: +1 glass"]),
             Part("Pace", "Reminders spread the target from waking to sleep, never during training, and recompute after every glass.", rule: []),
         ],
-        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390."])
+        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390.",
+                  "EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on dietary reference values for water. EFSA J 2010;8(3):1459 (2.0 L women, 2.5 L men a day, food included).",
+                  "35 ml/kg and the training and step top-ups are app design, a rule of thumb around those references."])
 
     static let caffeine = Topic(
         id: "caffeine", title: "Caffeine & supplements", symbol: "cup.and.saucer.fill",
@@ -326,9 +329,10 @@ public enum HowItWorks {
             Part("Area pick", "This week's load per muscle group (sets × weight) decides the rest-day routine.",
                  rule: ["area with the most load: hips & back, legs or upper body",
                         "no area above 40 % of the total → full body"]),
-            Part("Cool-down", "A workout without one gets 5′: 4 mat stretches for its most-loaded muscles.", rule: []),
+            Part("Cool-down", "A workout without one gets 5′: 4 mat stretches for its most-loaded muscles. Optional: it feels good and eases you out of the session, but studies don't show it cuts soreness or injuries, so skip it when short on time.", rule: []),
         ],
-        sources: ["Behm DG et al. Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab 2016;41(1):1-11."])
+        sources: ["Van Hooren B, Peake JM. Do we need a cool-down after exercise? A narrative review of the psychophysiological effects and the effects on performance, injuries and the long-term adaptive response. Sports Med 2018;48(7):1575-1595.",
+                  "Behm DG et al. Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab 2016;41(1):1-11."])
 
     static let body = Topic(
         id: "body", title: "Body numbers", symbol: "figure.arms.open",
@@ -342,6 +346,72 @@ public enum HowItWorks {
             Part("Change", "Charts show the change from the first to the latest point; Health copies of a logged value are counted once.", rule: []),
         ],
         sources: ["Morton RW et al. A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults. Br J Sports Med 2018;52(6):376-384."])
+
+    static let form = Topic(
+        id: "form", title: "Form check", symbol: "video.fill",
+        summary: "Camera reps, faults and a score out of 100",
+        colors: [0xFF4D6D, 0xFF9A3C],
+        shows: "Exercise page Check my form, Coach Watch my form, player camera chip, form report",
+        parts: [
+            Part("What is read", "Apple's body pose finds 14 joints in each camera frame, on your iPhone. No picture is kept or sent; the report keeps the joints of the worst rep for its replay.", rule: []),
+            Part("Reps", "Counted on the joint that moves most in the exercise's 3D position guide, from its start (0 %) to its main position (100 %).",
+                 rule: ["rep starts past \(pct(FormModel.Limit.repStart)) of the way, ends back under \(pct(FormModel.Limit.repEnd))",
+                        "short rep: under \(pct(FormModel.Limit.fullRange)) of the way",
+                        "not finished: stays past \(pct(FormModel.Limit.lockout)) between reps"]),
+            Part("Faults", "Only what the camera can see from that side: from the side range, trunk lean and sagging hips; from the front knees caving and one side ahead.",
+                 rule: ["trunk lean: \(fmt(FormModel.Limit.torsoLean))° more than the guide at the bottom",
+                        "knees caving: knee-to-ankle width under \(pct(FormModel.Limit.kneeWidth)) of the guide's",
+                        "hips sag: \(pct(FormModel.Limit.hipSag)) of body length under the shoulder–ankle line",
+                        "one side ahead: left and right \(fmt(FormModel.Limit.uneven))° apart",
+                        "too fast: rep under \(fmt(FormModel.Limit.minRepSeconds)) s (not jumps or throws)"]),
+            Part("Score", "Each rep starts at 100 and loses points once per fault; the set score is the average.",
+                 rule: [FormFault.allCases.map { "\($0.title.lowercased()) −\($0.penalty)" }.joined(separator: " · "),
+                        "faded from: every rep from there scores \(FormReport.fadeScore) or less"]),
+            Part("Match", "How close your joints are to the guide at the bottom of the rep.",
+                 rule: ["joint match = 1 − difference ÷ \(fmt(FormModel.Limit.matchZero))°, 0 at worst",
+                        "green within \(fmt(FormModel.Limit.angleOK))°, amber within \(fmt(FormModel.Limit.angleOK * 2))°"]),
+        ],
+        sources: ["Apple Vision framework, VNDetectHumanBodyPoseRequest (2D body pose).",
+                  "Myer GD et al. The back squat: a proposed assessment of functional deficits and technical factors that limit performance. Strength Cond J 2014;36(6):4-27.",
+                  "Thresholds are app design, tuned on the 3D position guide's poses."])
+
+    private static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded())) %" }
+    static let mind = Topic(
+        id: "mind", title: "Mind score & calm", symbol: "brain.head.profile",
+        summary: "Mood, HRV, sleep and training → 0–100",
+        colors: [0x7A2CFF, 0x2E8BFF],
+        shows: "Train check-in card, Insights Body + Mind and Mind widgets, Explore → Calm, Mind page",
+        parts: [
+            Part("Mind score", "Your check-in mood, your 7-day HRV average against your 30-day one (a single reading is too noisy), last night's sleep (adults need 7 h or more) and recent training (exercise lifts mood, so a day or two scores best), each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score. The weights are app design, not a validated scale.",
+                 rule: ["mood \(fmt(MindScore.moodWeight)) · HRV \(fmt(MindScore.hrvWeight)) · sleep \(fmt(MindScore.sleepWeight)) · training \(fmt(MindScore.loadWeight))",
+                        "mood: 1 → 0, 5 → 1",
+                        "HRV ÷ baseline: \(fmt(MindScore.hrvLow)) → 0, \(fmt(MindScore.hrvHigh)) → 1",
+                        "sleep: \(fmt(MindScore.sleepLow)) h → 0, \(fmt(MindScore.sleepHigh)) h → 1",
+                        "workout days in the last \(MindScore.loadDays): " + MindScore.loadPoints.enumerated().map { "\($0.offset) → \(fmt($0.element))" }.joined(separator: ", "),
+                        "+1 a calm minute today, max +\(MindScore.calmBonusMax)",
+                        "Calm 75+ · Steady 55–74 · Strained 35–54 · Low under 35"]),
+            Part("Coach pick", "One breathing session for now, from the hour, your mood and HRV.",
+                 rule: ["after 8 pm → 4-7-8", "mood 1–2 → physio sigh", "HRV under 85 % of baseline → box",
+                        "before 11 am, mood 3 or no check-in → wake-up", "otherwise → box"]),
+            Part("Body + Mind today", "On Insights, your Mind score sits next to the auto-tune ready score (Body), with one line from Coach.",
+                 rule: ["Body under \(AutoTune.lightBelow) = low · \(AutoTune.pushFrom)+ = high",
+                        "Mind under \(MindScore.Level.steadyFrom) = low",
+                        "both low → light + breathe first · body low → light · mind low → breathe first · both high → push"]),
+            Part("Patterns", "With \(MindScore.patternMin)+ check-ins in 28 days, Coach compares your mood the day after a workout with other days (0.5 apart or more), then looks at what low days are about, then short nights.", rule: []),
+            Part("Breathing", "Sessions repeat one breathing pattern for whole cycles, so they end on a breath out. Box 4-4-4-4, 4-7-8, physio sigh 2 + 1 in / 6 out, wake-up 2.5 in / 1.5 out, body scan and pre-lift focus with slow out-breaths. The counts are a pace to follow, not a test: slower or faster is fine if the ratio stays. Each finished session is saved to Apple Health as mindful minutes; check-ins as State of Mind. Mood and sessions stay on this phone.",
+                 rule: ["4-7-8: 4 breaths (about 1¼ min), 8 once it feels easy (Weil); not minutes",
+                        "box, physio sigh, wake-up: 5 min a day by default, as tested in Balban 2023 (shorter: 3 min, or 1 min of sighs when stressed); box 10 min for a longer practice",
+                        "box 4-4-4-4: equal counts at a comfortable pace, about 4 breaths a minute, inside the slow-breathing range (under 10 a minute) linked to calm",
+                        "body scan, pre-lift focus: about 6 breaths a minute, 8–15 min like slow-breathing studies",
+                        "dizzy or light-headed: stop and breathe normally"]),
+        ],
+        sources: ["Balban MY et al. Brief structured respiration practices enhance mood and reduce physiological arousal. Cell Rep Med 2023;4(1):100895.",
+                  "Zaccaro A et al. How breath-control can change your life: a systematic review on psycho-physiological correlates of slow breathing. Front Hum Neurosci 2018;12:353.",
+                  "Singh B et al. Effectiveness of physical activity interventions for improving depression, anxiety and distress: an overview of systematic reviews. Br J Sports Med 2023;57(18):1203-1209.",
+                  "Watson NF et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the AASM and SRS. Sleep 2015;38(6):843-844.",
+                  "Weil A. Breathing: The Master Key to Self Healing. Sounds True, 1999 (4-7-8: four breaths twice a day, up to eight).",
+                  "Vierra J, Boonla O, Prasertsri P. Effects of sleep deprivation and 4-7-8 breathing control on heart rate variability, blood pressure, blood glucose, and endothelial function in healthy young adults. Physiol Rep 2022;10(13):e15389.",
+                  "Plews DJ et al. Training adaptation and heart rate variability in elite endurance athletes. Int J Sports Physiol Perform 2013;8(6):688-694."])
 
     static func fmt(_ v: Double) -> String {
         v == v.rounded() ? String(Int(v)) : String(format: "%g", v)

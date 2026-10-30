@@ -602,7 +602,8 @@ struct ProgrammeBuilderView: View {
                         .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.22)))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(g.config.label).font(Theme.display(19))
-                        Text(g.config.blurb).font(.caption.weight(.semibold)).opacity(0.88).lineLimit(2)
+                        // Three lines: two cut "…power for dyn…" (#823).
+                        Text(g.config.blurb).font(.caption.weight(.semibold)).opacity(0.88).lineLimit(3)
                     }
                     Spacer(minLength: 0)
                 }
@@ -668,7 +669,7 @@ struct ProgrammeBuilderView: View {
             Toggle(isOn: $progression) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Heavier as the phases go").font(Theme.label(14))
-                    Text("Base as written · Build 2 fewer reps · Peak about half · Ease one set less")
+                    Text("Base as written · Build 2 fewer reps · Peak about half · Deload one set less")
                         .font(.caption).foregroundStyle(Theme.muted)
                 }
             }
@@ -683,7 +684,7 @@ struct ProgrammeBuilderView: View {
             ProgrammeLiftChips(candidates: testableLifts(signatures), lifts: $lifts)
             Text(lifts.isEmpty
                  ? "No lifts: the programme ends with an easy week instead of a test."
-                 : "The last week is a test week with a PR attempt for each lift; Progress compares them with your start.")
+                 : "The last week is a test week with a PR attempt for each lift; Insights compares them with your start.")
                 .font(.caption).foregroundStyle(Theme.muted)
             ProgrammeCard(programme: draft)
         }

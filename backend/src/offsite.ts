@@ -19,12 +19,15 @@ export interface OffsiteConfig {
   /** Passphrase; also kept by the owner outside Fly (GitHub secret BACKUP_KEY) so copies stay readable. */
   passphrase: string;
   keepDays: number;
+  /** Hourly copies (#923): how many hours to keep; 0 = no hourly copies. */
+  keepHours: number;
 }
 
 type Fetch = (input: URL, init: RequestInit) => Promise<Response>;
 
 const MAGIC = Buffer.from('MWB1');
 const PREFIX = 'backups/';
+const HOURLY = 'hourly/';
 
 const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: ScryptOptions) => Promise<Buffer>;
@@ -52,7 +55,8 @@ export const decryptBackup = async (blob: Buffer, passphrase: string): Promise<B
   return gunzip(Buffer.concat([d.update(blob.subarray(48)), d.final()]));
 };
 
-export const objectKey = (day: string) => `${PREFIX}app-${day}.db.enc`;
+/** A day (`YYYY-MM-DD`, daily copy) or an hour (`YYYY-MM-DDTHH`, hourly copy, #923). */
+export const objectKey = (id: string) => (id.length > 10 ? `${HOURLY}app-${id}.db.enc` : `${PREFIX}app-${id}.db.enc`);
 
 export class OffsiteStore {
   private readonly c: OffsiteConfig;
@@ -86,8 +90,8 @@ export class OffsiteStore {
     return res;
   }
 
-  async list(): Promise<{ key: string; day: string; bytes: number; modified: string }[]> {
-    const res = await this.request('GET', '', { 'list-type': '2', prefix: PREFIX });
+  async list(prefix = PREFIX): Promise<{ key: string; day: string; bytes: number; modified: string }[]> {
+    const res = await this.request('GET', '', { 'list-type': '2', prefix });
     const xml = await res.text();
     return [...xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)]
       .map((m) => ({
@@ -95,9 +99,29 @@ export class OffsiteStore {
         bytes: Number(m[1]!.match(/<Size>(\d+)<\/Size>/)?.[1] ?? 0),
         modified: m[1]!.match(/<LastModified>([^<]+)<\/LastModified>/)?.[1] ?? '',
       }))
-      .map((o) => ({ ...o, day: /app-(\d{4}-\d{2}-\d{2})\.db\.enc$/.exec(o.key)?.[1] ?? '' }))
-      .filter((o) => o.day)
+      .map((o) => ({ ...o, day: /app-(\d{4}-\d{2}-\d{2}(?:T\d{2})?)\.db\.enc$/.exec(o.key)?.[1] ?? '' }))
+      .filter((o) => o.day && o.key.startsWith(prefix))
       .sort((a, b) => b.day.localeCompare(a.day));
+  }
+
+  /** Hourly copies (#923), newest first; `day` is `YYYY-MM-DDTHH`. */
+  listHourly() {
+    return this.list(HOURLY);
+  }
+
+  /** Encrypts and uploads an hourly copy, then deletes hourly copies older than `keepHours`. */
+  async uploadHourly(file: string, hour: string): Promise<{ key: string; bytes: number; pruned: number }> {
+    const blob = await encryptBackup(await readFile(file), this.c.passphrase);
+    const key = objectKey(hour);
+    await this.request('PUT', key, {}, blob);
+    const cutoff = new Date(this.now().getTime() - this.c.keepHours * 3_600_000).toISOString().slice(0, 13);
+    let pruned = 0;
+    for (const o of await this.listHourly())
+      if (o.day < cutoff) {
+        await this.request('DELETE', o.key);
+        pruned++;
+      }
+    return { key, bytes: blob.length, pruned };
   }
 
   /** Encrypts and uploads a backup file, then deletes copies older than `keepDays`. */
@@ -115,9 +139,9 @@ export class OffsiteStore {
     return { key, bytes: blob.length, pruned };
   }
 
-  /** Downloads and decrypts one day's copy to `dest`; refuses to overwrite an existing file. */
-  async download(day: string, dest: string): Promise<void> {
-    const res = await this.request('GET', objectKey(day));
+  /** Downloads and decrypts one day's (or hour's) copy to `dest`; refuses to overwrite an existing file. */
+  async download(id: string, dest: string): Promise<void> {
+    const res = await this.request('GET', objectKey(id));
     await writeFile(dest, await decryptBackup(Buffer.from(await res.arrayBuffer()), this.c.passphrase), { mode: 0o600, flag: 'wx' });
   }
 }

@@ -8,15 +8,17 @@ import WidgetKit
 // The Watch shows the right MonkeyFit card at the right moment, no scrolling:
 // A gym time: Next up 30′ before the usual training time on a training day, and at the home gym.
 // B rest-day morning: easy day + water pace. C after a workout: recap + protein for the next hour.
+// Mind (#834 C): D a morning check-in until done today, E a 4-7-8 before bed.
 // Each moment is its own Smart Stack card (recommendations); relevance comes from entry scores and relevant intents
 // (date windows, gym region) refreshed with every timeline, i.e. every snapshot from the iPhone.
 
 enum SmartMoment: String, AppEnum, CaseIterable {
-    case gym, restDay, afterWorkout
+    case gym, restDay, afterWorkout, mindMorning, mindEvening
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Moment" }
     static var caseDisplayRepresentations: [SmartMoment: DisplayRepresentation] {
-        [.gym: "Gym time", .restDay: "Rest day", .afterWorkout: "After workout"]
+        [.gym: "Gym time", .restDay: "Rest day", .afterWorkout: "After workout", .mindMorning: "Morning check-in",
+         .mindEvening: "Wind down"]
     }
 
     /// Plain literals only (interpolated Text traps in WidgetKit).
@@ -25,6 +27,8 @@ enum SmartMoment: String, AppEnum, CaseIterable {
         case .gym: Text("Smart Stack: Gym time")
         case .restDay: Text("Smart Stack: Rest day")
         case .afterWorkout: Text("Smart Stack: After workout")
+        case .mindMorning: Text("Smart Stack: Morning check-in")
+        case .mindEvening: Text("Smart Stack: Wind down")
         }
     }
 }
@@ -80,11 +84,36 @@ enum SmartStackTimes {
         return w.end > now ? w : nil
     }
 
+    /// D: 7:00–10:00 today until the check-in is done, else tomorrow's.
+    static func mindMorningWindow(_ snap: WatchSnapshot, at now: Date, cal: Calendar = .current) -> DateInterval? {
+        guard let mind = snap.mind else { return nil }
+        return daily(7, 10, at: now, skipToday: mind.checkedInToday(now), cal: cal)
+    }
+
+    /// E: 21:00–23:00 every evening.
+    static func mindEveningWindow(_ snap: WatchSnapshot, at now: Date, cal: Calendar = .current) -> DateInterval? {
+        guard snap.mind != nil else { return nil }
+        return daily(21, 23, at: now, skipToday: false, cal: cal)
+    }
+
+    /// From `from` to `to` o'clock today (if not over and not skipped), else tomorrow.
+    static func daily(_ from: Int, _ to: Int, at now: Date, skipToday: Bool, cal: Calendar) -> DateInterval? {
+        for offset in (skipToday ? 1 : 0)...1 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: cal.startOfDay(for: now)),
+                  let a = cal.date(bySettingHour: from, minute: 0, second: 0, of: day),
+                  let b = cal.date(bySettingHour: to, minute: 0, second: 0, of: day), b > now else { continue }
+            return DateInterval(start: a, end: b)
+        }
+        return nil
+    }
+
     static func window(_ m: SmartMoment, _ snap: WatchSnapshot, at now: Date) -> DateInterval? {
         switch m {
         case .gym: gymWindow(snap, at: now)
         case .restDay: restWindow(snap, at: now)
         case .afterWorkout: afterWindow(snap, at: now)
+        case .mindMorning: mindMorningWindow(snap, at: now)
+        case .mindEvening: mindEveningWindow(snap, at: now)
         }
     }
 
@@ -155,6 +184,8 @@ struct SmartStackView: View {
         case .gym: (entry.info?.tint ?? 0x2F6BFF, entry.info?.tint2 ?? 0x8A4DFF)
         case .restDay: (0x0F9D6A, 0x2F9BFF)
         case .afterWorkout: (0xFF8A00, 0xFF3D7B)
+        case .mindMorning: (0xFF3D9A, 0x7A2CFF)
+        case .mindEvening: (0x3B3F8F, 0x7A2CFF)
         }
     }
 
@@ -172,6 +203,15 @@ struct SmartStackView: View {
             guard let last = info?.last else { return ("DONE", "Nice work", "🍗 Protein soon") }
             return ("DONE · \(last.title.uppercased())", "\(last.minutes)′ · \(last.sets) sets",
                     "🍗 \(SmartStackTimes.protein) g protein soon")
+        case .mindMorning:
+            if let m = entry.snap?.mind, m.checkedInToday(entry.date) {
+                return ("MIND · \(m.level?.uppercased() ?? "TODAY")", m.score.map { "Mind \($0)" } ?? "Checked in", "▶ \(m.pickBreath?.label ?? "Breathe")")
+            }
+            return ("MIND · CHECK-IN", "How do you feel?", "Tap · 10 seconds")
+        case .mindEvening:
+            let m = entry.snap?.mind
+            let score = m.flatMap { $0.today(entry.date) ? $0.score : nil }.map { "MIND \($0) · " } ?? ""
+            return ("WIND DOWN", "4-7-8 before bed", "\(score)\(m?.weekMinutes ?? 0) calm min this week")
         }
     }
 
@@ -185,6 +225,8 @@ struct SmartStackView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(.white)
         .containerBackground(for: .widget) { MW.gradient(tint.0, tint.1) }
+        // Mind cards open the Mind screen (#834).
+        .widgetURL([.mindMorning, .mindEvening].contains(entry.moment) ? URL(string: "monkeyworkout://mind") : nil)
     }
 }
 
@@ -194,7 +236,7 @@ struct SmartStackWidget: Widget {
             SmartStackView(entry: $0)
         }
         .configurationDisplayName("Smart Stack")
-        .description("Gym time, rest day and after-workout cards that rise when they matter.")
+        .description("Gym time, rest day, after-workout and Mind cards that rise when they matter.")
         .supportedFamilies([.accessoryRectangular])
     }
 }

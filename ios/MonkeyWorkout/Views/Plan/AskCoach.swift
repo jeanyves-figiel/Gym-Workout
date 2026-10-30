@@ -48,11 +48,34 @@ struct CoachFocus: Equatable {
         switch t {
         case .train: CoachFocus(screen: "train", title: "Train", starters: ["45 min full body", "Quick 20 min, I'm tired", "What should I train today?"])
         case .explore: CoachFocus(screen: "explore", title: "Explore", starters: ["Best exercises for my back", "A programme for my goal?"])
-        case .progress: CoachFocus(screen: "progress", title: "Progress", starters: ["How am I doing?", "What should I improve?"])
+        case .progress: CoachFocus(screen: "progress", title: "Insights", starters: ["How am I doing?", "Workouts this month?", "What should I improve?"])
         case .fuel: CoachFocus(screen: "fuel", title: "Fuel", starters: ["What should I eat after training?", "High-protein breakfast ideas", "What can I cook with eggs and rice?"])
         case .community: CoachFocus(screen: "community", title: "Social", starters: ["How do I stay motivated?"])
         }
     }
+
+    /// Building a workout as I go (#856): Coach answers with exercises to start or line up.
+    static let freestyleScreen = "freestyle"
+
+    /// `done`: names already in this workout, so Coach doesn't hand them back.
+    static func freestyle(done: [String] = []) -> CoachFocus {
+        CoachFocus(screen: freestyleScreen, title: "Building my workout as I go",
+                   detail: done.isEmpty ? "nothing done yet" : "done so far: " + done.joined(separator: ", "),
+                   starters: ["Hit chest now", "The rack is busy", "Something for my back", "20 minutes left"])
+    }
+
+    /// The Add exercises picker (#934): Coach answers with exercises to tick, like the freestyle screen.
+    static let pickerScreen = "picker"
+
+    /// `picked`: names already ticked, so Coach doesn't hand them back.
+    static func picker(picked: [String] = []) -> CoachFocus {
+        CoachFocus(screen: pickerScreen, title: "Adding exercises",
+                   detail: picked.isEmpty ? "nothing picked yet" : "picked so far: " + picked.joined(separator: ", "),
+                   starters: ["Something for my back", "Chest without a bench", "A warm-up for legs", "What's this machine?"])
+    }
+
+    /// Screens where Coach hands back exercise cards (#856, #934).
+    var wantsExercises: Bool { screen == Self.freestyleScreen || screen == Self.pickerScreen }
 }
 
 struct AskCoachRequest: Identifiable {
@@ -64,6 +87,8 @@ struct AskCoachRequest: Identifiable {
     var listen = false
     /// The question was spoken: the answer is read aloud (unless Settings says never).
     var spoken = false
+    /// Open the camera at once to snap a machine (#856).
+    var photo = false
 }
 
 /// Which screen is on top, for the bubble's chat.

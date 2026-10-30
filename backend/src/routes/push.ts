@@ -5,6 +5,9 @@ import { ApiError } from '../errors.ts';
 import { NotificationPrefs, NotificationPrefsPatch } from '../push/prefs.ts';
 import type { PushService } from '../push/service.ts';
 
+/** A URL, `www.` or anything shaped like a domain (`name.tld`, `name(dot)tld`). */
+export const LINK = /(https?:|www\.|[a-z0-9-]+\.[a-z]{2,}\b|\(dot\)|\[dot\])/i;
+
 const token = z.string().regex(/^[0-9a-fA-F]{32,200}$/, 'Invalid device token').transform((s) => s.toLowerCase());
 
 /** Push device registration + notification preferences (#69). */
@@ -20,6 +23,8 @@ export const pushRoutes = (r: FastifyInstance, push: PushService, topics: string
       .parse(req.body);
     // The text goes to followers' lock screens: same filter as community captions (#432).
     assertClean(...b.achievements.map((a) => a.text));
+    // No links or web addresses on someone else's lock screen (#922): achievement lines are app-made text.
+    if (b.achievements.some((a) => LINK.test(a.text))) throw new ApiError(400, 'links_not_allowed', 'Achievements cannot contain links.');
     // Recorded now; followers are pushed in the background so the member's request doesn't wait on APNs.
     const announced = push.announce(req.userId!, nameOf(req.userId!) ?? 'Someone you follow', b.achievements);
     return { announced };

@@ -590,8 +590,8 @@ extension FuelDayLog {
     public mutating func tick(_ dose: SupplementDose) {
         untick(dose)
         let add = dose.supplement.portions
-        if let r = dose.replaces {
-            untick(r)
+        // The meal it replaces is marked eaten, unless something is already logged there (#819: that stays).
+        if let r = dose.replaces, ticks[r] == nil {
             ticks[r] = FuelTick(added: Portions())
         }
         ticks[dose.id] = FuelTick(added: add)
@@ -600,7 +600,7 @@ extension FuelDayLog {
 
     public mutating func untick(_ dose: SupplementDose) {
         untick(dose.id)
-        if let r = dose.replaces, let t = ticks[r], t.recipeId == nil, t.added.total == 0 { ticks[r] = nil }
+        if let r = dose.replaces, let t = ticks[r], t.recipeId == nil, t.foods == nil, t.added.total == 0 { ticks[r] = nil }
     }
 
     public func taken(_ dose: SupplementDose) -> Bool { ticks[dose.id] != nil }

@@ -344,7 +344,7 @@ struct ProgrammeDetailView: View {
         .confirmationDialog("Leave \(programme.name)?", isPresented: $confirmLeave, titleVisibility: .visible) {
             Button("Leave programme", role: .destructive) { model.leaveProgramme() }
         } message: {
-            Text("Your own plan comes back. Progress keeps what you trained.")
+            Text("Your own plan comes back. Insights keeps what you trained.")
         }
     }
 
@@ -585,6 +585,18 @@ struct ProgrammeDetailView: View {
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
     }
 
+    /// One-tap start or switch with the Undo bar (#822): the programme before, or your own plan, comes back.
+    private func startWithUndo(_ start: () -> Void) {
+        let previous = model.activeProgramme
+        let history = model.programmeHistory
+        start()
+        UndoCloseCenter.shared.show(UndoOffer(
+            title: previous == nil ? "\(programme.name) started" : "Switched to \(programme.name)",
+            detail: (previous?.programme?.name).map { "Left \($0)" } ?? "Your own plan is saved",
+            symbol: "flag.checkered", reopen: { AnyView(EmptyView()) },
+            revert: { [model] in model.undoProgrammeStart(previous: previous, history: history) }))
+    }
+
     @ViewBuilder
     private var actions: some View {
         if let a = mine {
@@ -604,7 +616,7 @@ struct ProgrammeDetailView: View {
             bigButton(model.activeProgramme == nil
                       ? (races.isEmpty ? "Start · \(programme.weeks) weeks" : "Start · \(races.count) race\(races.count == 1 ? "" : "s")")
                       : "Switch to this programme", "flag.checkered", fill: Theme.lime) {
-                model.startProgramme(latest, races: races)
+                startWithUndo { model.startProgramme(latest, races: races) }
             }
             Text(races.isEmpty ? "No race set: a standard \(programme.weeks)-week block. Add your race days above to fit it."
                  : "Starts this week. Ends after your last race; your own plan comes back.")
@@ -613,7 +625,7 @@ struct ProgrammeDetailView: View {
             let end = Calendar.current.date(byAdding: .day, value: -1, to: Progression.weekStart(day, Progression.calendar()))!
             bigButton(model.activeProgramme == nil ? "Start · ends \(end.formatted(.dateTime.day().month(.abbreviated)))" : "Switch to this programme",
                       "flag.checkered", fill: Theme.lime) {
-                model.startProgramme(latest, length: weeks, firstDay: day)
+                startWithUndo { model.startProgramme(latest, length: weeks, firstDay: day) }
             }
             Text((model.activeProgramme.map { "Leaves \($0.programme?.name ?? "your programme"). " } ?? "")
                  + "Starts this week, \(weeks) weeks: Base and Build stretch or shrink to fit, Peak, Test and an easy week stay.")
@@ -856,27 +868,35 @@ struct ProgrammeProgressSection: View {
 struct LiftsCompare: View {
     let lifts: [ProgrammeLift]
 
+    /// Lifts with at least one estimate (#823): no "– → – kg" rows.
+    private var shown: [ProgrammeLift] { lifts.filter { $0.before != nil || $0.now != nil } }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Start → now").eyebrow()
-                Spacer()
-                Text("est. 1RM").font(Theme.label(12)).foregroundStyle(Theme.muted)
-            }
-            ForEach(lifts) { l in
+        if !shown.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(Exercise.get(l.exerciseId).name).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.8)
-                    Spacer(minLength: 6)
-                    Text("\(l.before.map { Format.kg($0.rounded()) } ?? "–") → \(l.now.map { Format.kg($0.rounded()) } ?? "–") kg")
-                        .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted).monospacedDigit()
-                    if let c = l.change {
-                        Text("\(c >= 0 ? "+" : "−")\(Format.kg(abs(c).rounded()))")
-                            .font(Theme.label(15)).monospacedDigit()
-                            .foregroundStyle(c >= 0 ? Theme.lime : Color.red)
-                    }
+                    Text("Start → now").eyebrow()
+                    Spacer()
+                    Text("est. 1RM").font(Theme.label(12)).foregroundStyle(Theme.muted)
                 }
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+                ForEach(shown) { l in
+                    let before = l.before?.rounded(), now = l.now?.rounded()
+                    HStack {
+                        Text(Exercise.get(l.exerciseId).name).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.8)
+                        Spacer(minLength: 6)
+                        Text("\(before.map { Format.kg($0) } ?? "–") → \(now.map { Format.kg($0) } ?? "–") kg")
+                            .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted).monospacedDigit()
+                        // From the rounded numbers shown (#823): "93 → 93" never gets a red −1.
+                        if let before, let now, now != before {
+                            let c = now - before
+                            Text("\(c > 0 ? "+" : "−")\(Format.kg(abs(c)))")
+                                .font(Theme.label(15)).monospacedDigit()
+                                .foregroundStyle(c > 0 ? Theme.lime : Color.red)
+                        }
+                    }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+                }
             }
         }
     }
@@ -956,12 +976,19 @@ struct ProgrammeWorkoutGrid: View {
         }
     }
 
+    /// A word too long for a narrow cell gets a smaller size (#823): Text breaks it mid-word ("Compromi" / "sed run")
+    /// before minimumScaleFactor applies. About 8 characters fit a 4-column cell at 11 pt.
+    private func titleSize(_ title: String) -> CGFloat {
+        let longest = title.split(separator: " ").map(\.count).max() ?? 0
+        return longest > 8 ? max(8, 11 * 8.5 / CGFloat(longest)) : 11
+    }
+
     private func cell(_ s: Session, _ kind: ProgrammePhaseKind) -> some View {
         let lead = s.isPlanInsert ? s.blocks.first { $0.kind == .strength }?.items.first?.prescription : nil
         let signature = s.isPlanInsert && kind != .test
         return VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .top, spacing: 2) {
-                Text(s.title).font(.system(size: 11, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.8)
+                Text(s.title).font(.system(size: titleSize(s.title), weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.8)
                 if signature {
                     Spacer(minLength: 0)
                     Image(systemName: "star.fill").font(.system(size: 8, weight: .black)).accessibilityLabel("Signature")
@@ -1058,7 +1085,7 @@ struct ProgrammeLengthSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Same programme, more or less time in Base and Build. Peak, Ease and Test stay as they are.")
+                    Text("Same programme, more or less time in Base and Build. Peak, Deload and Test stay as they are.")
                         .font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted)
                     ForEach(programme.lengths) { l in
                         let off = running.map { l.weeks <= $0 } ?? false

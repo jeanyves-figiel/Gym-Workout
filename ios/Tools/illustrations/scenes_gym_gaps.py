@@ -231,7 +231,8 @@ def seated_dip_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 190, 130)
         st = column(doc, 60, top=40, w=30, lift=max(0, (g[1] - DM_A[1]) * 0.35))
-        art.cable(doc, [(st[0] + 5.5, 47), (st[0] + 5.5, DM_PIV[1] - 12), (DM_PIV[0], DM_PIV[1] - 12)])
+        # #949: cable runs onto the top of the pivot hub (r 8); at -12 it stopped short in mid-air.
+        art.cable(doc, [(st[0] + 5.5, 47), (st[0] + 5.5, DM_PIV[1] - 8), (DM_PIV[0], DM_PIV[1] - 8)])
         kit.feet(doc, 50, DM_HIP[0] + 90)
         seat(doc, DM_HIP[0] - 30, DM_HIP[0] + 30, DM_SEAT)
         td, n = tframe(DM_T)

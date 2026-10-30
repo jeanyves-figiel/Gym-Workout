@@ -125,6 +125,11 @@ public enum PlanCalendar {
         (0..<7).map { key(cal.date(byAdding: .day, value: $0, to: weekStart)!, cal) }
     }
 
+    /// Days with something logged (#902): a logged workout or sport makes a workout day, planned or not.
+    public static func loggedDays(_ starts: [Date], _ cal: Calendar) -> Set<String> {
+        Set(starts.map { key($0, cal) })
+    }
+
     /// Cycle week (1…4) `offset` weeks after `current`.
     public static func cycleWeek(current: Int, offset: Int) -> Int {
         let n = Rules.mesocycleWeeks
@@ -243,7 +248,7 @@ public enum PlanCalendar {
         let preferred = Set(profile.gymDays).intersection(free)
         // Sport days of this week (seasons, dated days and trips), not today's.
         var prefs = profile.climbPrefs
-        prefs.sports = profile.sportDays(on: weekStart, calendar: cal)
+        prefs.sports = profile.sportDays(on: weekStart, calendar: cal, away: away)
         let slots = place(movable.map(\.focus), on: free, climbing: Set(climbing),
                           gym: preferred.count >= movable.count ? preferred : [], prefs: prefs)
         var trips: [UUID: WeekPlan] = [:]
@@ -322,6 +327,11 @@ public enum PlanCalendar {
             return adapt(profile, week: cycleWeek(current: currentWeek, offset: offset), seed: seed,
                          weekStart: start, away: away, fixed: moved, calendar: cal)
         }
+    }
+
+    /// Workouts still on a weekday of `week`, as Train shows them: skipped ones are gone (#849, #936).
+    public static func sessions(in week: Week, weekday: Int, skipped: Set<String>) -> [Session] {
+        week.plan.sessions.filter { $0.weekday == weekday && !skipped.contains($0.id) }
     }
 
     /// Planned (not done) sessions between two dates, inclusive, with their date.

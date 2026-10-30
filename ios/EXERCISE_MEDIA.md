@@ -93,7 +93,7 @@ Illustrations: 441 · Total: 441
 | `trap-bar-jump` | Trap bar jump | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `med-ball-chest-pass` | Med ball chest pass (wall) | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `rotational-throw` | Rotational med ball throw | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `ball-slam` | Slam ball slam | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `ball-slam` | Slam ball slam | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `overhead-back-throw` | Overhead backward throw | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `kb-swing` | Kettlebell swing | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `kb-snatch` | Kettlebell snatch | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |

@@ -4,7 +4,7 @@ import WorkoutEngine
 /// "Explore" tab: exercises by body map / muscle group or training category, and the workout library.
 struct LibraryView: View {
     enum Mode: String, CaseIterable, Identifiable {
-        case muscles = "Muscles", machines = "Machines", categories = "Categories", workouts = "Workouts", hiit = "HIIT", routines = "Daily", programmes = "Programmes"
+        case muscles = "Muscles", machines = "Machines", categories = "Categories", workouts = "Workouts", hiit = "HIIT", routines = "Daily", calm = "Calm", programmes = "Programmes"
         var id: String { rawValue }
     }
 
@@ -47,6 +47,7 @@ struct LibraryView: View {
                 case .workouts: WorkoutLibrarySection()
                 case .hiit: HiitLibrarySection()
                 case .routines: RoutineLibrarySection()
+                case .calm: CalmLibrarySection()
                 case .programmes: ProgrammeLibrarySection()
                 }
             }
@@ -335,7 +336,7 @@ extension Exercise {
     }
 }
 
-/// Category page: what the category is for, and its exercises with muscles.
+/// Category page: what the category is for, and its exercises in gradient sections by muscle group.
 struct CategoryDetailView: View {
     let category: WorkoutEngine.Category
     @Environment(AppModel.self) private var model
@@ -358,24 +359,29 @@ struct CategoryDetailView: View {
 
                 NewExerciseButton(prefill: CustomExercise(category: category))
 
-                ForEach(Exercise.folded(Exercise.inCategory(category)), id: \.exercise.id) { family in
-                    let e = family.exercise
-                    Button { open = ExerciseRef(exerciseId: e.id) } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(e.name).font(.system(.headline, design: .rounded).weight(.heavy)).multilineTextAlignment(.leading)
-                                    VariationCount(count: family.variations.count)
+                // Grouped by main muscle group, as gradient sections like the muscle and machine pages.
+                ForEach(Self.byGroup(Exercise.folded(Exercise.inCategory(category))), id: \.group) { section in
+                    GradientSection(symbol: section.group?.symbol ?? category.symbol, title: section.group?.label ?? "Whole body",
+                                    gradient: section.group?.gradient ?? category.gradient, ink: section.group?.ink ?? category.ink) {
+                        ForEach(section.families, id: \.exercise.id) { family in
+                            let e = family.exercise
+                            Button { open = ExerciseRef(exerciseId: e.id) } label: {
+                                HStack(spacing: 12) {
+                                    ExerciseThumbnail(exercise: e, size: 48)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(e.name).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
+                                        Text((e.primary + e.secondary).prefix(3).map(\.name).joined(separator: " · "))
+                                            .font(.caption.weight(.semibold)).opacity(0.8).lineLimit(1)
+                                        VariationCount(count: family.variations.count, color: (section.group?.ink ?? category.ink).opacity(0.85))
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.8)
                                 }
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+                                .contentShape(Rectangle())
                             }
-                            MuscleChips(primary: e.primary, secondary: e.secondary)
+                            .buttonStyle(.plain)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .card(padding: 14)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(16)
@@ -384,6 +390,16 @@ struct CategoryDetailView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $open) { ref in NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId) } }
+    }
+
+    typealias Family = (exercise: Exercise, variations: [Exercise])
+
+    /// Families sectioned by the group of their first main muscle (body order); nil = no muscle listed ("Whole body", last).
+    static func byGroup(_ families: [Family]) -> [(group: MuscleGroup?, families: [Family])] {
+        let split = Dictionary(grouping: families) { ($0.exercise.primary.first ?? $0.exercise.secondary.first)?.group }
+        return (MuscleGroup.allCases.map(Optional.some) + [nil]).compactMap { g in
+            split[g].map { (g, $0) }
+        }
     }
 }
 

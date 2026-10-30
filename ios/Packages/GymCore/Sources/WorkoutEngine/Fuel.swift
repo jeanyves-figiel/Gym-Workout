@@ -504,6 +504,8 @@ public struct FuelDayInput: Sendable {
 }
 
 public enum Fuel {
+    /// Carbs on the 1–2 days before a long endurance event (#864, ACSM 10–12 g/kg).
+    public static let carbLoadPerKg = 10.0
     /// Used when no weight is known.
     public static let typicalKg = 75.0
     public static let typicalFemaleKg = 64.0
@@ -564,8 +566,9 @@ public enum Fuel {
         var carbs = carbsPerKg(load, goal: goal) * kg
         // Big day tomorrow: top the glycogen up tonight.
         if tomorrow == .big && load < .big { carbs += 1 * kg }
-        // Carb loading (1–2 days before a long endurance event): 8 g/kg, whatever the goal.
-        if let e = input.event, e.days >= 1, e.loads { carbs = max(carbs, 8 * kg) }
+        // Carb loading (1–2 days before a long endurance event): 10 g/kg, whatever the goal (ACSM: 10–12 g/kg for
+        // the 36–48 h before, #864).
+        if let e = input.event, e.days >= 1, e.loads { carbs = max(carbs, carbLoadPerKg * kg) }
         let fat = fatPerKg(goal) * kg * (input.event.map { $0.days >= 1 && $0.loads } == true ? 0.8 : 1)
         protein = (protein / 5).rounded() * 5
         carbs = (carbs / 10).rounded() * 10

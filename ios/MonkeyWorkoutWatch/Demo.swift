@@ -19,6 +19,26 @@ enum Demo {
         return args[i + 1]
     }
 
+    /// Mind (#834) as the phone sends it: box breathing and 4-7-8, score 74.
+    static func mind(checkedIn: Bool) -> WMind {
+        let box = WBreath(id: "box", label: "Box 4-4-4-4", purpose: "Focus", symbol: "square", tint: 0xFF3D9A, tint2: 0x7A2CFF, lengths: [5, 3, 10],
+                          phases: [WBreathPhase(label: "Breathe in", seconds: 4, fill: 0.85, inhale: true),
+                                   WBreathPhase(label: "Hold", seconds: 4, fill: 1, inhale: false),
+                                   WBreathPhase(label: "Breathe out", seconds: 4, fill: 0, inhale: false),
+                                   WBreathPhase(label: "Hold empty", seconds: 4, fill: 0, inhale: false)], cues: [])
+        let sleep = WBreath(id: "sleep478", label: "4-7-8", purpose: "Sleep", symbol: "moon.stars.fill", tint: 0x3B3F8F, tint2: 0x7A2CFF, lengths: [4, 8],
+                            phases: [WBreathPhase(label: "Breathe in", seconds: 4, fill: 0.85, inhale: true),
+                                     WBreathPhase(label: "Hold", seconds: 7, fill: 1, inhale: false),
+                                     WBreathPhase(label: "Breathe out", seconds: 8, fill: 0, inhale: false)], cues: [], byBreaths: true)
+        let sigh = WBreath(id: "sigh", label: "Physio sigh", purpose: "Stress", symbol: "wind", tint: 0xFFB23C, tint2: 0xFF3D6E, lengths: [5, 1, 3],
+                           phases: [WBreathPhase(label: "Breathe in", seconds: 2, fill: 0.85, inhale: true),
+                                    WBreathPhase(label: "In a little more", seconds: 1, fill: 1, inhale: true),
+                                    WBreathPhase(label: "Breathe out", seconds: 6, fill: 0, inhale: false)], cues: [])
+        return WMind(day: WWater.key(Date()), score: checkedIn ? 74 : 61, level: checkedIn ? "Steady" : "Steady",
+                     week: [66, 74, 41, 60, 80, 69, checkedIn ? 74 : 61], checkedIn: checkedIn, pick: "box", pickWhy: "Stay sharp",
+                     weekMinutes: 18, breaths: [box, sleep, sigh])
+    }
+
     static let reward = WReward(xp: 340, levelUp: 8, weekCleared: true, badges: [catalog[6]])
 
     /// Some of the iPhone's badges (#227), as the phone sends them.
@@ -60,6 +80,9 @@ enum Demo {
         case "boxing": MotionDemo(screen: screen)
         case "swings": MotionDemo(screen: screen)
         case "swim", "swim-sets", "open-water": MotionDemo(screen: screen)
+        // Mind (#834): check-in, Mind card and Calm list, breathing, done.
+        case "mind-checkin", "mind": NavigationStack { WatchMindView() }
+        case "calm-breathe", "calm-done": MotionDemo(screen: screen)
         default: ProLockView()
         }
     }
@@ -70,11 +93,15 @@ enum Demo {
         @State private var ready = false
 
         var body: some View {
-            Group {
+            // A ZStack with a real child: onAppear on an empty Group never fires, so the screen stayed black (#824).
+            ZStack {
+                Color.clear
                 if ready {
                     switch screen {
                     case "boxing": TimerRunView()
                     case "swings": SportTrackView()
+                    case "calm-breathe": CalmRunView()
+                    case "calm-done": CalmTracker.shared.summary.map { CalmSummaryView(summary: $0) }
                     default: SwimRunView()
                     }
                 }
@@ -91,6 +118,10 @@ enum Demo {
                     SwimTracker.shared.demo(.pool(25), workout: w, minutes: (330 + 2 * 120 + 102) / 60)
                 case "open-water":
                     SwimTracker.shared.demo(.openWater, minutes: 28)
+                case "calm-breathe", "calm-done":
+                    if let b = Demo.mind(checkedIn: true).breaths.first {
+                        CalmTracker.shared.demo(b, at: 176 - 134 - 1, done: screen == "calm-done")
+                    }
                 default:
                     SwimTracker.shared.demo(.pool(25), minutes: 15)
                 }
@@ -112,7 +143,8 @@ enum Demo {
                 Text("80 kg · set 2 of 4").font(W.label(10)).opacity(0.85)
                 LiftPanel(lift: lift, reps: stop ? 6 : confirm ? 8 : 5, tint: 0x7B2FF7, waiting: confirm)
                 if logging {
-                    AutoLogBanner(title: "80 kg × 8", end: Date().addingTimeInterval(4.2), onUndo: {})
+                    // Still counting when CI captures ~5 s after launch; at 0 it shows Logged (#824).
+                    AutoLogBanner(title: "80 kg × 8", end: Date().addingTimeInterval(9.2), onUndo: {})
                 } else if confirm {
                     LimeButton(title: "✓ LOG 8 REPS") {}
                 } else {
@@ -173,6 +205,7 @@ enum Demo {
                                records: [WRecord(name: "Bench Press", kg: 92.5), WRecord(name: "Squat", kg: 130)],
                                recent: [WRecent(title: "Lower Power", date: Date().addingTimeInterval(-86400), minutes: 47, sets: 18)])
         s.water = WWater(day: WWater.key(Date()), glasses: 6, target: 12, glassMl: 250)
+        s.mind = mind(checkedIn: screen != "mind-checkin")
         return s
     }
 }

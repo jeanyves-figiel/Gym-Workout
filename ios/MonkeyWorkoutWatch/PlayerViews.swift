@@ -39,7 +39,11 @@ struct PlayerView: View {
                 .tabViewStyle(.page)
             }
         }
-        .task { await workout.start(title: player.session.title) }
+        .task {
+            // Still tracking an iPhone workout paused there (#820): end it, this workout gets its own Health session.
+            if workout.phoneSessionId != nil { store.stopTracking() }
+            await workout.start(title: player.session.title)
+        }
         .task(id: player.timedEnd) {
             // Timed work over: count the set.
             guard let end = player.timedEnd else { return }
@@ -141,6 +145,8 @@ struct PlayerView: View {
         case .previous: player.back()
         case .kgDown: player.adjustKg(-1)
         case .kgUp: player.adjustKg(1)
+        // Finish workout on the iPhone's twin player (#822): ends here, the summary shows and the phone gets the record.
+        case .finish: finish()
         }
         WKInterfaceDevice.current().play(.click)
     }

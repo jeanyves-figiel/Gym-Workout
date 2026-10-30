@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { COACH_MODEL_ID } from './chat.ts';
+import { AI_MODELS, CACHED, tracked } from './models.ts';
 import type { ScanItem } from './gymScan.ts';
 
 /**
@@ -87,8 +87,8 @@ export const cleanFoodScan = (raw: Partial<FoodSeen>[], catalog: ScanItem[]): Fo
   return out;
 };
 
-/** Claude Opus 5.5 vision with structured output, medium effort (low mixed up look-alikes, #573). */
-export const claudeFoodScan = (apiKey: string, workspaceId?: string): FoodScanModel => {
+/** Scan model (#866) vision with structured output, medium effort (low mixed up look-alikes, #573). */
+export const claudeFoodScan = (apiKey: string, workspaceId?: string, model = AI_MODELS.scan): FoodScanModel => {
   const client = new Anthropic({
     apiKey,
     timeout: 60_000,
@@ -96,8 +96,8 @@ export const claudeFoodScan = (apiKey: string, workspaceId?: string): FoodScanMo
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
   return async (jpeg, catalog) => {
-    const res = await client.beta.messages.create({
-      model: COACH_MODEL_ID,
+    const res = await tracked('food-scan', model, () => client.beta.messages.create({
+      model,
       max_tokens: 6000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
@@ -107,12 +107,13 @@ export const claudeFoodScan = (apiKey: string, workspaceId?: string): FoodScanMo
         {
           role: 'user',
           content: [
+            // Catalog first and cached (same for every scan), then the photo (#866).
+            { type: 'text', text: `Food ids (id: name):\n${catalog.map((c) => `${c.id}: ${c.label}`).join('\n')}`, cache_control: CACHED },
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpeg.toString('base64') } },
-            { type: 'text', text: `Food ids (id: name):\n${catalog.map((c) => `${c.id}: ${c.label}`).join('\n')}` },
           ],
         },
       ],
-    });
+    }));
     if (res.stop_reason === 'refusal') return [];
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return cleanFoodScan((JSON.parse(text) as { items: Partial<FoodSeen>[] }).items, catalog);
@@ -211,8 +212,8 @@ export const cleanSnapScan = (raw: { kind?: unknown; dish?: unknown; items?: Par
 };
 
 /** Plate scan (#723): same model and settings as the fridge scan, its own prompt and schema. */
-export const claudePlateScan = (apiKey: string, workspaceId?: string): PlateScanModel => {
-  const ask = visionCall(apiKey, workspaceId, PLATE_SYSTEM, plateSchema);
+export const claudePlateScan = (apiKey: string, workspaceId?: string, model = AI_MODELS.scan): PlateScanModel => {
+  const ask = visionCall(apiKey, workspaceId, PLATE_SYSTEM, plateSchema, model, 'plate-scan');
   return async (jpeg, catalog) => {
     const raw = await ask(jpeg, catalog);
     return raw ? cleanPlateScan(raw as { dish?: unknown; items?: Partial<PlateFood>[] }, catalog) : { dish: '', items: [] };
@@ -220,8 +221,8 @@ export const claudePlateScan = (apiKey: string, workspaceId?: string): PlateScan
 };
 
 /** Magic Snap (#733): plate prompt and schema with the kind first. */
-export const claudeSnapScan = (apiKey: string, workspaceId?: string): SnapScanModel => {
-  const ask = visionCall(apiKey, workspaceId, SNAP_SYSTEM, snapSchema);
+export const claudeSnapScan = (apiKey: string, workspaceId?: string, model = AI_MODELS.scan): SnapScanModel => {
+  const ask = visionCall(apiKey, workspaceId, SNAP_SYSTEM, snapSchema, model, 'snap-scan');
   return async (jpeg, catalog) => {
     const raw = await ask(jpeg, catalog);
     return raw ? cleanSnapScan(raw as { kind?: unknown; dish?: unknown; items?: Partial<PlateFood>[] }, catalog) : { kind: 'meal', dish: '', items: [] };
@@ -229,7 +230,7 @@ export const claudeSnapScan = (apiKey: string, workspaceId?: string): SnapScanMo
 };
 
 /** One structured vision call; undefined on a refusal. */
-const visionCall = (apiKey: string, workspaceId: string | undefined, system: string, outSchema: { [key: string]: unknown }) => {
+const visionCall = (apiKey: string, workspaceId: string | undefined, system: string, outSchema: { [key: string]: unknown }, model: string, feature: string) => {
   const client = new Anthropic({
     apiKey,
     timeout: 60_000,
@@ -237,8 +238,8 @@ const visionCall = (apiKey: string, workspaceId: string | undefined, system: str
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
   return async (jpeg: Buffer, catalog: ScanItem[]) => {
-    const res = await client.beta.messages.create({
-      model: COACH_MODEL_ID,
+    const res = await tracked(feature, model, () => client.beta.messages.create({
+      model,
       max_tokens: 6000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
@@ -248,12 +249,13 @@ const visionCall = (apiKey: string, workspaceId: string | undefined, system: str
         {
           role: 'user',
           content: [
+            // Catalog first and cached (same for every scan), then the photo (#866).
+            { type: 'text', text: `Food ids (id: name):\n${catalog.map((c) => `${c.id}: ${c.label}`).join('\n')}`, cache_control: CACHED },
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpeg.toString('base64') } },
-            { type: 'text', text: `Food ids (id: name):\n${catalog.map((c) => `${c.id}: ${c.label}`).join('\n')}` },
           ],
         },
       ],
-    });
+    }));
     if (res.stop_reason === 'refusal') return undefined;
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return JSON.parse(text) as unknown;

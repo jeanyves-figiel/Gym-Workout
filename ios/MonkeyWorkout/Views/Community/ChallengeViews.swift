@@ -357,57 +357,59 @@ private struct ChallengeScoreSheet: View {
     private var empty: Bool { seconds == nil && rounds == 0 && reps == 0 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Your score").font(Theme.display(26))
-                Text(tier.label).font(Theme.label(12)).padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(tier.gradient))
-                Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").font(.body.bold()).frame(width: 36, height: 36) }
-                    .buttonStyle(.plain).accessibilityLabel("Close")
-            }
-            switch format {
-            case .amrap, .emom:
-                Stepper("\(format == .emom ? "Rounds done" : "Rounds"): \(rounds)", value: $rounds, in: 0...200).font(Theme.label(16))
-                repsField(format == .emom ? "Extra reps in the last round" : "Extra reps")
-            case .tabata:
-                repsField("Total reps")
-            case .fortime:
-                Picker("", selection: $finished) {
-                    Text("Finished").tag(true)
-                    Text("Hit the \(minutes)′ cap").tag(false)
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Your score").font(Theme.display(26))
+                    Text(tier.label).font(Theme.label(12)).padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(tier.gradient))
+                    Spacer()
                 }
-                .pickerStyle(.segmented)
-                if finished {
-                    HStack {
-                        Text("Time").font(Theme.label(16))
-                        Spacer()
-                        Picker("Minutes", selection: $min) { ForEach(0...minutes, id: \.self) { Text("\($0)′").tag($0) } }
-                        Picker("Seconds", selection: $sec) { ForEach(0..<60, id: \.self) { Text(String(format: "%02d″", $0)).tag($0) } }
+                switch format {
+                case .amrap, .emom:
+                    Stepper("\(format == .emom ? "Rounds done" : "Rounds"): \(rounds)", value: $rounds, in: 0...200).font(Theme.label(16))
+                    repsField(format == .emom ? "Extra reps in the last round" : "Extra reps")
+                case .tabata:
+                    repsField("Total reps")
+                case .fortime:
+                    Picker("", selection: $finished) {
+                        Text("Finished").tag(true)
+                        Text("Hit the \(minutes)′ cap").tag(false)
                     }
-                } else {
-                    repsField("Reps done")
+                    .pickerStyle(.segmented)
+                    if finished {
+                        HStack {
+                            Text("Time").font(Theme.label(16))
+                            Spacer()
+                            Picker("Minutes", selection: $min) { ForEach(0...minutes, id: \.self) { Text("\($0)′").tag($0) } }
+                            Picker("Seconds", selection: $sec) { ForEach(0..<60, id: \.self) { Text(String(format: "%02d″", $0)).tag($0) } }
+                        }
+                    } else {
+                        repsField("Reps done")
+                    }
                 }
-            }
-            if let result {
-                Text(result.best ? "Saved: #\(result.rank) this week" : "Your best stays · #\(result.rank)")
-                    .font(Theme.label(15)).foregroundStyle(Theme.lime)
-            }
-            Button(result == nil ? "SAVE SCORE" : "DONE") {
-                if result != nil { return dismiss() }
-                saving = true
-                Task {
-                    result = await LiveRoom.shared.sendScore(rounds: rounds, reps: reps, seconds: seconds, tier: tier, api: model.api)
-                    saving = false
+                if let result {
+                    Text(result.best ? "Saved: #\(result.rank) this week" : "Your best stays · #\(result.rank)")
+                        .font(Theme.label(15)).foregroundStyle(Theme.lime)
                 }
+                Button(result == nil ? "SAVE SCORE" : "DONE") {
+                    if result != nil { return dismiss() }
+                    saving = true
+                    Task {
+                        result = await LiveRoom.shared.sendScore(rounds: rounds, reps: reps, seconds: seconds, tier: tier, api: model.api)
+                        saving = false
+                    }
+                }
+                .buttonStyle(LimeButtonStyle())
+                .disabled(saving || empty || (seconds ?? 0) > minutes * 60)
+                ErrorText(message: LiveRoom.shared.error)
             }
-            .buttonStyle(LimeButtonStyle())
-            .disabled(saving || empty || (seconds ?? 0) > minutes * 60)
-            ErrorText(message: LiveRoom.shared.error)
+            .foregroundStyle(.white)
+            .padding(20)
+            .background(Theme.bg.ignoresSafeArea())
+            // Standard ✕ top right (#823): was a plain white ✕ in the title row.
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
-        .foregroundStyle(.white)
-        .padding(20)
-        .background(Theme.bg.ignoresSafeArea())
     }
 
     private func repsField(_ title: String) -> some View {
@@ -444,37 +446,39 @@ struct SuggestChallengeSheet: View {
     private var valid: Bool { name.trimmingCharacters(in: .whitespaces).count >= 2 && (2...5).contains(moves.count) }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("Suggest a challenge").font(Theme.display(26))
-                    Spacer()
-                    Button { dismiss() } label: { Image(systemName: "xmark").font(.body.bold()).frame(width: 36, height: 36) }
-                        .buttonStyle(.plain).accessibilityLabel("Close")
-                }
-                if sent {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Sent for review").font(Theme.display(22))
-                        Text("Once approved it joins the member-week vote.").font(Theme.label(14))
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Suggest a challenge").font(Theme.display(26))
+                        Spacer()
                     }
-                    .gradientCard(memberGradient, ink: Theme.ink)
-                    Button("DONE") { dismiss() }.buttonStyle(LimeButtonStyle())
-                } else {
-                    form
+                    if sent {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Sent for review").font(Theme.display(22))
+                            Text("Once approved it joins the member-week vote.").font(Theme.label(14))
+                        }
+                        .gradientCard(memberGradient, ink: Theme.ink)
+                        Button("DONE") { dismiss() }.buttonStyle(LimeButtonStyle())
+                    } else {
+                        form
+                    }
                 }
+                .padding(20)
             }
-            .padding(20)
-        }
-        .foregroundStyle(.white)
-        .background(Theme.bg.ignoresSafeArea())
-        .scrollDismissesKeyboard(.interactively)
-        .onAppear {
-            #if DEBUG
-            if Demo.enabled, moves.isEmpty {
-                name = "Lemur Leap"
-                moves = [Move(name: "burpees", reps: 10), Move(name: "air squats", reps: 15), Move(name: "v-ups", reps: 10)]
+            .foregroundStyle(.white)
+            .background(Theme.bg.ignoresSafeArea())
+            .scrollDismissesKeyboard(.interactively)
+            .onAppear {
+                #if DEBUG
+                if Demo.enabled, moves.isEmpty {
+                    name = "Lemur Leap"
+                    moves = [Move(name: "burpees", reps: 10), Move(name: "air squats", reps: 15), Move(name: "v-ups", reps: 10)]
+                }
+                #endif
             }
-            #endif
+            // Standard ✕ top right (#823): was a plain white ✕ in the title row.
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
     }
 

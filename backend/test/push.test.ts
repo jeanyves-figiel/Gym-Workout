@@ -84,7 +84,7 @@ describe('push devices and prefs', () => {
   it('defaults, saves and validates prefs', async () => {
     const u = await signUp('prefs@example.com');
     const d = (await get('/v1/me/notification-prefs', u.token)).json();
-    expect(d.prefs).toMatchObject({ sessionReminders: true, missedCheckIn: true, followAchievements: true, quietStart: 1320, quietEnd: 420 });
+    expect(d.prefs).toMatchObject({ sessionReminders: true, missedCheckIn: true, followAchievements: true, comebackNudge: true, quietStart: 1320, quietEnd: 420 });
     const saved = (await put('/v1/me/notification-prefs', { prefs: { ...d.prefs, followAchievements: false, extra: 1 } }, u.token)).json();
     expect(saved.prefs.followAchievements).toBe(false);
     expect(saved.prefs.extra).toBeUndefined();

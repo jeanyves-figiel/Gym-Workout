@@ -54,24 +54,56 @@ private struct SportOffFlow: ViewModifier {
 extension AppModel {
     /// The Rest day request for day `key` when it holds a sport; nil on a rest or can't-train day.
     func sportOffRequest(key: String, weekday: Int, date: Date) -> SportOffRequest? {
-        guard let sport = profile?.sport(onWeekday: weekday, key: key, date: date) else { return nil }
+        guard let sport = daySport(onWeekday: weekday, key: key, date: date) else { return nil }
         return SportOffRequest(key: key, weekday: weekday, date: date, sport: sport, trip: profile?.sportTrip(on: key))
     }
 }
 
-/// Skips or unskips a session of this week or of a later `week`, with Undo for a skip.
-@MainActor func toggleSkip(_ model: AppModel, _ s: Session, in week: PlanCalendar.Week?) {
-    guard let week else {
-        if model.skippedIds.contains(s.id) { withAnimation { model.unskip(s.id) } } else if model.canSkip(s) { skipWithUndo(model, s) }
+/// Skip (#854, design A from `skip-simplify/proposals.png`): the one way a workout leaves its day. At once, this week
+/// (`week` nil) or a later week, with the Undo bar; once the bar is gone it is gone for good, past days included (#849).
+/// A workout added to this week (#818) comes off the plan instead.
+@MainActor func skipDay(_ model: AppModel, _ s: Session, in week: PlanCalendar.Week?) {
+    if week == nil, let ins = model.planInsert(for: s), ins.replacing == nil {
+        withAnimation(.snappy) { model.removePlanInsert(ins.id) }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "This week only", symbol: "nosign") { [model] in
+            withAnimation(.snappy) {
+                if let generated = ins.generated, let wd = ins.weekday {
+                    _ = model.addExtra(ins.workout, generated: generated, weekday: wd)
+                } else {
+                    _ = model.insertIntoPlan(ins.workout, replacing: ins.replacing, weekday: ins.weekday)
+                }
+            }
+        }
         return
     }
-    if model.isSkipped(s.id, in: week) {
-        withAnimation { model.setSkipped(false, s.id, in: week) }
-    } else {
-        withAnimation { model.setSkipped(true, s.id, in: week) }
-        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "That week only", symbol: "nosign") { [model] in
-            withAnimation { model.setSkipped(false, s.id, in: week) }
+    guard let week else {
+        guard model.canSkip(s) || model.missedSessions.contains(where: { $0.id == s.id }) else { return }
+        withAnimation { model.skipSession(s.id) }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "This week only", symbol: "nosign") { [model] in
+            withAnimation { model.unskip(s.id) }
         }
+        return
+    }
+    guard !model.isSkipped(s.id, in: week) else { return }
+    withAnimation { model.setSkipped(true, s.id, in: week) }
+    UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "That week only", symbol: "nosign") { [model] in
+        withAnimation { model.setSkipped(false, s.id, in: week) }
+    }
+}
+
+/// "Stop training <weekday>s" (#854): the plan change, from long press only. Nil when it doesn't fit `s`.
+@MainActor func stopWeekdayTitle(_ model: AppModel, _ s: Session, weekday: Int, in week: PlanCalendar.Week?) -> String? {
+    guard model.canRemoveEveryWeek(s, weekday: weekday, in: week) else { return nil }
+    return model.isPlannedHiit(s) ? "No more HIIT on \(WeekSchedule.name(weekday))s" : "Stop training \(WeekSchedule.name(weekday))s"
+}
+
+/// Drops `weekday` from the plan every week (#784), with the Undo bar putting the plan back.
+@MainActor func stopWeekday(_ model: AppModel, _ s: Session, weekday: Int) {
+    let hiit = model.isPlannedHiit(s)
+    guard let before = withAnimation(.snappy, { model.removeEveryWeek(weekday, hiit: hiit) }) else { return }
+    UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(weekday)) \(hiit ? "HIIT" : "workouts")", detail: "My plan updated",
+                                   symbol: "arrow.triangle.2.circlepath") { [model] in
+        withAnimation(.snappy) { model.updateProfile(before) }
     }
 }
 
@@ -124,159 +156,5 @@ struct MoveHereSheet: View {
         }
         .presentationDetents([.medium, .large])
         .preferredColorScheme(.dark)
-    }
-}
-
-/// "Pull skipped" struck through with a small lime Unskip chip (#698, design A), on Train's rest day card and in
-/// the Calendar day sheet (#784). Workouts removed from the day show nothing.
-struct SkippedLine: View {
-    let sessions: [Session]
-    /// The later week they were skipped in; nil = this week.
-    var week: PlanCalendar.Week? = nil
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        // Removed ones (#784) leave no line.
-        let shown = sessions.filter { !model.isRemoved($0.id, in: week) }
-        if !shown.isEmpty { line(shown) }
-    }
-
-    private func line(_ sessions: [Session]) -> some View {
-        HStack(spacing: 8) {
-            Text("\(sessions.map(\.displayTitle).joined(separator: " · ")) skipped")
-                .font(Theme.label(13)).strikethrough().foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-            Button {
-                withAnimation {
-                    for s in sessions {
-                        if let week { model.setSkipped(false, s.id, in: week) } else { model.unskip(s.id) }
-                    }
-                }
-            } label: {
-                Label("Unskip", systemImage: "arrow.uturn.backward").font(Theme.label(12)).foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 9).padding(.vertical, 5)
-                    .background(Capsule().fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("train.unskip")
-            Spacer(minLength: 0)
-        }
-    }
-}
-
-// MARK: Remove a workout (#784, design B from `remove-workout/proposals.png`)
-
-/// A workout to remove: from its day only, every week on its weekday, or just skipped. `week` nil = this week.
-struct RemoveRequest: Identifiable {
-    let session: Session
-    let week: PlanCalendar.Week?
-    let weekday: Int
-    let date: Date
-    var id: String { session.id }
-}
-
-extension View {
-    /// Shows the Remove choice for `request`, then removes with an Undo toast.
-    func removeWorkoutFlow(_ request: Binding<RemoveRequest?>, onDone: @escaping () -> Void = {}) -> some View {
-        sheet(item: request) { RemoveWorkoutSheet(request: $0, onDone: onDone) }
-    }
-}
-
-extension AppModel {
-    /// The Remove request for `s` on `weekday` of this week (`week` nil) or a later week.
-    func removeRequest(_ s: Session, weekday: Int, in week: PlanCalendar.Week?) -> RemoveRequest {
-        let cal = planCalendar
-        let date = week?.date(weekday, cal)
-            ?? cal.date(byAdding: .day, value: weekday - 1, to: Progression.weekStart(Date(), cal)) ?? Date()
-        return RemoveRequest(session: s, week: week, weekday: weekday, date: date)
-    }
-}
-
-private struct RemoveWorkoutSheet: View {
-    let request: RemoveRequest
-    let onDone: () -> Void
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        let s = request.session
-        let n = model.profile?.sessionsPerWeek ?? 3
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Remove \(s.displayTitle)").font(Theme.display(24)).lineLimit(2).minimumScaleFactor(0.8)
-                option("Just \(request.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))",
-                       detail: "rest day, plan carries on", symbol: "1.square.fill", fill: AnyShapeStyle(MissedStyle.gradient)) {
-                    withAnimation(.snappy) { model.removeSession(s.id, in: request.week) }
-                    let week = request.week
-                    UndoCloseCenter.shared.deleted("\(s.displayTitle) removed", detail: dayName, symbol: "trash") { [model] in
-                        withAnimation(.snappy) { model.restoreSession(s.id, in: week) }
-                    }
-                }
-                .accessibilityIdentifier("remove.day")
-                option("Every \(WeekSchedule.name(request.weekday))",
-                       detail: n > 2 ? "train \(n - 1)× a week instead of \(n)" : "keeps \(n)× a week, on other days",
-                       symbol: "arrow.triangle.2.circlepath",
-                       fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x9A3BD8), Color(hex: 0x5A4AB0)], startPoint: .leading, endPoint: .trailing))) {
-                    guard let before = withAnimation(.snappy, { model.removeEveryWeek(request.weekday) }) else { return }
-                    UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(request.weekday)) workouts", detail: "My plan updated", symbol: "trash") { [model] in
-                        withAnimation(.snappy) { model.updateProfile(before) }
-                    }
-                }
-                .accessibilityIdentifier("remove.everyWeek")
-                if !skipped {
-                    option("Just skip it", detail: "keeps \"skipped · Unskip\"", symbol: "nosign", fill: AnyShapeStyle(Color.white.opacity(0.14))) {
-                        skip()
-                    }
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.bg.ignoresSafeArea())
-            .toolbar { CloseToolbarItem { dismiss() } }
-        }
-        .preferredColorScheme(.dark)
-        .presentationDetents([.height(skipped ? 300 : 380)])
-    }
-
-    private var dayName: String { request.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)) }
-
-    private var skipped: Bool {
-        request.week.map { model.isSkipped(request.session.id, in: $0) } ?? model.skippedIds.contains(request.session.id)
-    }
-
-    private func skip() {
-        let s = request.session
-        if let week = request.week {
-            withAnimation { model.setSkipped(true, s.id, in: week) }
-        } else {
-            withAnimation { model.skipSession(s.id) }
-        }
-        let week = request.week
-        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: dayName, symbol: "nosign") { [model] in
-            withAnimation { if let week { model.setSkipped(false, s.id, in: week) } else { model.unskip(s.id) } }
-        }
-    }
-
-    private func option(_ title: String, detail: String, symbol: String, fill: AnyShapeStyle, action: @escaping () -> Void) -> some View {
-        Button {
-            dismiss()
-            action()
-            onDone()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: symbol).font(.system(size: 17, weight: .bold))
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.25)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(Theme.label(16)).lineLimit(1).minimumScaleFactor(0.8)
-                    Text(detail).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
-                }
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(.white)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(fill))
-        }
-        .buttonStyle(.plain)
     }
 }

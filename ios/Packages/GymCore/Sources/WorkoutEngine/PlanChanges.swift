@@ -69,9 +69,24 @@ extension Generator {
     /// Foci offered for a quick extra session.
     public static let quickFoci: [Focus] = [.upper, .lower, .fullPower, .push, .pull, .legs, .conditioning]
 
-    /// Durations offered for a quick extra session (#178), and the default (extra sessions are usually short).
-    public static let quickDurations = [15, 20, 30, 45, 60]
-    public static let quickDefaultMinutes = 30
+    /// Durations offered for an added workout (#178), any length from 20 min to 2 h (#851).
+    public static let quickDurations = [20, 30, 45, 60, 75, 90, 120]
+
+    /// The offered duration closest to `minutes` (#851): an added workout starts at the plan's session length.
+    public static func quickDuration(near minutes: Int) -> Int {
+        quickDurations.min { abs($0 - minutes) < abs($1 - minutes) } ?? 60
+    }
+
+    /// The Coach's pick for an added workout (#851): the strength focus whose muscles this week's load `heat`
+    /// (0–1 per muscle) touches least; ties keep the order of `quickFoci`.
+    public static func coachExtraFocus(heat: [Muscle: Double]) -> Focus {
+        let foci = quickFoci.filter { $0 != .conditioning }
+        func load(_ f: Focus) -> Double {
+            let muscles = f.muscleGroups.flatMap(\.muscles)
+            return muscles.isEmpty ? 1 : muscles.reduce(0) { $0 + (heat[$1] ?? 0) } / Double(muscles.count)
+        }
+        return foci.min { load($0) < load($1) } ?? .upper
+    }
 
     /// One generated session of `focus` for this profile and cycle week (equipment, goal and style kept), unscheduled.
     /// `minutes` sets its length (#178); nil = the plan's session length. `tweaks`: warm-up / cool-down choices (#293).

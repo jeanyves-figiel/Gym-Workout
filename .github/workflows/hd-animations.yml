@@ -1,0 +1,57 @@
+name: HD animations pack
+
+# HD exercise animations (#932): ios/HDAnimations packed (ios/Tools/illustrations/pack.py) and published as assets of
+# the `hd-animations` release, where the app downloads them (HDAnimations.defaultBase; remote value hdAnimationsURL
+# moves it). Exercise files go first, the manifest last, so an app never sees a manifest without its files; files the
+# new manifest no longer lists are deleted after it.
+on:
+  push:
+    branches: [main]
+    paths: ['ios/HDAnimations/**', 'ios/HDMotion/**', 'ios/Tools/illustrations/pack.py', '.github/workflows/hd-animations.yml']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build the pack and list it, publish nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hd-animations
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 ios/Tools/illustrations/pack.py hd-pack
+      - name: Summary
+        run: |
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json
+          m = json.load(open("hd-pack/manifest.json"))
+          print(f"HD pack: {len(m['exercises'])} exercises, {m['bytes'] / 1e6:.1f} MB")
+          PY
+      - name: Publish
+        if: github.event_name == 'push' || !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view hd-animations >/dev/null 2>&1 || gh release create hd-animations --title "HD exercise animations" \
+            --notes "Downloaded by the app (#932). Published by the HD animations pack workflow; do not edit by hand." --latest=false
+          # Files are named by content (<id>-<sha>.mwf): upload only the ones the release doesn't have yet.
+          gh release view hd-animations --json assets --jq '.assets[].name' > remote.txt
+          changed=()
+          for f in hd-pack/*.mwf; do grep -qx "$(basename "$f")" remote.txt || changed+=("$f"); done
+          echo "${#changed[@]} new exercise files"
+          for ((i = 0; i < ${#changed[@]}; i += 50)); do
+            gh release upload hd-animations "${changed[@]:i:50}"
+          done
+          gh release upload hd-animations hd-pack/manifest.json --clobber
+          # Every app reads this one manifest: files it no longer lists go (a release holds 1000 assets at most).
+          for n in $(cat remote.txt); do
+            case "$n" in *.mwf) [ -f "hd-pack/$n" ] || gh release delete-asset hd-animations "$n" -y ;; esac
+          done

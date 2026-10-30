@@ -1359,8 +1359,8 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}; visibility members/public shares it to the library",
-        "description": "Errors / limits: 403 community_profile_required to share; 409 quota_exceeded; 413 too_large",
+        "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}; visibility members/public shares it to the library; new or renamed shared names are AI-checked (#871)",
+        "description": "Errors / limits: 400 objectionable_content (word filter or AI check); 403 community_profile_required to share; 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1637,7 +1637,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {climbs, deleted?, serverTime} climbing sessions",
+        "summary": "→ {climbs, deleted?, serverTime} climbing sessions (optional place {id, name, address?, latitude?, longitude?, gymId?, kind?}, #832; kind = place type such as climbingGym, crag, skiResort, #960)",
         "security": [
           {
             "bearer": []
@@ -1721,7 +1721,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {sports, deleted?, serverTime} other sport sessions (snowboard, MTB, Hyrox…)",
+        "summary": "→ {sports, deleted?, serverTime} other sport sessions (snowboard, MTB, Hyrox…; optional place as climbs, #832)",
         "security": [
           {
             "bearer": []
@@ -2178,7 +2178,7 @@
         "tags": [
           "Push and notifications"
         ],
-        "summary": "{achievements[≤30]: {id, type, text}} → {announced}; each new id pushed once to followers, at most 20 a day per member",
+        "summary": "{achievements[≤30]: {id, type, text}} → {announced}; each new id pushed once to followers, at most 20 a day per member; text with a link or domain → 400 links_not_allowed (#922)",
         "description": "Errors / limits: 30/min",
         "security": [
           {
@@ -2279,8 +2279,8 @@
         "tags": [
           "Community"
         ],
-        "summary": "Raw image/jpeg ≤ 512 KB, 64–1024 px, metadata stripped → {profile}",
-        "description": "Errors / limits: 413 image_too_large; 400 invalid_image; 415",
+        "summary": "Raw image/jpeg ≤ 512 KB, 64–1024 px, metadata stripped → {profile}; AI-checked (#871), a flagged photo is refused and the old one stays",
+        "description": "Errors / limits: 400 objectionable_content; 413 image_too_large; 400 invalid_image; 415",
         "security": [
           {
             "bearer": []
@@ -2352,7 +2352,7 @@
           "Community"
         ],
         "summary": "Join / update; joining needs acceptGuidelines: true → profile",
-        "description": "Errors / limits: 400 guidelines_required, nickname_required; 409 nickname_taken",
+        "description": "Errors / limits: 400 guidelines_required, nickname_required, objectionable_content (word filter or AI check, #871); 409 nickname_taken",
         "security": [
           {
             "bearer": []
@@ -2585,7 +2585,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post. payload: {title, subtitle?, metric?, style?, stats?, exercises?}; a workout sends up to 40 exercises {id, name, sets, reps?, kg?} so members can open and copy it (#779)",
+        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post; text members haven't seen yet is AI-checked (#871): flagged → 400 objectionable_content, nothing stored. payload: {title, subtitle?, metric?, style?, stats?, exercises?}; a workout sends up to 40 exercises {id, name, sets, reps?, kg?} so members can open and copy it (#779)",
         "description": "Errors / limits: 400 objectionable_content; 429 daily_limit",
         "security": [
           {
@@ -3530,8 +3530,8 @@
         "tags": [
           "Community"
         ],
-        "summary": "Create or update your plan: {name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)} → {program}",
-        "description": "Errors / limits: 400 objectionable_content, 409 conflict, 413, 429 daily_limit (20 new/day)",
+        "summary": "Create or update your plan: {name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)} → {program}; shared text is AI-checked (#871)",
+        "description": "Errors / limits: 400 objectionable_content (word filter or AI check), 409 conflict, 413, 429 daily_limit (20 new/day)",
         "parameters": [
           {
             "name": "id",
@@ -4117,8 +4117,112 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory}} → {reply, workout?, action?, suggestions, remainingToday}",
-        "description": "Errors / limits: 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
+        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory, exercises[≤400 names]}, photo?} (photo: base64 JPEG ≤1.5 MB of a machine, sent with the last message, #856) → {reply, workout?, action?, suggestions, exercises, protect?{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp, seeDoctor} (#870 train around pain), remainingToday} (exercises: ≤4 names from context.exercises, screens freestyle and picker #934)",
+        "description": "Errors / limits: 400 bad_photo; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/coach-review": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "Weekly Coach review (#867): {digest{weekOf YYYY-MM-DD, goal?, level?, days[]{weekday 1–7, title, done, minutes?}, bests[], sleepHours?, hrv?, mood? 1–5, moodAbout[], next[]{id, weekday, title, lifts[]{uid, name, sets}}, offDays[]}} → {weekOf, score 0–100, headline, summary, changes[≤3]{kind move|skip|lighter|addSet, sessionId, weekday?, uid?, label}}; changes only name next workouts and lifts; 3/day per member",
+        "description": "Errors / limits: 400; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/coach-set": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "Talk to Coach mid-set (#874): {question 1–300, context{exercise, set, sets, kg?, reps?, step 0.25–20 (2.5), done[]{kg, reps, rir?}, lastTime?, restSec?, swaps[≤4]{id, name}}} → {answer ≤240, actions[≤2]{kind weight|swap|rest, kg? | exerciseId? | sec?}}; weight 60–130 % of kg on the step grid, swap only from swaps, rest 30–600 s, one per kind; 30/day per member. The app tries its own rules and the on-device model first",
+        "description": "Errors / limits: 400; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/coach-plan": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "Set up the plan with Coach (#873), \"say it once\": {text 3–500} → plan form values {goal balanced|build|strength|climbing|endurance|athletic, experience, sessions 2–6, weekdays[1–7], minutes 45|60|75|90|null, climbs, climbDays 1–4|null, protect{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp}|null (turns on pain mode #870), summary}. Free (onboarding); 15 a day per member with /help",
+        "description": "Errors / limits: 400, 429 daily_limit / busy, 502 coach_failed, 503 coach_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/coach-plan/help": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "\"Not sure? Ask Coach\" on a plan form step (#873): {step, options[1–12]{id, label}, so[] (answers so far), question?} → {answer, pick (an option id) | null}; same cap as /v1/me/coach-plan",
+        "description": "Errors / limits: 400, 429, 502, 503",
         "security": [
           {
             "bearer": []
@@ -4171,6 +4275,58 @@
         ],
         "summary": "{photo, catalog[≤400], mode? fridge|plate|auto} → {items, found[{id | new food, sure, alcohol, per100}], remainingToday}; plate (#723, a cooked meal) adds dish and per food grams, caffeine (mg/100 g); auto (#733, Magic Snap) answers like plate plus kind meal|stock (stock: dish \"\"); one daily count for all modes",
         "description": "Errors / limits: as gym scan",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/meal-ideas": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "{pantry[1–300]{id, label}, meal breakfast|lunch|dinner|snack, left{protein, carbs} (g still to eat today), diet?, avoid[]?} → {ideas[≤3]{name, minutes, foods[{id, grams}] (pantry ids only), steps[≤5]}, remainingToday} (#869, \"What can I eat?\"; macros added up on the device)",
+        "description": "Errors / limits: 402; 403 verification_required; 429 daily_limit (20/day), busy; 502 ideas_failed; 503 ideas_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/workout-import": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "{link? (≤500), caption? (≤4000), text? (≤2000, member's own words), photos[≤4] (base64 JPEG ≤ 1.5 MB each), catalog[1–600]{id, label}} → {name, minutes, items[≤40]{said, id (catalog id or \"\"), sets, reps, unit reps|sec|min, sure}, source?{platform tiktok|instagram|youtube|web, url (tracking dropped), author?}, remainingToday} (#909, save a workout seen on TikTok / Instagram; no caption → TikTok / YouTube public oEmbed; video never fetched, photos not kept)",
+        "description": "Errors / limits: 400 bad_link, bad_photo; 402; 403 verification_required; 422 nothing_to_read; 429 daily_limit (20/day), busy; 502 import_failed; 503 import_unavailable",
         "security": [
           {
             "bearer": []
@@ -4359,7 +4515,7 @@
         "tags": [
           "Subscriptions (Pro)"
         ],
-        "summary": "Staging only (SUBSCRIPTION_TESTS=on, else 404): {mode off|preview|enforced|null} for this account → entitlement",
+        "summary": "Staging only (SUBSCRIPTION_TESTS=on and account in SUBSCRIPTION_TEST_EMAILS, else 404, #924): {mode off|preview|enforced|null} for this account → entitlement",
         "description": "Errors / limits: 404",
         "security": [
           {

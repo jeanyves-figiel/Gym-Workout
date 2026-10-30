@@ -65,4 +65,19 @@ import Testing
         let sets = WorkoutReport.build(now, history: [], logs: logs).lifts[0].sets
         #expect(sets.map(\.reps) == [8, 8])
     }
+
+    /// A run closed and resumed later (#817): its first sets, before the record's start, still belong to it, but
+    /// never sets of an earlier workout of the same session.
+    @Test func setsWindowCoversAResumedRun() {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        var now = record(8, bench: 80)
+        now.startedAt = now.startedAt.addingTimeInterval(12 * 3600)
+        let day = utc.startOfDay(for: now.startedAt)
+        #expect(WorkoutReport.setsFrom(now, history: [], calendar: utc) == day)
+        var morning = record(8, bench: 80)
+        morning.startedAt = day.addingTimeInterval(7 * 3600)
+        #expect(WorkoutReport.setsFrom(now, history: [morning, now], calendar: utc) == morning.endedAt)
+        #expect(WorkoutReport.setsFrom(morning, history: [morning, now], calendar: utc) == day)
+    }
 }

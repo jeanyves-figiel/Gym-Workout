@@ -41,6 +41,7 @@ import Testing
         let normal = Fuel.plan(FuelDayInput(day: day, weightKg: 70), prefs: FuelPrefs(goal: .perform), calendar: cal)
         let loading = Fuel.plan(input, prefs: FuelPrefs(goal: .perform), calendar: cal)
         #expect(loading.carbs > normal.carbs)
+        #expect(loading.carbs == 700)
         #expect(loading.event?.pointers.isEmpty == false)
     }
 
@@ -159,6 +160,11 @@ import Testing
         let meals = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [pin])
         #expect(meals.contains { $0.id == pin.id && $0.recipeId == pinnedId })
         #expect(meals.count >= 5)
+        // #819: a pin on a slot the day no longer has moves to the same kind of meal.
+        var stray = pin
+        stray.slot = "recovery-9"
+        let moved = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [stray])
+        #expect(moved.contains { $0.day == pin.day && $0.slot != "recovery-9" && $0.recipeId == pinnedId && $0.pinned })
         let items = MealPlanner.groceries(meals, recipes: [], foods: [], have: [], dayLabel: { $0 })
         #expect(!items.isEmpty)
         #expect(items.allSatisfy { $0.grams > 0 })
@@ -348,7 +354,7 @@ import Testing
         #expect(mine.switching(to: .creatine).name == "Huel Black")
     }
 
-    @Test func mealShakeFillsBreakfast() {
+    @Test func mealShakeFillsBreakfast() throws {
         var p = plan(trainingAt: nil)
         Supplements.apply([shake], to: &p, prefs: FuelPrefs(), calendar: cal)
         let dose = p.supplements[0]
@@ -360,6 +366,11 @@ import Testing
         log.untick(dose)
         #expect(log.ticks.isEmpty)
         #expect(log.eaten.total == 0)
+        // #819: a breakfast already logged stays when the shake is ticked and unticked.
+        log.log([FoodServing(foodId: "coffee")], at: try #require(p.slots.first { $0.id == "breakfast" }))
+        log.tick(dose)
+        log.untick(dose)
+        #expect(log.ticks["breakfast"]?.foods?.map(\.foodId) == ["coffee"])
     }
 
     @Test func readsTheLabel() {

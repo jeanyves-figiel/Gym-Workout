@@ -59,11 +59,11 @@ enum HistoryItem: Identifiable, Equatable {
             if let hr = r.avgHeartRate { parts.append("\(Int(hr)) bpm") }
             return parts.joined(separator: " · ")
         case .climb(let c):
-            return [c.topGrade.map { "top \($0)" }, c.detail, c.effort.map { "effort \($0)" }, c.source == "MonkeyWorkout" ? nil : c.source]
+            return [c.place?.name, c.topGrade.map { "top \($0)" }, c.detail, c.effort.map { "effort \($0)" }, c.source == "MonkeyWorkout" ? nil : c.source]
                 .compactMap { $0 }.joined(separator: " · ")
         case .sport(let s):
             let stats = s.statsText
-            return [stats.isEmpty ? nil : stats, s.effort.map { "effort \($0)" }, s.source == "MonkeyWorkout" ? nil : s.source]
+            return [s.place?.name, stats.isEmpty ? nil : stats, s.effort.map { "effort \($0)" }, s.source == "MonkeyWorkout" ? nil : s.source]
                 .compactMap { $0 }.joined(separator: " · ")
         }
     }

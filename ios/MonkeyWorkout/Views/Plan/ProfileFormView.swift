@@ -179,22 +179,45 @@ struct ProfileFormView: View {
             Text("Pick a goal, then how your week splits your muscles.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.muted)
+            coachHelp("Goal", Goal.allCases.map { ($0.rawValue, "\($0.config.label): \($0.config.blurb)") }) { id in
+                if let g = Goal(rawValue: id), p.goal != g { p.applyGoal(g) }
+            }
             goals
         case .week:
             summary
+            coachHelp("Gym days a week", (2...6).map { ("\($0)", "\($0) gym days a week") }) { id in
+                if let n = Int(id), p.sessionsPerWeek != n {
+                    p.splitDays = nil
+                    p.sessionsPerWeek = n
+                }
+            }
             week
         case .time:
             WorkoutTimeSection(profile: $p)
         case .variety:
+            coachHelp("Week to week", PlanVariety.allCases.map { ($0.rawValue, "\($0.title): \($0.subtitle)") }) { id in
+                if let v = PlanVariety(rawValue: id) { p.variety = v }
+            }
             variety
         case .style:
             TrainingStyleSection(profile: $p)
         case .flow:
             SessionFlowSection(profile: $p)
         case .method:
+            coachHelp("Training method", TrainingMethod.allCases.map { ($0.rawValue, "\($0.label): \($0.blurb)") }) { id in
+                if let m = TrainingMethod(rawValue: id) { p.method = m }
+            }
             TrainingMethodSection(profile: $p)
         case .gym:
             GymPicker(profile: $p)
+        }
+    }
+
+    /// "Not sure? Ask Coach" (#873, design C from `ai-epic/a3.png`) on the new member's form steps.
+    @ViewBuilder
+    private func coachHelp(_ step: String, _ options: [(String, String)], use: @escaping (String) -> Void) -> some View {
+        if isNew && section == nil {
+            AskCoachFormHelp(step: step, options: options.map { .init(id: $0.0, label: String($0.1.prefix(120))) }, profile: p, onUse: use)
         }
     }
 
@@ -718,7 +741,8 @@ struct GymPicker: View {
         VStack(alignment: .leading, spacing: 10) {
             GymCard(name: selectedRef.name,
                     location: selectedRef.address.isEmpty ? (selectedSaved?.kind?.label ?? "Your gym") : selectedRef.address,
-                    symbol: selectedSaved?.kind?.symbol ?? "building.2.fill", count: profile.equipment.count, selected: true) {
+                    symbol: selectedSaved?.kind?.symbol ?? "building.2.fill", count: profile.equipment.count,
+                    machines: AppModel.machineCount(profile.equipment), selected: true) {
                 showEquipment = true
             }
 
@@ -727,7 +751,9 @@ struct GymPicker: View {
                     Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Theme.lime)
                     Text("Equipment").bold()
                     Spacer()
-                    Text("\(profile.equipment.count) items").foregroundStyle(Theme.lime).bold()
+                    // Items and machines (#823): the machines are what Explore counts.
+                    Text("\(profile.equipment.count) items · \(AppModel.machineCount(profile.equipment)) machines")
+                        .foregroundStyle(Theme.lime).bold().lineLimit(1).minimumScaleFactor(0.8)
                     Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(Theme.muted)
                 }
                 .foregroundStyle(.white)
@@ -736,6 +762,9 @@ struct GymPicker: View {
             .buttonStyle(.plain)
 
             if !missing.isEmpty { missingCard }
+
+            // What it also has (#960 C): a gym with a boulder wall shows on Log climb, one with a pool on Log swim.
+            GymExtrasGrid(gym: selectedSaved ?? model.homeGym)
 
             Text("Your plan is built for this gym. Switching keeps your other gyms below, each with its own list. Trips and holidays go in the calendar.")
                 .font(.footnote).foregroundStyle(Theme.muted)
@@ -964,6 +993,8 @@ private struct GymCard: View {
     let location: String
     let symbol: String
     let count: Int
+    /// Machines among the items (#823): Explore's count, shown under it.
+    var machines: Int? = nil
     let selected: Bool
     let action: () -> Void
 
@@ -990,6 +1021,7 @@ private struct GymCard: View {
                 VStack(alignment: .trailing, spacing: 0) {
                     Text("\(count)").font(Theme.display(26))
                     Text("ITEMS").font(Theme.label(9)).tracking(1.2).opacity(0.8)
+                    if let machines { Text("\(machines) MACHINES").font(Theme.label(9)).tracking(1.2).opacity(0.8) }
                 }
             }
             .foregroundStyle(.white)
@@ -998,7 +1030,7 @@ private struct GymCard: View {
             .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(name), \(location), \(count) items")
+        .accessibilityLabel("\(name), \(location), \(count) items" + (machines.map { ", \($0) machines" } ?? ""))
         .accessibilityHint("Shows the equipment")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

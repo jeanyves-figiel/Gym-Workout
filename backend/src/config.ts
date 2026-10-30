@@ -1,4 +1,5 @@
 import { dirname, join } from 'node:path';
+import { type AiTask, aiModels } from './coach/models.ts';
 import type { OffsiteConfig } from './offsite.ts';
 
 export interface Config {
@@ -37,9 +38,11 @@ export interface Config {
   /** APNs token auth (.p8 with Apple Push Notifications service enabled). Unset → remote push skipped (#69). */
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** Workout chat (#381): ANTHROPIC_API_KEY unset → the chat answers 503 and the app hides it. COACH_CHAT_DAILY_LIMIT messages per member per day. */
-  coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number };
+  coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number; models: Record<AiTask, string> };
   /** AI_DAILY_LIMIT: paid model calls (coach chat + gym scan + food scan) across all members per UTC day. */
   aiDailyLimit: number;
+  /** MODERATION_DAILY_LIMIT: AI moderation checks across all members per UTC day, a pool apart from `aiDailyLimit` (#920). */
+  moderationDailyLimit: number;
   /**
    * Studio coach voices (#395): Amazon Polly neural. POLLY_ACCESS_KEY_ID/POLLY_SECRET_ACCESS_KEY, else the SES keys (the
    * IAM user needs polly:SynthesizeSpeech); POLLY_REGION (default eu-central-1). Recordings cached in `cacheDir`.
@@ -51,6 +54,8 @@ export interface Config {
     productIds: string[];
     /** SUBSCRIPTION_TESTS=on (staging only): fake purchases without Apple and a per-account mode, for testing Pro. */
     tests: boolean;
+    /** SUBSCRIPTION_TEST_EMAILS (#924): only these accounts may use test mode. Unset: everyone in dev/test, nobody on a deployed server. */
+    testEmails?: string[];
     /** Sandbox / TestFlight purchases unlock Pro (#432). SUBSCRIPTION_SANDBOX=on|off; default off on production without tests. */
     sandbox: boolean;
   };
@@ -169,8 +174,10 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       apiKey: env.ANTHROPIC_API_KEY || undefined,
       workspaceId: env.ANTHROPIC_WORKSPACE_ID || undefined,
       dailyLimit: Number(env.COACH_CHAT_DAILY_LIMIT ?? 20),
+      models: aiModels(env),
     },
     aiDailyLimit: Number(env.AI_DAILY_LIMIT ?? 500),
+    moderationDailyLimit: Number(env.MODERATION_DAILY_LIMIT ?? 1000),
     subscriptions: {
       mode: subscriptionMode(env.SUBSCRIPTIONS),
       productIds: (env.SUBSCRIPTION_PRODUCT_IDS ?? 'monkeyworkout.pro.weekly,monkeyworkout.pro.monthly,monkeyworkout.pro.yearly,monkeyworkout.pro.lifetime')
@@ -178,6 +185,9 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
         .map((s) => s.trim())
         .filter(Boolean),
       tests: env.SUBSCRIPTION_TESTS === 'on',
+      testEmails: env.SUBSCRIPTION_TEST_EMAILS !== undefined || prod
+        ? (env.SUBSCRIPTION_TEST_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
+        : undefined,
       sandbox: env.SUBSCRIPTION_SANDBOX ? env.SUBSCRIPTION_SANDBOX === 'on' : !prod || env.SUBSCRIPTION_TESTS === 'on',
     },
     reports: {
@@ -213,6 +223,8 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
             secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
             passphrase: env.BACKUP_KEY,
             keepDays: positiveInt(env.BACKUP_OFFSITE_DAYS, 30),
+            // Hourly encrypted copies (#923): at most an hour of data lost if the volume goes. BACKUP_OFFSITE_HOURS=0 turns them off.
+            keepHours: env.BACKUP_OFFSITE_HOURS === '0' ? 0 : positiveInt(env.BACKUP_OFFSITE_HOURS, 48),
           }
         : undefined,
     remote: { dir: env.CONTENT_DIR || join(import.meta.dirname, '..', 'content'), signingKey: env.CONTENT_SIGNING_KEY || undefined },

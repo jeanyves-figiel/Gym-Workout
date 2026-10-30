@@ -52,6 +52,20 @@ public enum Freestyle {
         Set(blocks.flatMap(\.items).compactMap { Exercise.find($0.exerciseId) }.flatMap { $0.primary.map(\.group) })
     }
 
+    /// Most names sent to Coach (#856), the server's limit.
+    public static let coachNameLimit = 400
+
+    /// Exercise names Ask Coach may hand back on the freestyle screen (#856): strength and power moves at the member's
+    /// level with any equipment (the machine in front of them may not be in their gym list), no climbing. A–Z.
+    public static func coachNames(profile: Profile) -> [String] {
+        let climbing = Set(Exercise.climbingCatalog.map(\.id))
+        let level = profile.experience.level
+        let names = Exercise.catalog
+            .filter { ($0.category == .strength || $0.category == .power) && $0.level <= level && !climbing.contains($0.id) && !$0.primary.isEmpty }
+            .map(\.name)
+        return Array(Set(names)).sorted().prefix(coachNameLimit).map { $0 }
+    }
+
     /// The Coach's next picks: strength exercises the member's gym and level allow, not yet in the workout. Empty
     /// workout → a big main lift first; then muscle groups not trained yet; exercises the member has done before
     /// (`recent`, newest first) rank higher. Each pick trains a different muscle group when it can. Same input →

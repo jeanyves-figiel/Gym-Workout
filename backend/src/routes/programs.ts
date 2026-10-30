@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { type Moderator, noModerator } from '../community/aiModeration.ts';
 import { AUTO_HIDE_REPORTS, assertClean, hasAcceptedGuidelines, REPORT_REASONS, reportContent, VISIBILITIES, visibleToOthersSql } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
@@ -57,7 +58,7 @@ export const programExport = (db: DB, userId: string) =>
     data: string;
   }[]).map((r) => ({ ...r, data: JSON.parse(r.data) as unknown }));
 
-export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, mailer: Mailer, moderationEmail?: string) => {
+export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, mailer: Mailer, moderationEmail?: string, mod: Moderator = noModerator()) => {
   const requireProfile = (userId: string) => {
     if (!hasAcceptedGuidelines(db, userId)) throw new ApiError(403, 'community_profile_required', 'Create your community profile first.');
   };
@@ -134,13 +135,18 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     const b = program.extend({ visibility: z.enum(VISIBILITIES).default('members') }).parse(req.body);
     const uid = req.userId!;
     requireProfile(uid);
-    assertClean(b.name, b.about, b.goal, b.programme.name, ...['tagline', 'summary'].map((k) => (typeof b.programme[k] === 'string' ? (b.programme[k] as string) : null)));
+    const shown = [b.name, b.about, b.goal, b.programme.name, ...['tagline', 'summary'].map((k) => (typeof b.programme[k] === 'string' ? (b.programme[k] as string) : null))];
+    assertClean(...shown);
     const id = raw.toLowerCase();
-    const owner = db.prepare('SELECT user_id FROM community_programs WHERE id = ?').get(id) as { user_id: string } | undefined;
+    const owner = db.prepare('SELECT user_id, data, visibility FROM community_programs WHERE id = ?').get(id) as { user_id: string; data: string; visibility: string } | undefined;
     if (owner && owner.user_id !== uid) throw new ApiError(409, 'conflict', 'Plan id already used.');
     const { visibility, ...data } = b;
     const json = JSON.stringify(data);
     if (json.length > 100_000) throw new ApiError(413, 'too_large', 'That plan is too large.');
+    // AI check (#871) of the texts members haven't seen yet; flagged → refused like the word filter.
+    const before = owner && owner.user_id === uid && owner.visibility !== 'private' ? (JSON.parse(owner.data) as typeof data) : undefined;
+    const seen = new Set(before ? [before.name, before.about, before.goal, before.programme.name, before.programme.tagline, before.programme.summary] : []);
+    if (visibility !== 'private') await mod.assertAllowed({ userId: uid, texts: shown.filter((t) => !seen.has(t)) });
     const ts = now().toISOString();
     if (owner) {
       db.prepare('UPDATE community_programs SET data = ?, visibility = ?, updated_at = ? WHERE id = ?').run(json, visibility, ts, id);

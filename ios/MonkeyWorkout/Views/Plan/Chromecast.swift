@@ -195,7 +195,7 @@ final class CastSession {
             "media": [
                 "contentId": url, "contentUrl": url, "streamType": "LIVE",
                 "contentType": "application/x-mpegurl", "hlsSegmentFormat": "fmp4", "hlsVideoSegmentFormat": "fmp4",
-                "metadata": ["metadataType": 0, "title": TVCast.shared.live?.title ?? "MonkeyFit workout"],
+                "metadata": ["metadataType": 0, "title": TVCast.shared.live?.title ?? "MonkeyWorkout workout"],
             ] as [String: Any],
         ])
     }

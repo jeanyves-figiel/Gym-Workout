@@ -33,11 +33,16 @@ final class WatchStore: NSObject {
     /// Home style picked on this Watch (#219) and when; the phone's pick in the snapshot wins when newer.
     private var localStyle = UserDefaults.standard.string(forKey: "homeStyle").flatMap(WatchHomeStyle.init)
     private var localStyleAt = UserDefaults.standard.object(forKey: "homeStyleAt") as? Date
+    /// A snapshot from the phone is on disk or was received (#820): an older one (the context watchOS hands back at each
+    /// launch) must not undo what was done here since.
+    private var hasPhoneSnapshot = false
 
     private static let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("snapshot.json")
 
     override init() {
-        snapshot = (try? Data(contentsOf: Self.url)).flatMap { try? JSONDecoder.watch.decode(WatchSnapshot.self, from: $0) } ?? WatchSnapshot()
+        let stored = (try? Data(contentsOf: Self.url)).flatMap { try? JSONDecoder.watch.decode(WatchSnapshot.self, from: $0) }
+        snapshot = stored ?? WatchSnapshot()
+        hasPhoneSnapshot = stored != nil
         super.init()
         Self.current = self
         #if DEBUG
@@ -105,6 +110,36 @@ final class WatchStore: NSObject {
         save()
         guard WCSession.isSupported() else { return }
         WCSession.default.transferUserInfo([WatchKeys.water: today])
+    }
+
+    /// Mind (#834): a mood check-in, shown at once (Home row, Smart Stack) and queued to the iPhone, which saves it and
+    /// writes Apple Health.
+    func checkIn(mood: Int) {
+        let now = Date()
+        if var m = snapshot.mind {
+            m.checkedIn = true
+            m.day = WWater.key(now)
+            snapshot.mind = m
+        }
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        save()
+        send(.mindCheckIn(date: now, mood: mood, feelings: []))
+    }
+
+    /// A finished breathing session (#834): this week's calm minutes at once, mindful minutes saved by the iPhone.
+    func calmDone(breath: String, start: Date, seconds: Int) {
+        guard seconds >= 60 else { return }
+        if var m = snapshot.mind {
+            m.weekMinutes += seconds / 60
+            snapshot.mind = m
+        }
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        save()
+        send(.mindSession(breath: breath, start: start, seconds: seconds))
     }
 
     func send(_ command: WCommand) {
@@ -179,6 +214,9 @@ final class WatchStore: NSObject {
     fileprivate func receive(context: [String: Any]) {
         guard let data = context[WatchKeys.snapshot] as? Data,
               let s = try? JSONDecoder.watch.decode(WatchSnapshot.self, from: data) else { return }
+        // Same or older than what this Watch has (#820): the workouts finished and glasses counted here since stay.
+        if hasPhoneSnapshot, s.generatedAt <= snapshot.generatedAt { return }
+        hasPhoneSnapshot = true
         // Badges the finished workout unlocked arrive with the phone's snapshot (#227).
         if reward != nil, let before = snapshot.game, let after = s.game {
             let new = after.earned.filter { !before.badges.contains($0.id) && !(reward?.badges.contains($0) ?? false) }
@@ -188,9 +226,15 @@ final class WatchStore: NSObject {
         save()
         // Power zones (#623): the phone's FTP, set by hand or from a test.
         if let ftp = s.bikeFTP { BikeSensors.shared.setFTP(ftp) }
+        // Climbing live (#829): goes tapped on the iPhone while this Watch was out of reach.
+        if let c = s.climbLive { SportTracker.shared.climbFromPhone(c) }
     }
 
     fileprivate func receive(message: [String: Any]) {
+        if let data = message[WatchKeys.climbLive] as? Data, let c = try? JSONDecoder.watch.decode(WClimbLive.self, from: data) {
+            SportTracker.shared.climbFromPhone(c)
+            return
+        }
         if let data = message[WatchKeys.buddy] as? Data, let p = try? JSONDecoder.watch.decode(WBuddyPing.self, from: data) {
             buddyPing = p
             WKInterfaceDevice.current().play(p.cheer == nil ? .click : .success)
@@ -214,12 +258,19 @@ final class WatchStore: NSObject {
         if message[WatchKeys.liveEnded] != nil {
             live = nil
             phoneEnded(message[WatchKeys.outcome].flatMap { $0 as? String }.flatMap(WLiveOutcome.init),
-                       recordId: (message[WatchKeys.recordId] as? String).flatMap(UUID.init))
+                       recordId: (message[WatchKeys.recordId] as? String).flatMap(UUID.init),
+                       watchSaves: message[WatchKeys.watchSaves] as? Bool)
         }
         if let data = message[WatchKeys.live] as? Data, let l = try? JSONDecoder.watch.decode(WLive.self, from: data) {
             // A new coach line (#379): tap on the wrist.
             if let at = l.coachAt, at != live?.coachAt, Date().timeIntervalSince(at) < 6 { WKInterfaceDevice.current().play(.notification) }
             live = l
+            // Started before the iPhone said which workout runs (#820): track the right one, so the phone waits for
+            // this Watch's Health workout instead of saving a second one.
+            if let sid = l.sessionId, let tracked = workout.phoneSessionId, tracked != sid {
+                workout.retarget(sid)
+                sendNow(.tracking(sessionId: sid, on: true))
+            }
             if pausedAt != nil, workout.phoneSessionId != nil {
                 pausedAt = nil
                 workout.resume()
@@ -230,8 +281,13 @@ final class WatchStore: NSObject {
     // MARK: iPhone workout on the Watch (#347)
 
     /// Title of the iPhone workout, from its live state or the plan.
+    /// The plan session the iPhone runs, when the Watch knows it.
+    var phoneSession: WSession? {
+        live?.sessionId.flatMap(snapshot.session) ?? (live == nil ? next : nil)
+    }
+
     var phoneWorkout: (title: String, estMin: Int?, exercises: Int?, tint: UInt32) {
-        let s = live?.sessionId.flatMap(snapshot.session) ?? (live == nil ? next : nil)
+        let s = phoneSession
         return (live?.sessionTitle ?? s?.title ?? "Workout", live?.estMin ?? s?.estMin,
                 live?.exercises ?? s.map { $0.blocks.reduce(0) { $0 + $1.items.count } }, s?.tint ?? live?.tint ?? 0xCCFF3D)
     }
@@ -268,12 +324,14 @@ final class WatchStore: NSObject {
         sendNow(.tracking(sessionId: id, on: false))
     }
 
-    private func phoneEnded(_ outcome: WLiveOutcome?, recordId: UUID?) {
+    private func phoneEnded(_ outcome: WLiveOutcome?, recordId: UUID?, watchSaves: Bool?) {
         if offered, outcome != .paused, outcome != nil { declineOffer() }
         guard let id = workout.phoneSessionId else { return }
         switch outcome {
         case .finished:
             guard !finishing else { return }
+            // The iPhone saved the Health workout itself (#820): saving here too would make two.
+            if watchSaves == false { return stopTracking() }
             finishing = true
             Task {
                 defer { finishing = false }
@@ -303,6 +361,14 @@ final class WatchStore: NSObject {
                 if pausedAt == at, workout.phoneSessionId == id { stopTracking() }
             }
         }
+    }
+
+    /// Climbing live (#829 A): the session after a go here, at once when the phone is reachable.
+    func sendClimb(_ live: WClimbLive) {
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        sendNow(.climbLive(live))
     }
 
     /// Sent at once when the phone is reachable (it decides who saves the Health workout), queued otherwise.

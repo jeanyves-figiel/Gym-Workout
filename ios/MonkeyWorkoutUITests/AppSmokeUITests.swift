@@ -2,7 +2,7 @@ import XCTest
 
 /// Smoke run of the main paths in demo mode (`-demo -demoScreen …`, see `Demo.swift` / `DemoScreen` in RootView):
 /// every tab opens; Train → Start workout → log a set → Finish → DONE; Explore → muscle → exercise → back;
-/// Progress → History; Fuel → a glass of water; Social; Me → Settings; the HIIT builder; the Ask Coach paywall.
+/// Insights → History; Fuel → a glass of water; Social; Me → Settings; the HIIT builder; the Ask Coach paywall.
 /// Demo screen `week` is the full app (tabs) on Train with today's session in Next up.
 final class AppSmokeUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -72,8 +72,8 @@ final class AppSmokeUITests: XCTestCase {
         launchTabs()
         openTab("Explore")
         XCTAssertTrue(app.staticTexts["Explore"].firstMatch.waitForExistence(timeout: 10), "Explore title")
-        openTab("Progress")
-        XCTAssertTrue(app.staticTexts["Progress"].firstMatch.waitForExistence(timeout: 10), "Progress title")
+        openTab("Insights")
+        XCTAssertTrue(app.staticTexts["Insights"].firstMatch.waitForExistence(timeout: 10), "Insights title")
         openTab("Fuel")
         XCTAssertTrue(app.staticTexts["Fuel"].firstMatch.waitForExistence(timeout: 10), "Fuel title")
         openTab("Social")
@@ -106,16 +106,23 @@ final class AppSmokeUITests: XCTestCase {
         }
         XCTAssertTrue(setDone.exists && setDone.isHittable, "A set to log")
         let label = setDone.label
-        setDone.tap()
 
         // Logged: the rest card (SKIP REST / CONTINUE in the controls, +15 s, the "Rest" timer), the next set's button,
         // or NEXT / FINISH after a single-set item.
-        let after = firstToExist([
+        let loggedStates = [
             app.buttons["SKIP REST"], app.buttons["CONTINUE"], app.buttons["Add 15 seconds of rest"],
             app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Rest")).firstMatch,
             app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label != %@", "SET ", label)).firstMatch,
             app.buttons["NEXT"], app.buttons["FINISH"], app.buttons["FINISH WORKOUT"],
-        ], timeout: 10)
+        ]
+        // The tap can land while the skip transition still moves the button on a busy runner (#741): the same
+        // SET n DONE stays and nothing is logged, so tap it once more before failing.
+        let sameSet = app.buttons[label]
+        var after: XCUIElement?
+        for _ in 0..<2 where after == nil {
+            if sameSet.exists, sameSet.isHittable { sameSet.tap() }
+            after = firstToExist(loggedStates, timeout: 20)
+        }
         XCTAssertNotNil(after, "Set logged")
 
         // Finish from the workout map (#538).
@@ -160,8 +167,8 @@ final class AppSmokeUITests: XCTestCase {
 
     func testProgressOpensHistory() {
         launchTabs()
-        openTab("Progress")
-        XCTAssertTrue(app.staticTexts["Progress"].firstMatch.waitForExistence(timeout: 10))
+        openTab("Insights")
+        XCTAssertTrue(app.staticTexts["Insights"].firstMatch.waitForExistence(timeout: 10))
         // Either the History tile or the Recent sessions strip's See all (#442).
         let seeAll = button(beginningWith: "See all")
         let tile = button(containing: "History")
@@ -171,7 +178,7 @@ final class AppSmokeUITests: XCTestCase {
             if tile.exists, tile.isHittable { target = tile; break }
             app.swipeUp()
         }
-        guard let target else { return XCTFail("No way into History on Progress") }
+        guard let target else { return XCTFail("No way into History on Insights") }
         target.tap()
         XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 10), "History page")
     }

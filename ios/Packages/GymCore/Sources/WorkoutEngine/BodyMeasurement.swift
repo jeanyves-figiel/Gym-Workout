@@ -22,15 +22,16 @@ public enum GirthSite: String, Codable, CaseIterable, Sendable, Identifiable {
         }
     }
 
-    /// Where to put the tape, shown in the log sheet.
+    /// Where to put the tape, shown in the log sheet. Short enough for two lines on a card (#823); the ? sheet has
+    /// the full steps.
     public var howTo: String {
         switch self {
-        case .neck: "Just below the larynx (Adam's apple)"
-        case .shoulders: "Around both shoulders at the widest point"
-        case .chest: "At nipple height, arms relaxed, after a normal breath out"
-        case .waist: "At the navel, relaxed, after a normal breath out"
-        case .hips: "Widest point of the glutes, feet together"
-        case .upperArm: "Widest point of the biceps, arm flexed"
+        case .neck: "Just below the Adam's apple"
+        case .shoulders: "Widest point of both shoulders"
+        case .chest: "Nipple height, after breathing out"
+        case .waist: "At the navel, after breathing out"
+        case .hips: "Widest point of the glutes"
+        case .upperArm: "Widest point of the flexed biceps"
         case .forearm: "Widest point, fist clenched, arm straight"
         case .thigh: "Just below the glutes, standing"
         case .calf: "Widest point, standing"

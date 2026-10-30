@@ -34,7 +34,7 @@ const fakeS3 = () => {
   return { objects, requests, fetchFn };
 };
 
-const config = { endpoint: 'https://fly.storage.tigris.dev', bucket: 'bucket', region: 'auto', accessKeyId: 'AK', secretAccessKey: 'SK', passphrase: 'correct horse battery staple', keepDays: 30 };
+const config = { endpoint: 'https://fly.storage.tigris.dev', bucket: 'bucket', region: 'auto', accessKeyId: 'AK', secretAccessKey: 'SK', passphrase: 'correct horse battery staple', keepDays: 30, keepHours: 48 };
 
 describe('encrypted off-site copy (#313)', () => {
   it('encrypts so the bucket never sees plaintext, and only the passphrase opens it', async () => {
@@ -85,5 +85,30 @@ describe('encrypted off-site copy (#313)', () => {
     const env = { NODE_ENV: 'test', AWS_ENDPOINT_URL_S3: 'https://fly.storage.tigris.dev', BUCKET_NAME: 'b', AWS_ACCESS_KEY_ID: 'a', AWS_SECRET_ACCESS_KEY: 's' };
     expect(loadConfig(env).offsite).toBeUndefined();
     expect(loadConfig({ ...env, BACKUP_KEY: 'k' }).offsite).toMatchObject({ bucket: 'b', region: 'auto', keepDays: 30 });
+  });
+
+  it('hourly copies (#923): own prefix, pruned after 48 hours, fetched by hour; daily copies untouched', async () => {
+    const s3 = fakeS3();
+    let clock = new Date('2026-10-28T09:10:00Z');
+    const store = new OffsiteStore(config, s3.fetchFn, () => clock);
+    const file = join(root, 'app.db');
+    writeFileSync(file, 'hour bytes');
+    await store.upload(file, '2026-10-28');
+    await store.uploadHourly(file, '2026-10-28T09');
+    clock = new Date('2026-10-30T10:10:00Z');
+    const r = await store.uploadHourly(file, '2026-10-30T10');
+    expect(r).toMatchObject({ key: 'hourly/app-2026-10-30T10.db.enc', pruned: 1 });
+    expect((await store.listHourly()).map((o) => o.day)).toEqual(['2026-10-30T10']);
+    expect((await store.list()).map((o) => o.day)).toEqual(['2026-10-28']);
+    const dest = join(root, 'hour.db');
+    await store.download('2026-10-30T10', dest);
+    expect(readFileSync(dest, 'utf8')).toBe('hour bytes');
+    expect(s3.objects.get('hourly/app-2026-10-30T10.db.enc')!.body.includes(Buffer.from('hour bytes'))).toBe(false);
+  });
+
+  it('hourly copies default to 48 hours, 0 turns them off', () => {
+    const env = { AWS_ENDPOINT_URL_S3: 'https://e', BUCKET_NAME: 'b', AWS_ACCESS_KEY_ID: 'a', AWS_SECRET_ACCESS_KEY: 's', BACKUP_KEY: 'k' };
+    expect(loadConfig(env).offsite?.keepHours).toBe(48);
+    expect(loadConfig({ ...env, BACKUP_OFFSITE_HOURS: '0' }).offsite?.keepHours).toBe(0);
   });
 });

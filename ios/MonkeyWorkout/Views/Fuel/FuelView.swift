@@ -100,6 +100,7 @@ struct FuelView: View {
                 if Calendar.current.startOfDay(for: day) <= Calendar.current.startOfDay(for: Date()) {
                     FuelLogButton { justAte = true }
                 }
+                if Calendar.current.isDateInToday(day) { MealIdeasCard(plan: plan, log: log, day: day) }
                 FuelNextCard(plan: plan, log: log, day: day, open: { slot = $0 })
                 FuelKitchen(plan: plan, day: day, settings: { setup = true })
                 Text(FuelLearn.disclaimer)
@@ -482,7 +483,11 @@ struct FuelSlotSheet: View {
 
                     if ticked != nil {
                         Button {
-                            store.update(day, plan: plan) { $0.untick(slot.id) }
+                            // The foods logged next to its recipe go too (#819).
+                            store.update(day, plan: plan) {
+                                $0.untick(slot.id)
+                                $0.untick(FuelDayLog.foodKey(slot.id))
+                            }
                             dismiss()
                         } label: { Label("Not eaten after all", systemImage: "arrow.uturn.backward") }
                             .buttonStyle(LimeButtonStyle(fill: Theme.cardStrong, text: .white))

@@ -56,6 +56,23 @@ const sample = (id: string = randomUUID()) => ({
 });
 
 describe('climbs sync (#312)', () => {
+  it('keeps the gym or crag of a climb (#832)', async () => {
+    const t = await signUp('crag@example.com');
+    const place = { id: 'custom:block', name: 'Block Factory', gymId: 'custom:block' };
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place }] }, t)).json().saved).toBe(1);
+    expect((await get('/v1/me/climbs', t)).json().climbs[0].place).toEqual(place);
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place: { id: 'x', name: 'y'.repeat(200) } }] }, t)).statusCode).toBe(400);
+  });
+
+  it('keeps the place type (#960)', async () => {
+    const t = await signUp('kind@example.com');
+    const place = { id: 'map:minimum', name: 'Minimum Boulder', kind: 'climbingGym' };
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place }] }, t)).json().saved).toBe(1);
+    expect((await get('/v1/me/climbs', t)).json().climbs[0].place).toEqual(place);
+    const bad = { ...place, kind: 'gym; drop' };
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place: bad }] }, t)).statusCode).toBe(400);
+  });
+
   it('upserts, deltas, isolates, exports and deletes climbs; account delete removes them', async () => {
     const t = await signUp('climber@example.com');
     const a = sample();
@@ -268,6 +285,18 @@ describe('climbs sync (#312)', () => {
     expect((await post('/v1/me/climbs', { climbs: [a] }, t)).json().saved).toBe(1);
     expect((await post('/v1/me/climbs', { climbs: [{ ...a, notes: 'x'.repeat(2000) }] }, t)).json().error).toBe('quota_exceeded');
     expect((await post('/v1/me/climbs', { climbs: [{ ...a, topGrade: null }] }, t)).json().saved).toBe(1);
+  });
+
+  it('keeps a live session with 300 goes, refuses one far bigger (#829)', async () => {
+    const t = await signUp('climber@example.com');
+    const go = (i: number) => ({ id: randomUUID(), grade: '6A+', result: i % 3 ? 'send' : 'fall', at: 1_800_000_000 + i * 60 });
+    const live = { ...sample(), scale: 'font', attempts: Array.from({ length: 300 }, (_, i) => go(i)) };
+    expect((await post('/v1/me/climbs', { climbs: [live] }, t)).json().saved).toBe(1);
+    const back = (await get('/v1/me/climbs', t)).json().climbs[0];
+    expect(back.attempts).toHaveLength(300);
+    expect(back.attempts[1]).toMatchObject({ grade: '6A+', result: 'send' });
+    const huge = { ...sample(), attempts: Array.from({ length: 600 }, (_, i) => go(i)) };
+    expect((await post('/v1/me/climbs', { climbs: [huge] }, t)).statusCode).toBe(413);
   });
 
   it('exports climbs in time order whatever the offset of start (#714)', async () => {

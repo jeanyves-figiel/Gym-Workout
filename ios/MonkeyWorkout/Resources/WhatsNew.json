@@ -1,23 +1,11 @@
 {
-  "id": "2026-10-27.2",
+  "id": "2026-10-30.3",
   "items": [
     {
-      "symbol": "chart.xyaxis.line",
-      "tint": "strength",
-      "title": "Progress on the finish screen",
-      "body": "See your volume and est. 1-rep max charts, and every lift against last time: +2.5 kg, +1 rep, new best."
-    },
-    {
-      "symbol": "calendar.badge.plus",
-      "tint": "cardio",
-      "title": "Log any workout on a past day",
-      "body": "Did something off-plan? A past day's Workout tile now lists My workouts, the Library, Custom gym session, HIIT and Sport."
-    },
-    {
-      "symbol": "timer",
+      "symbol": "figure.indoor.cycle",
       "tint": "power",
-      "title": "Clock stays on one line",
-      "body": "The workout clock in the player never wraps, even with a full toolbar."
+      "title": "Every machine holds together",
+      "body": "Bike seat, leg press sled and 20 more exercise animations fixed."
     }
   ]
 }

@@ -43,6 +43,8 @@ struct OnboardingFlowView: View {
     @State private var programme: Programme?
     @State private var keepPlan: Bool
     @State private var building = false
+    /// Say it once to Coach (#873).
+    @State private var talking = false
     @State private var equipmentOpen = false
     @State private var zonesOpen = false
     @State private var floorPlanOpen = false
@@ -87,6 +89,14 @@ struct OnboardingFlowView: View {
                 ProfileFormView(initial: p, newMember: isNew) { made in finishPlan(made) }
                     .navigationTitle("Your training")
             }
+            .navigationDestination(isPresented: $talking) {
+                CoachPlanSetupView(base: p) { made, protect in
+                    talking = false
+                    finishPlan(made)
+                    // Protect (#873) turns on train around pain (#870) for that spot.
+                    if let protect { model.setPainProtect(protect) }
+                }
+            }
         }
         .onAppear { if isNew, !model.demo { model.onboardingOpen = true } }
         // Signed out mid-way: the next account starts clean.
@@ -112,9 +122,21 @@ struct OnboardingFlowView: View {
                 }
             }
             if !single {
-                HStack(spacing: 4) {
-                    ForEach(steps) { s in
-                        Capsule().fill(s.number <= step.number ? Theme.lime : Color.white.opacity(0.14)).frame(height: 6)
+                HStack(spacing: 10) {
+                    // Back (#822, design A from `full-app-audit-3/mockups/proposals-6.png`): steps 2–4 go to the step
+                    // before, answers kept.
+                    if let previous {
+                        Button { withAnimation(.snappy) { step = previous } } label: {
+                            Text("‹ Back").font(Theme.label(15)).foregroundStyle(Theme.lime)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Back to \(previous.title)")
+                        .accessibilityIdentifier("onboarding.back")
+                    }
+                    HStack(spacing: 4) {
+                        ForEach(steps) { s in
+                            Capsule().fill(s.number <= step.number ? Theme.lime : Color.white.opacity(0.14)).frame(height: 6)
+                        }
                     }
                 }
                 Text("Step \(step.number) of \(steps.count) · \(subtitle)")
@@ -126,6 +148,12 @@ struct OnboardingFlowView: View {
         .padding(.horizontal, 16)
         .padding(.top, isNew ? 12 : 0)
         .padding(.bottom, 10)
+    }
+
+    /// The step Back returns to: on steps 2–4 of the guided flow (#822); the plan is made once the tour starts.
+    private var previous: OnboardingStep? {
+        guard !single, (2...4).contains(step.number) else { return nil }
+        return steps[step.number - 2]
     }
 
     private var subtitle: String {
@@ -180,7 +208,7 @@ struct OnboardingFlowView: View {
         VStack(alignment: .leading, spacing: 12) {
             Button { equipmentOpen = true } label: {
                 bigCard(symbol: "dumbbell.fill", title: "Tick your machines", line: "Pictures of every machine, rack and bench. Tap what's there.",
-                        number: "\(p.equipment.count)", unit: "ITEMS", category: .strength)
+                        number: "\(p.equipment.count)", unit: "ITEMS · \(AppModel.machineCount(p.equipment)) MACHINES", category: .strength)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("onboarding.machines")
@@ -218,6 +246,13 @@ struct OnboardingFlowView: View {
                 }
                 .buttonStyle(.plain)
             }
+            // Say it once (#873, design B from `ai-epic/a3.png`): Coach fills the plan in from one sentence.
+            Button { talking = true } label: {
+                bigCard(symbol: "mic.fill", title: "Tell Coach your goal", line: "Say it once in your own words. Coach fills in your plan, you fix and build.",
+                        number: "🐵", unit: nil, category: .cardio)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("onboarding.coachPlan")
             Button { programme = nil; keepPlan = false } label: {
                 bigCard(symbol: "bolt.fill", title: "Build my plan", line: "Goal, days, session flow and method. Made for your gym.",
                         number: nil, unit: nil, category: .power)
@@ -246,7 +281,8 @@ struct OnboardingFlowView: View {
         VStack(spacing: 18) {
             Text("🐵").font(.system(size: 88)).padding(.top, 20)
             Text("Want me to show you round?").font(Theme.display(26)).multilineTextAlignment(.center)
-            Text("Six stops: Train, Explore, Progress, Fuel, Community and Ask Coach. Run it again any time in Settings → Onboarding.")
+            // The names the tabs and the tour bubbles use (#822).
+            Text("Six stops: Train, Explore, Insights, Fuel, Social and Coach Monkey. Run it again any time in Settings → Onboarding.")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             VStack(spacing: 8) {
                 ForEach(AppTour.steps) { s in
@@ -573,7 +609,8 @@ struct AppTourOverlay: View {
             ZStack(alignment: .bottom) {
                 Color.black.opacity(0.55).ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { model.nextTourStep() }
+                    // Only NEXT moves on (#822): a stray tap on the dim layer skipped stops. It still keeps taps off the tabs.
+                    .onTapGesture {}
                 VStack(alignment: .leading, spacing: 10) {
                     Text("🐵").font(.system(size: 44))
                     VStack(alignment: .leading, spacing: 8) {

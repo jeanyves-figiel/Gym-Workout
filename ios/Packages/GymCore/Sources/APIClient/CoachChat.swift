@@ -32,11 +32,14 @@ public struct CoachChatContext: Codable, Sendable, Equatable {
     public var callName: String?
     /// What the coach remembers about the member (#495): goal, likes, the member's own notes.
     public var memory: [String]?
+    /// Exercise names Coach may hand back (#856, freestyle screen).
+    public var exercises: [String]?
 
     public init(goal: String? = nil, level: String? = nil, sessionMinutes: Int? = nil, equipment: [String]? = nil,
                 readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil, screen: String? = nil, focus: String? = nil,
-                pronouns: String? = nil, callName: String? = nil, memory: [String]? = nil) {
+                pronouns: String? = nil, callName: String? = nil, memory: [String]? = nil, exercises: [String]? = nil) {
         self.memory = memory
+        self.exercises = exercises
         self.pronouns = pronouns
         self.callName = callName
         self.goal = goal
@@ -60,6 +63,26 @@ public struct CoachChatAnswer<W: Decodable & Sendable>: Decodable, Sendable {
     public var action: CoachChatAction?
     /// Follow-up questions to tap (#412).
     public var suggestions: [String]?
+    /// Exercises to add now (#856, freestyle): names from `CoachChatContext.exercises`, best first.
+    public var exercises: [String]?
+    /// Train around pain (#870): the spot to protect; the app's engine picks the swaps.
+    public var protect: CoachChatProtect?
+}
+
+/// Coach's train-around-pain offer (#870): area neck … ankle, side left / right / both, level mild / loaded / sharp.
+public struct CoachChatProtect: Codable, Sendable, Equatable {
+    public var area: String
+    public var side: String
+    public var level: String
+    /// Red flags were mentioned: see a doctor first.
+    public var seeDoctor: Bool
+
+    public init(area: String, side: String, level: String, seeDoctor: Bool = false) {
+        self.area = area
+        self.side = side
+        self.level = level
+        self.seeDoctor = seeDoctor
+    }
 }
 
 /// Coach's "open this" button (#412): target progress / calendar / explore / settings / exercise (+ name).
@@ -89,6 +112,8 @@ extension APIClient {
     private struct CoachChatBody: Encodable, Sendable {
         var turns: [CoachChatTurn]
         var context: CoachChatContext
+        /// Base64 JPEG of the machine in front of the member (#856).
+        var photo: String?
     }
 
     /// Whether the chat is on (server has its key) and messages left today.
@@ -97,8 +122,11 @@ extension APIClient {
     }
 
     /// Sends the conversation (last turn = the member's). Errors: `daily_limit` (429), `pro_required` (402),
-    /// `coach_unavailable` (503), `coach_failed` (502).
-    public func coachChat<W: Decodable & Sendable>(_ turns: [CoachChatTurn], context: CoachChatContext, as _: W.Type) async throws -> CoachChatAnswer<W> {
-        try await authorized("POST", "/v1/me/coach-chat", CoachChatBody(turns: turns, context: context), as: CoachChatAnswer<W>.self)
+    /// `coach_unavailable` (503), `coach_failed` (502), `bad_photo` (400). `photo`: a JPEG up to 1.5 MB sent with the
+    /// last message (#856).
+    public func coachChat<W: Decodable & Sendable>(_ turns: [CoachChatTurn], context: CoachChatContext, photo: Data? = nil,
+                                                  as _: W.Type) async throws -> CoachChatAnswer<W> {
+        try await authorized("POST", "/v1/me/coach-chat", CoachChatBody(turns: turns, context: context, photo: photo?.base64EncodedString()),
+                             as: CoachChatAnswer<W>.self)
     }
 }

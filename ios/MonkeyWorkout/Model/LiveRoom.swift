@@ -173,7 +173,8 @@ final class LiveRoom {
         let before = buddies[i].shareLive
         buddies[i].shareLive = share
         do { try await api.setBuddyShareLive(userId, share) } catch {
-            buddies[i].shareLive = before
+            // Found again by id: the poll may have replaced the list meanwhile (#819).
+            if let j = buddies.firstIndex(where: { $0.userId == userId }) { buddies[j].shareLive = before }
             self.error = error.localizedDescription
         }
     }
@@ -286,6 +287,7 @@ final class LiveRoom {
     /// One vote for the next member week; shown at once, then the counts from the server.
     func vote(_ id: String, api: APIClient) async {
         guard var v = room?.vote, let i = v.finalists.firstIndex(where: { $0.id == id }), !v.finalists[i].mine else { return }
+        let before = v
         for j in v.finalists.indices where v.finalists[j].mine {
             v.finalists[j].mine = false
             v.finalists[j].votes -= 1
@@ -299,6 +301,10 @@ final class LiveRoom {
         do {
             try await api.voteChallenge(id)
             room = try? await api.challengeRoom(week: week)
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            // Not counted: the vote shown goes back (#819).
+            if room?.vote?.week == before.week { room?.vote = before }
+            self.error = error.localizedDescription
+        }
     }
 }

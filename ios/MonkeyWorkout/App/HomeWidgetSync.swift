@@ -58,16 +58,17 @@ final class HomeWidgetSync {
         s.phase = Generator.phaseName(plan.week)
         s.deload = plan.deload
         s.done = model.completedCount
-        s.target = plan.sessions.count
+        // Skipped and removed workouts leave the week (#818).
+        s.target = model.weekSessionCount
 
         let cal = model.planCalendar
         let weekStart = Progression.weekStart(Date(), cal)
         let climbs = model.climbLogs
         let climbedDays = Set(climbs.filter { $0.start >= weekStart }.map { WeekSchedule.fromCalendar(cal.component(.weekday, from: $0.start)) })
         let climbPlan = Set(model.profile?.climbingWeekdays ?? [])
-        let missed = Set(model.missedToHandle.map(\.id))
+        let missed = Set(model.missedSessions.map(\.id))
         s.days = WeekSchedule.weekdays.map { wd in
-            let sessions = plan.sessions.filter { $0.weekday == wd }
+            let sessions = plan.sessions.filter { $0.weekday == wd && !model.skippedOff($0) }
             return .init(weekday: wd, planned: !sessions.isEmpty,
                          done: !sessions.isEmpty && sessions.allSatisfy { model.state.done[$0.id] ?? false },
                          missed: sessions.contains { missed.contains($0.id) },

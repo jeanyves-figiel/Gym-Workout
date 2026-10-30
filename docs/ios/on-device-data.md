@@ -12,13 +12,17 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `machine-notes/` | `MachineNote` | One JPEG per machine setup note | Yes (owner-only photo route) |
 | `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device |
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
+| `mind.json` | `MindStore` | Mood check-ins, breathing / relax sessions, daily Mind scores (90 days) | **No**: stays on the device; check-ins and sessions also go to Apple Health (State of Mind, mindful minutes) when connected |
 | `me-avatar.jpg`, `me-avatar.json` | `MeAvatar` | Your own profile photo and its URL, so the Me pill shows it at launch (#639); wiped on sign-out | Copy of the server photo |
 | `cache/` (`account.json`, `community.json`, `entitlement.json`, `monkeygrade-sessions.json`) | `DeviceCache` | Last server answers per account: account, Community profile and first 30 posts per feed, Pro entitlement, MonkeyGrade sessions; shown at launch and offline (#641); wiped on sign-out and account switch | Copies of server data |
 | `lift-sets.json` | `LiftSets` | Watch lift-sensor sets | Via workouts |
 | `wod-timers.json` | `WodStore` | Saved WOD and boxing timers | No (sent to the Watch) |
 | `swim.json` | `SwimStore` | Swim plan, pool length, gym-day swim blocks, buddy alert minutes | No (today's swim sent to the Watch) |
 | `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
+| `form-reports.json` | `FormReportStore` | Form check reports (#833): reps, scores, faults and the joints of the worst rep (no pictures), last 60; wiped on sign-out | No |
+| `tmp/film-clips/*.mp4` | `ClipRecorder` | Film my workout review clip (#952): the last set only, 2 min max; deleted on Next, when the film screen closes and at every launch; never uploaded | No |
 | `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
+| `hd-animations/` | `HDAnimations` | HD exercise animation pack (#932): `<id>.mwf` per exercise, its movement clip `<id>.mp4` (#944) + `installed.json`; excluded from backup; kept on sign-out (not account data), deleted by Settings → HD animations off | No (downloaded) |
 | `gym-workout-export.json` (temporary directory) | `AccountView` | Data export while it is shared; protection `complete` | n/a |
 
 ### App Group (`group.<bundle id>`)
@@ -39,8 +43,8 @@ Access and refresh tokens, the Watch upload key and the MonkeyGrade link sign-in
 
 ## Settings and preferences
 
-Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`).
+Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. A climbing session tracked live (`climbLive`, #829) stays there until finished, with the last grade scale (`climbLiveScale`). Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`). HD animations (#932): `hdAnimations.enabled`, `hdAnimations.wifiOnly` (default on), `hdAnimations.offered`.
 
 ## Sign-out and deletion
 
-Sign-out first tries a final sync (5 s at most), then wipes `state.json`, tokens and every account copy outside it (`AppModel.wipeAccountLocalData`): Pro state, lift sets, Health cache, daily move, timers, swim, Fuel, notification prefs, MonkeyGrade link, Watch upload key, the export file and the URL cache; the Watch and widgets get signed-out snapshots. The same runs when another account signs in and after account deletion.
+Sign-out first tries a final sync (5 s at most), then wipes `state.json`, tokens and every account copy outside it (`AppModel.wipeAccountLocalData`): Pro state, lift sets, Health cache, daily move, Mind, timers, swim, Fuel, notification prefs, MonkeyGrade link, Watch upload key, form check reports, the export file and the URL cache; the Watch and widgets get signed-out snapshots. The same runs when another account signs in and after account deletion.

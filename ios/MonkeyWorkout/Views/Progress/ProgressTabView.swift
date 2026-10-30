@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 import WorkoutEngine
 
-/// "Progress" tab (#444, design A + C): a board of widgets the member arranges like Train (#260): level, streak,
+/// "Insights" tab (was Progress until #894; #444, design A + C): a board of widgets the member arranges like Train (#260): level, streak,
 /// a tile per part of Progress, recent sessions, consistency, sessions per week, and optional sport widgets.
 /// A tile opens its part as a page: training (live tiles #218, consistency, trends, climbing, sports), programmes,
 /// body, records, badges, muscles; recent sessions open History (#442). New users get a "day one" layout.
@@ -18,16 +18,23 @@ struct ProgressTabView: View {
     @State private var arranging = false
     @State private var addingWidget = false
     @State private var customising = false
+    /// Insights focus (#939): the first-open picker (A) and the Switch sheet (C).
+    @State private var pickingFocus = false
+    @State private var switchingFocus = false
     /// CI screenshots: open with this tile flipped.
     var demoFlipped: StatMetric?
     /// CI screenshots: open this part's page.
     var demoSection: ProgressSection?
     var demoEditing = false
+    /// CI screenshots: ask the history bar its first starter (#868).
+    var demoAsk = false
     /// Set on a part's page: shows only that part.
     var detail: ProgressSection?
 
-    init(demoFlipped: StatMetric? = nil, demoSection: ProgressSection? = nil, demoEditing: Bool = false, detail: ProgressSection? = nil) {
+    init(demoFlipped: StatMetric? = nil, demoSection: ProgressSection? = nil, demoEditing: Bool = false, demoAsk: Bool = false,
+         detail: ProgressSection? = nil) {
         self.demoFlipped = demoFlipped
+        self.demoAsk = demoAsk
         self.demoSection = demoSection
         self.demoEditing = demoEditing
         self.detail = detail
@@ -74,8 +81,14 @@ struct ProgressTabView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
+                if !arranging { focusTop(top: top, items: items, fresh: fresh) }
                 if arranging {
                     ProgressEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
+                } else if !fresh {
+                    // Ask your history (#868 A): on-device answers with a number and a mini chart.
+                    // A bit of everything: Pick a focus sits on the same line (#939).
+                    ProgressAskBar(demoAsk: demoAsk,
+                                   onPickFocus: model.insightsFocus == .everything ? { switchingFocus = true } : nil)
                 }
                 ForEach(layout.rows) { row in
                     switch row {
@@ -95,7 +108,7 @@ struct ProgressTabView: View {
                 }
                 if layout.widgets.isEmpty {
                     Button { arranging = true; addingWidget = true } label: {
-                        Label("Add widgets to Progress", systemImage: "plus.square.dashed")
+                        Label("Add widgets to Insights", systemImage: "plus.square.dashed")
                             .font(Theme.label(15)).foregroundStyle(Theme.lime)
                             .frame(maxWidth: .infinity).padding(.vertical, 28)
                             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -108,15 +121,19 @@ struct ProgressTabView: View {
             .animation(.snappy, value: layout.widgets)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .navigationTitle("Progress")
+        .navigationTitle("Insights")
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
         .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .navigationDestination(item: $opened) { s in
-            if s == .history { HistoryView() } else { ProgressTabView(demoFlipped: demoFlipped, detail: s) }
+            if s == .history { HistoryView() } else if s == .mind { MindView() } else { ProgressTabView(demoFlipped: demoFlipped, detail: s) }
         }
         .navigationDestination(item: $openedSport) { HistoryView(initial: .sport($0)) }
         .sheet(isPresented: $addingWidget) { ProgressWidgetGallery() }
         .sheet(isPresented: $customising) { ProgressCustomiseSheet() }
+        .sheet(isPresented: $switchingFocus) { InsightsFocusSheet() }
+        .fullScreenCover(isPresented: $pickingFocus) { InsightsFocusPicker() }
+        // On each visit, so the picker never opens over another tab or the app tour.
+        .onAppear { if model.needsInsightsFocus { pickingFocus = true } }
         .task {
             if demoEditing { arranging = true }
             guard let demoSection else { return }
@@ -132,10 +149,26 @@ struct ProgressTabView: View {
         }
     }
 
+    /// Insights focus (#939 C): the hero card. A bit of everything: Pick a focus on the ask bar's line, or a chip
+    /// before the first workout (no ask bar yet).
+    @ViewBuilder
+    private func focusTop(top: ProgressHighlights, items: [HistoryItem], fresh: Bool) -> some View {
+        if let focus = model.insightsFocus {
+            if focus == .everything {
+                if fresh { InsightsFocusChip { switchingFocus = true } }
+            } else {
+                let sport = model.progressSports.first ?? .climbing
+                InsightsFocusHero(focus: focus, h: top, sport: sport, sportItems: items.filter { $0.filter == .sport(sport) },
+                                  onOpen: { if let s = focus.section { opened = s } else { openedSport = sport } },
+                                  onSwitch: { switchingFocus = true })
+            }
+        }
+    }
+
     /// Title with Edit (#444); while editing, "Edit Progress" and Done.
     private var header: some View {
         HStack(spacing: 10) {
-            Text(arranging ? "Edit Progress" : "Progress").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Text(arranging ? "Edit Insights" : "Insights").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer()
             if arranging {
                 Button { withAnimation(.snappy) { arranging = false } } label: {
@@ -148,7 +181,7 @@ struct ProgressTabView: View {
                 CoachHeaderTile()
                 Button { withAnimation(.snappy) { arranging = true } } label: { HeaderTile(symbol: "square.grid.2x2.fill") }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Edit Progress")
+                .accessibilityLabel("Edit Insights")
                 .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
                 MePill()
             }
@@ -170,7 +203,8 @@ struct ProgressTabView: View {
         switch w.kind {
         case .level:
             // Level card, trophy shelf or quest log: the member's game look (#227); a placeholder before the first workout.
-            if fresh {
+            // XP from set-up already lifts the level (the header says "LV 2"): then the real card, not "shows after" (#823).
+            if fresh && model.game.level <= 1 {
                 ProgressWidgetPlaceholder(widget: w, note: "Your level shows after your first workout")
             } else {
                 GameProgressCard(badges: badges)
@@ -188,6 +222,16 @@ struct ProgressTabView: View {
         case .mood:
             // Mood vs training (#614 B): the finish faces against each workout's effort.
             MoodWidget(widget: w)
+        case .today:
+            // Body + Mind today (#852 C): ready score → auto-tune sheet, Mind score → Mind page, Coach's call.
+            TodayBodyMindWidget { opened = .mind }
+        case .mind:
+            // Mind (#852 A): the part tile when small, the score card with 7-day bars when wide.
+            Button { opened = .mind } label: {
+                if w.size == .small { ProgressSectionTile(h: top, section: .mind) } else { MindScoreCard(score: top.mind) }
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Mind")
         case .streak:
             StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh,
                       shields: s.streakShields)
@@ -264,7 +308,7 @@ struct ProgressTabView: View {
                     achievements
                 case .muscles:
                     muscleBalance(s, fresh: fresh)
-                case .history:
+                case .history, .mind:
                     EmptyView()
                 }
             }
@@ -315,7 +359,8 @@ struct ProgressTabView: View {
             programme: model.activeProgramme.flatMap { a in
                 a.programme.map { (name: $0.name, state: a.paused ? "Paused" : "Week \(model.programmeWeek ?? 1) of \($0.weeks)") }
             },
-            programmesFinished: model.programmeHistory.filter(\.finished).count)
+            programmesFinished: model.programmeHistory.filter(\.finished).count,
+            mind: model.mindScore)
     }
 
     @ViewBuilder
@@ -490,7 +535,9 @@ struct ProgressTabView: View {
                                 .foregroundStyle(Theme.ink)
                                 .frame(width: 32, height: 32)
                                 .background(RoundedRectangle(cornerRadius: 10).fill(ProgressStyle.gold))
-                            Text(Exercise.find(pr.exerciseId)?.name ?? pr.exerciseId).font(.body.weight(.semibold)).lineLimit(1)
+                            // Two lines that shrink a little: "Goblet Cossack…" hid the lift (#823).
+                            Text(Exercise.find(pr.exerciseId)?.name ?? pr.exerciseId).font(.body.weight(.semibold))
+                                .lineLimit(2).minimumScaleFactor(0.85)
                             Spacer()
                             Text("\(Format.kg(pr.kg)) kg").font(Theme.display(18)).monospacedDigit()
                             Text(pr.date.formatted(.dateTime.day().month())).font(.caption).foregroundStyle(Theme.muted)

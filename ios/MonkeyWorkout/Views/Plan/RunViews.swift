@@ -250,7 +250,7 @@ struct RunSessionSheet: View {
     private var chooser: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Start \(workout.title.lowercased())").font(Theme.display(24))
-            choice(.monkey, title: "MonkeyFit player", detail: "Steps, zones, Coach voice", symbol: "figure.run", colors: runColors)
+            choice(.monkey, title: "MonkeyWorkout player", detail: "Steps, zones, Coach voice", symbol: "figure.run", colors: runColors)
             choice(.apple, title: "Apple Workout", detail: "Workout Buddy, Precision Start", symbol: "applewatch",
                    colors: [Color(hex: 0x3D59FF), Color(hex: 0x00C7FF)])
             Toggle("Remember for \(workout.sport.label.lowercased())", isOn: $remember)

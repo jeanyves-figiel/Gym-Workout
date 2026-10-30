@@ -491,16 +491,8 @@ struct MusclePickerScreen: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Muscles")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button { dismiss() } label: {
-                        Text("Done").font(.system(.body, design: .rounded).weight(.heavy))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.lime)
-                    .foregroundStyle(Theme.ink)
-                }
-            }
+            // ✕ like every sheet, not a "Done" capsule (#823): each tap already applies through onTap.
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
     }

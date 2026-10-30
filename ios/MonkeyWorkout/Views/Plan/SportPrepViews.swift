@@ -10,16 +10,14 @@ struct SportPrepBar: View {
 
     /// Today's sport (#658), dated days first; climbing has its Wall session instead.
     private var todaySport: Sport? {
-        guard let sport = model.profile?.sport(onWeekday: model.todayWeekday, key: PlanCalendar.key(Date(), model.planCalendar)),
+        guard let sport = model.daySport(onWeekday: model.todayWeekday, key: PlanCalendar.key(Date(), model.planCalendar)),
               SportPrep.family(sport) != nil else { return nil }
         return sport
     }
 
     var body: some View {
         if let sport = todaySport, let before = SportPrep.before(sport), let after = SportPrep.after(sport) {
-            NavigationLink {
-                SportPrepPage(sport: sport)
-            } label: {
+            NavigationLink(value: SportPrepRoute(sport: sport)) {
                 HStack(spacing: 8) {
                     Image(systemName: sport.symbol)
                         .font(.system(size: 17, weight: .bold))
@@ -113,8 +111,8 @@ struct SportPrepPage: View {
             Spacer(minLength: 0)
             if let minutes {
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    Text("\(minutes)").font(Theme.display(26)).monospacedDigit()
-                    Text("′").font(Theme.label(13))
+                    // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                    Text("\(minutes)′").font(Theme.display(26)).monospacedDigit()
                 }
             } else {
                 Image(systemName: "plus").font(.headline.weight(.heavy))

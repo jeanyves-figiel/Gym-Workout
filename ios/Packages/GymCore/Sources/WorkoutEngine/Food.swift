@@ -105,6 +105,9 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
     public var pack: Double?
     /// Caffeine, mg per 100 g (ml): coffee, tea, cola, energy drinks (#710), so a logged mug joins the caffeine meter.
     public var caffeine: Double?
+    /// Fibre and salt, g per 100 g (ml), when read off a nutrition label (#872).
+    public var fibre: Double?
+    public var salt: Double?
 
     /// Caffeine in this many grams, mg.
     public func caffeineMg(grams: Double) -> Int { Int(((caffeine ?? 0) * grams / 100).rounded()) }

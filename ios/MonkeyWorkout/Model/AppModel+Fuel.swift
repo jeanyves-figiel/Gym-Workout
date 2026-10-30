@@ -53,7 +53,8 @@ extension AppModel {
         if Calendar.current.isDateInToday(start), at < Date() { at = Date().addingTimeInterval(30 * 60) }
         let gymDone = out.contains { if case .gym = $0.kind { return true } else { return false } }
         if !gymDone {
-            for s in week.plan.sessions where s.weekday == wd && !doneIds.contains(s.id) {
+            // Skipped workouts are gone, as on Train (#936).
+            for s in daySessions(in: week, weekday: wd) where !doneIds.contains(s.id) {
                 out.append(FuelActivity(id: s.id, kind: .gym, title: s.title, start: at, minutes: s.estMin, done: false))
                 at = at.addingTimeInterval(Double(s.estMin + 60) * 60)
             }
@@ -61,7 +62,7 @@ extension AppModel {
         var sports: [Sport] = []
         if let trip = week.trips[wd] { sports.append(trip.sport) }
         if week.climbing.contains(wd) { sports.append(.climbing) }
-        for d in profile?.sportDays(on: start, calendar: cal) ?? [] where d.weekday == wd { sports.append(d.sport) }
+        for d in sportDays(on: start, calendar: cal) where d.weekday == wd { sports.append(d.sport) }
         for sport in Set(sports).sorted(by: { $0.rawValue < $1.rawValue })
         where !out.contains(where: { $0.sport == sport }) {
             let minutes = [Sport.snowboard, .ski, .crossCountrySki, .hike, .mountaineering].contains(sport) ? 240 : sport == .climbing ? 120 : 75
@@ -224,6 +225,41 @@ extension AppModel {
         }
         return .meal(PlateScan(dish: result.dish ?? "", items: items))
     }
+
+    /// "What can I eat?" (#869): up to three meals made of What I have for `slot`, aimed at what's left today (Pro).
+    func mealIdeas(plan: FuelPlan, log: FuelDayLog, slot: FuelSlot) async throws -> [MealIdea] {
+        #if DEBUG
+        if demo { return Self.demoIdeas }
+        #endif
+        let store = FuelStore.shared
+        let own = store.saved.foods
+        let pantry = store.saved.pantry.compactMap { FoodBook.food($0.foodId, own: own) }
+            .filter { $0.id.range(of: "^[a-z0-9-]{1,40}$", options: .regularExpression) != nil }
+            .prefix(300)
+            .map { GymScanItem(id: $0.id, label: String($0.name.prefix(60))) }
+        let left = MealIdea.left(plan, log: log)
+        let prefs = store.prefs
+        let result = try await api.mealIdeas(pantry: Array(pantry), meal: MealIdea.meal(slot.kind), protein: left.protein, carbs: left.carbs,
+                                             diet: prefs.diet.rawValue, avoid: prefs.avoid.map(\.rawValue).sorted())
+        return result.ideas.map { i in
+            MealIdea(name: i.name, minutes: i.minutes, items: i.foods.map { MealIdea.Item(foodId: $0.id, grams: $0.grams) }, steps: i.steps)
+        }
+    }
+
+    #if DEBUG
+    static let demoIdeas: [MealIdea] = [
+        MealIdea(name: "Eggs, feta & spinach wrap", minutes: 15,
+                 items: [.init(foodId: "egg", grams: 150), .init(foodId: "feta", grams: 40), .init(foodId: "spinach", grams: 60), .init(foodId: "tortilla", grams: 60)],
+                 steps: ["Wilt the spinach in a hot pan", "Scramble the eggs into it, crumble the feta on top", "Roll it up in the warm tortilla"]),
+        MealIdea(name: "Chicken rice bowl", minutes: 20,
+                 items: [.init(foodId: "chicken-breast", grams: 160), .init(foodId: "rice", grams: 70), .init(foodId: "bell-pepper", grams: 100),
+                         .init(foodId: "soy-sauce", grams: 15)],
+                 steps: ["Cook the rice, 12 min", "Sear the sliced chicken, 6 min", "Add the peppers and soy, serve on the rice"]),
+        MealIdea(name: "Skyr, oats & berries", minutes: 3,
+                 items: [.init(foodId: "skyr", grams: 250), .init(foodId: "oats", grams: 40), .init(foodId: "berries", grams: 100)],
+                 steps: ["Stir the oats into the skyr", "Top with the berries"]),
+    ]
+    #endif
 
     #if DEBUG
     static var demoPlate: PlateScan {

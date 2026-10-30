@@ -50,6 +50,13 @@ struct MainTabView: View {
     @State private var ask = CoachAsk.shared
     /// Exercise page opened by Visual Intelligence or Shortcuts (#617).
     @State private var exerciseLaunch = ExerciseLaunch.shared
+    @State private var videoShare = VideoShareLaunch.shared
+    @State private var hd = HDAnimations.shared
+
+    private var showHDOffer: Bool {
+        !hd.offered && !hd.enabled && !model.demo && model.tourStep == nil && !model.offerPro && whatsNew == nil
+            && !model.meOpen && !model.settingsOpen
+    }
 
     /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
     private func whatsNewSheet(_ notes: WhatsNew) -> some View {
@@ -65,7 +72,7 @@ struct MainTabView: View {
                 .tabItem { Label("Explore", systemImage: "figure.arms.open") }
                 .tag(MainTab.explore)
             NavigationStack { ProgressTabView() }
-                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+                .tabItem { Label("Insights", systemImage: "sparkles") }
                 .tag(MainTab.progress)
             NavigationStack { FuelView() }
                 .tabItem { Label("Fuel", systemImage: "fork.knife") }
@@ -87,6 +94,8 @@ struct MainTabView: View {
             if ProStore.shared.locked { ProPaywallSheet(gate: .askCoach) } else { CoachChatView(ask: r).remotePaused(.askCoach) }
         }
         .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
+        // Shared from TikTok / Instagram (#909 A).
+        .sheet(item: $videoShare.draft) { d in VideoImportSheet(draft: d) }
         // Me sheet (#560): the Me pill at the top right of every tab.
         .sheet(isPresented: Bindable(model).meOpen) {
             NavigationStack {
@@ -110,9 +119,12 @@ struct MainTabView: View {
         // a sport the Watch tracked (it reaches the iPhone through Health) is posted when the app opens.
         .onChange(of: scenePhase) { _, p in
             guard p == .active else { return }
+            VideoShareLaunch.shared.check()
             Task { await autoShare() }
             // Workouts and sets from a Garmin watch (#550).
             Task { await GarminSync.shared.pull() }
+            // HD animations (#932): an unfinished download or changed art.
+            hd.resume()
         }
         .onChange(of: health.snapshot.recentSports.count) { Task { await autoShare() } }
         // Style picked here or on the Watch (#681): an edited Train layout follows it too.
@@ -138,6 +150,22 @@ struct MainTabView: View {
         .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
             whatsNewSheet($0)
         }
+        // HD animations offer (#932 A): once per device, when nothing else is showing (after sign-up and the tour).
+        .sheet(isPresented: Binding(get: { showHDOffer }, set: { if !$0 { hd.offered = true } })) {
+            NavigationStack { HDAnimationsOffer() }
+        }
+        // #932 B: "HD moves ready" once the pack is on the device.
+        .overlay(alignment: .top) {
+            if hd.justFinished {
+                HDReadyToast()
+                    .task {
+                        try? await Task.sleep(for: .seconds(4))
+                        withAnimation { hd.justFinished = false }
+                    }
+            }
+        }
+        .animation(.spring, value: hd.justFinished)
+        .task { hd.resume() }
     }
 }
 
@@ -168,6 +196,20 @@ private struct LockScreen: View {
 }
 
 #if DEBUG
+/// A screen the app only ever pushes (recipe, Wall session, the hangboard session, the sent report), shown pushed
+/// one level deep with its Back button, as members see it (#823): at the root it had no way back.
+private struct DemoPushed<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @State private var path = NavigationPath([0])
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            Theme.bg.ignoresSafeArea()
+                .navigationDestination(for: Int.self) { _ in content() }
+        }
+    }
+}
+
 /// Jumps straight to one screen for CI screenshots.
 private struct DemoScreen: View {
     @Environment(AppModel.self) private var model
@@ -211,6 +253,7 @@ private struct DemoScreen: View {
         case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
         case "player-coach": WorkoutPlayerView(sessionId: second, demoMode: "coach")
         case "player-record": WorkoutPlayerView(sessionId: second, demoMode: "coach-record")
+        case "player-talk": WorkoutPlayerView(sessionId: second, demoMode: "talk")
         case "coach-settings": NavigationStack { CoachSettingsView() }
         case "watch-options": NavigationStack { WatchOptionsView() }
         case "watch-lift": NavigationStack { WatchOptionsView(focus: .lift) }
@@ -229,6 +272,11 @@ private struct DemoScreen: View {
             if let p = e.position {
                 NavigationStack { PositionGuideView(exercise: e, position: p, demoMistake: Demo.screen == "position-mistake") }
             }
+        // Form check (#833): a made-up member in place of the camera.
+        case "form-live": FormCheckView(exercise: Exercise.get("back-squat"), demo: .live)
+        case "form-ghost": FormCheckView(exercise: Exercise.get("back-squat"), demo: .ghost)
+        case "form-report": FormCheckView(exercise: Exercise.get("back-squat"), demo: .report)
+        case "form-coach": CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: Exercise.get("back-squat").name)))
         case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
         case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
         case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")
@@ -293,7 +341,7 @@ private struct DemoScreen: View {
         // Missed sessions (#266); train-missed is the Train tab.
         case "calendar-missed": NavigationStack { CalendarView() }
         case "missed-catchup":
-            if let wd = model.missedToHandle.first?.weekday { MissedCatchUpSheet(weekday: wd) }
+            if let wd = model.missedSessions.first?.weekday { MissedCatchUpSheet(weekday: wd) }
         case "missed-log":
             if let s = model.missedSessions.first { MissedLogSheet(session: s) }
         case "programme-finished":
@@ -302,12 +350,14 @@ private struct DemoScreen: View {
         case "climb-settings", "around-sport": AroundSportView()
         // Climbing gym (#366): Wall session card, Explore → Climbing, the hangboard session, a hangboard drill.
         case "wall-session":
-            NavigationStack {
+            DemoPushed {
                 WallSessionPage(today: true, climbedToday: false)
                     .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
             }
+        // Climbing live (#829): a session 47′ in with 9 goes.
+        case "climb-live": ClimbLiveView().onAppear { ClimbLive.shared.demo() }
         case "explore-climbing": NavigationStack { ClimbingCategoryView() }
-        case "wall-hangboard": NavigationStack { SessionView(sessionId: WallSession.templates[3].sessionId) }
+        case "wall-hangboard": DemoPushed { SessionView(sessionId: WallSession.templates[3].sessionId) }
         case "exercise-climbing": NavigationStack { ExerciseDetailView(exerciseId: "hang-ramp") }
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
@@ -320,8 +370,12 @@ private struct DemoScreen: View {
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
         case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume, demoSection: .training) }
         case "progress-records": NavigationStack { ProgressTabView(demoSection: .records) }
+        case "progress-mind": NavigationStack { ProgressTabView(demoSection: .mind) }
+        case "progress-ask": NavigationStack { ProgressTabView(demoAsk: true) }
         case "progress-edit": NavigationStack { ProgressTabView(demoEditing: true) }
         case "progress-sports": NavigationStack { ProgressTabView() }
+        // Insights focus (#939): the hero card, and the first-open picker.
+        case "insights-focus", "insights-focus-pick": NavigationStack { ProgressTabView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "history-page": NavigationStack { HistoryView() }
         case "body": NavigationStack { BodyHealthView() }
@@ -361,7 +415,7 @@ private struct DemoScreen: View {
             ReportProblemView(draft: ReportDraft(via: .error, kind: .broken, area: "Sync & account", screen: "Train",
                                                  error: "Some changes haven't synced yet. We'll keep trying."), modal: true)
         }
-        case "report-sent": NavigationStack { ReportProblemView(draft: ReportDraft(via: .settings, area: "Train"), demoSent: true) }
+        case "report-sent": DemoPushed { ReportProblemView(draft: ReportDraft(via: .settings, area: "Train"), demoSent: true) }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
         case "pro-gate": ProPaywallSheet(gate: .askCoach)
@@ -383,6 +437,21 @@ private struct DemoScreen: View {
         case "challenge", "challenge-suggest": NavigationStack { ChallengeRoomView() }
         case "how-it-works": NavigationStack { HowItWorksView() }
         case "how-it-works-fuel": NavigationStack { HowItWorksTopicView(topic: HowItWorks.topic("fuel")!) }
+        // Mind (#834): Train check-in card before and after checking in, Explore → Calm, a session, the Mind page.
+        case "mind-checkin", "mind-train":
+            NavigationStack {
+                ScrollView { MindTrainCard().padding(16) }
+                    .background(Theme.bg.ignoresSafeArea())
+            }
+        // Weekly Coach review (#867): the Train card with Coach's score, summary and changes.
+        case "week-review":
+            NavigationStack {
+                ScrollView { DemoWeekReview().padding(16) }
+                    .background(Theme.bg.ignoresSafeArea())
+            }
+        case "explore-calm": NavigationStack { LibraryView(mode: .calm) }
+        case "breathing": BreathingPlayer(breath: .box)
+        case "mind": NavigationStack { MindView() }
         case "community-plan":
             NavigationStack { SharedPlanView(plan: SharedPlans.shared.plans[0]).navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "community-share-plan": SharePlanSheet()
@@ -393,6 +462,8 @@ private struct DemoScreen: View {
         case "story-sheet": StorySheet(poster: .workout(title: "Legs", minutes: 55, sets: 27, moves: 12, details: ["Back squat 5 × 5 · 100 kg", "Romanian deadlift 3 × 8", "Leg press 3 × 12", "Walking lunge 3 × 10"]))
         case "community-members":
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
+        case "video-import": VideoImportSheet()
+        case "video-import-check": VideoImportSheet(read: AppModel.demoVideoImport)
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "muscle-picker": MusclePickerScreen(primary: [.glutes], secondary: [.hamstrings], heat: [.glutes: 1, .hamstrings: 0.35]) { _ in }
@@ -409,6 +480,10 @@ private struct DemoScreen: View {
         case "ask-coach":
             CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: "Barbell bench press"),
                                                question: "My shoulder clicks on this one"))
+        case "ask-coach-freestyle":
+            // Freestyle start screen's Coach (#856): exercises with ▶ / +.
+            CoachChatView(ask: AskCoachRequest(focus: .freestyle(), question: "Cable machine with a rope, I want triceps"),
+                          freestyle: CoachFreestyle(lined: .constant([]), start: { _ in }))
         // Guided onboarding (#664): each step, the app tour, the set-up card and Settings → Onboarding.
         case "onboarding-gym", "onboarding-machines", "onboarding-map", "onboarding-plan", "onboarding-tour":
             OnboardingFlowView(mode: .newMember, profile: nil,
@@ -416,9 +491,11 @@ private struct DemoScreen: View {
         case "app-tour": MainTabView()
         case "train-setup": NavigationStack { WeekView() }
         case "onboarding-hub": NavigationStack { OnboardingHubView() }
-        case "onboarding", "onboarding-climbing":
+        // Set up the plan with Coach (#873): say it once, and Not sure? Ask Coach on the form.
+        case "coach-plan": NavigationStack { CoachPlanSetupView(base: Profile()) { _, _ in } }
+        case "onboarding", "onboarding-climbing", "coach-help":
             NavigationStack {
-                ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                ProfileFormView(initial: Demo.screen == "onboarding-climbing" ? Demo.climbingProfile : nil) { _ in }
                     .navigationTitle("Your training")
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle(TrainingProfileView.title) }
@@ -457,7 +534,7 @@ private struct DemoScreen: View {
                 return Generator.flowBlocks((model.profile ?? Profile()).applying(tw), around: ex, minutes: [k: 6], seed: 1).first?.items ?? []
             }) {}
         case "quick-flow":
-            NavigationStack { QuickSessionOptionsView(focus: .push, day: "Thursday") { _, _, _ in true } }
+            NavigationStack { GenerateWorkoutView(focus: .push, minutes: 60, day: "Thu 29") { _, _, _, _ in true } }
         case "equipment": EquipmentSheet(equipment: .constant(GymKind.budget.equipment))
         case "equipment-zones", "equipment-by-zone": EquipmentSheet(equipment: .constant(Gym.puls5.equipment), layout: .constant(Demo.layout))
         case "floor-plan": FloorPlanSheet(layout: .constant(Demo.layout), equipment: Gym.puls5.equipment)
@@ -511,11 +588,11 @@ private struct DemoScreen: View {
         case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
-        case "fuel", "fuel-setup-card": NavigationStack { FuelView() }
+        case "fuel", "fuel-setup-card", "fuel-ideas": NavigationStack { FuelView() }
         // Fuel home redesign (#733): the Log sheet with Magic Snap on top, and the Magic Snap camera.
         case "fuel-log": JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date())
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
-        case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
+        case "recipe": DemoPushed { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
         case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)
         case "fuel-pantry": NavigationStack { PantryView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "meal-plan":
@@ -534,6 +611,11 @@ private struct DemoScreen: View {
         case "fuel-plate":
             JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date(),
                          plate: [FoodServing(foodId: "coffee"), FoodServing(foodId: "cornflakes", servings: 1.5)])
+        // What can I eat? (#869): one idea as the recipe card.
+        case "fuel-idea":
+            if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .dinner }) ?? model.fuelPlan(on: Date()).slots.first {
+                MealIdeaSheet(idea: AppModel.demoIdeas[1], plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
         case "fuel-snap-plate":
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 PlateScanSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
@@ -541,6 +623,11 @@ private struct DemoScreen: View {
         case "fuel-snap":
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 MagicSnapSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
+        // New food from a read nutrition label (#872), values in lime.
+        case "fuel-label":
+            NavigationStack {
+                LabelFoodForm(label: NutritionLabel(kcal: 372, protein: 13, carbs: 58, fat: 7.1, fibre: 8, salt: 0.3))
             }
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
@@ -590,7 +677,7 @@ private struct DemoScreen: View {
             NavigationStack {
                 ScrollView { GameProgressCard(badges: model.badges).padding(16) }
                     .background(Theme.bg.ignoresSafeArea())
-                    .navigationTitle("Progress")
+                    .navigationTitle("Insights")
             }
         case "game-quest-deck":
             NavigationStack {
@@ -603,7 +690,13 @@ private struct DemoScreen: View {
                 .navigationTitle("Week quest")
             }
         case "reschedule":
-            MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+            // The week's real missed session on its own day, as missed-catchup shows it (#823): not the plan's
+            // second session labelled "yesterday", which named a different workout.
+            if let s = model.missedSessions.first {
+                let cal = model.planCalendar
+                let day = cal.date(byAdding: .day, value: (s.weekday ?? 1) - 1, to: Progression.weekStart(Date(), cal))
+                MissedSessionSheet(sessionId: s.id, day: day ?? Date())
+            }
         default: MainTabView()
         }
     }

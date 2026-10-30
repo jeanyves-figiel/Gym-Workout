@@ -149,6 +149,21 @@ extension AppModel {
         restoreOwnPlan(a.saved)
     }
 
+    /// Undo of a start or switch (#822): the programme that ran before (or none), the history as it was, and the plan
+    /// that went with it.
+    func undoProgrammeStart(previous: ActiveProgramme?, history: [ProgrammeRecord]) {
+        guard let current = activeProgramme else { return }
+        state.synced?.programmeHistory = history.isEmpty ? nil : history
+        state.synced?.programme = previous
+        // The member's own plan, which the new one saved (the same one a running programme before had saved).
+        restoreOwnPlan(current.saved)
+        if let previous, !previous.paused {
+            // Then built again for this week from the programme that ran, as Resume does.
+            state.synced?.programme?.appliedWeek = nil
+            syncProgramme(starting: true)
+        }
+    }
+
     private func finishProgramme(now: Date) {
         guard let a = activeProgramme else { return }
         finishedProgramme = record(a, finished: true, now: now)

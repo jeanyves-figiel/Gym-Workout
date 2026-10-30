@@ -1,10 +1,13 @@
 import { argon2 as argon2Cb, createHash, createHmac, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual, type ScryptOptions } from 'node:crypto';
+import { ApiError } from './errors.ts';
 
 /**
  * Password hashes running at once: each holds ~32 MB and a libuv thread (the pool has 4), so a burst of sign-ins
  * queues here instead of starving file and zlib work or memory.
  */
 const MAX_HASHES = 2;
+/** Hashes allowed to wait (#927): beyond this a burst is refused with 503 instead of making every sign-in wait. */
+export const MAX_WAITING = 64;
 let running = 0;
 const waiting: (() => void)[] = [];
 
@@ -13,6 +16,7 @@ export const hashSlots = () => ({ running, waiting: waiting.length });
 
 const slot = async <T>(work: () => Promise<T>): Promise<T> => {
   if (running < MAX_HASHES) running++;
+  else if (waiting.length >= MAX_WAITING) throw new ApiError(503, 'busy', 'Too many sign-ins right now. Try again in a moment.');
   else await new Promise<void>((go) => waiting.push(go)); // the finishing hash hands its slot over
   try {
     return await work();

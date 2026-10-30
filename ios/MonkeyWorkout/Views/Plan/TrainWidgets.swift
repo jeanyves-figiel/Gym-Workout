@@ -81,7 +81,7 @@ struct OpensProgress: ViewModifier {
             model.tab = .progress
         } label: { content }
             .buttonStyle(.plain)
-            .accessibilityHint("Opens \(section.title) in Progress")
+            .accessibilityHint("Opens \(section.title) in Insights")
     }
 }
 
@@ -118,7 +118,7 @@ struct CoachSmallWidget: View {
                 MonkeyFace(mood: mood, scale: 1.1, gear: model.rank.gear)
                 Spacer(minLength: 0)
             }
-            let missed = model.missedToHandle.count
+            let missed = model.missedSessions.count
             caption("🔥 \(stats.currentStreakWeeks) wk · \(stats.thisWeek)/\(target) this week\(missed > 0 ? " · \(missed) missed" : "")")
         }
         .opensLevels()
@@ -129,6 +129,7 @@ struct CoachSmallWidget: View {
 struct WeekSmallWidget: View {
     let plan: WeekPlan
     let done: Int
+    @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var explaining = false
 
@@ -138,7 +139,8 @@ struct WeekSmallWidget: View {
             WidgetTile(kind: .week, title: "W\(plan.week)/\(Generator.mesocycleWeeks) · \(Generator.phaseName(plan.week))") {
                 HStack {
                     Spacer(minLength: 0)
-                    DoneRing(done: done, total: plan.sessions.count)
+                    // Skipped and removed workouts leave the week (#818).
+                    DoneRing(done: done, total: model.weekSessionCount)
                     Spacer(minLength: 0)
                 }
                 Text(readiness?.title ?? "\(plan.sessions.count) sessions · \(plan.sessionMinutes) min")
@@ -179,9 +181,9 @@ struct NextUpCompactWidget: View {
         tile
             // Missed this week (#266): the red chip opens the catch-up sheet of the first missed day.
             .overlay(alignment: .topTrailing) {
-                if !model.missedToHandle.isEmpty {
+                if !model.missedSessions.isEmpty {
                     Button { catchUp = true } label: {
-                        Text("\(model.missedToHandle.count) missed").font(Theme.label(11)).foregroundStyle(.white)
+                        Text("\(model.missedSessions.count) missed").font(Theme.label(11)).foregroundStyle(.white)
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(Capsule().fill(MissedStyle.gradient))
                     }
@@ -223,7 +225,7 @@ struct NextUpCompactWidget: View {
                 }
             }
         } else {
-            let missed = model.missedToHandle.count
+            let missed = model.missedSessions.count
             WidgetTile(kind: .nextUp, title: "This week") {
                 Label(missed > 0 ? "No more sessions" : "Week complete", systemImage: missed > 0 ? "moon.zzz.fill" : "trophy.fill")
                     .font(Theme.display(18))
@@ -234,7 +236,19 @@ struct NextUpCompactWidget: View {
 
     /// Start for today's session only (#537); a later day shows its day instead.
     @ViewBuilder private func startButton(_ s: Session) -> some View {
-        if !model.startableToday(s), let wd = s.weekday {
+        if model.liveOnWatch(s) {
+            // Running on the Watch (#822): its twin player, never a second Start.
+            Button { MirroredWorkout.shared.presented = true } label: {
+                Label("Open", systemImage: "applewatch")
+                    .font(Theme.label(14))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .frame(maxWidth: wide ? nil : .infinity)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open on iPhone")
+        } else if !model.startableToday(s), let wd = s.weekday {
             PlannedDayBadge(weekday: wd, compact: true)
                 .frame(maxWidth: wide ? nil : .infinity)
         } else {
@@ -328,7 +342,7 @@ struct CalendarWidget: View {
                 guard let date = cal.date(byAdding: .day, value: wd - 1, to: w.start) else { continue }
                 let day = cal.startOfDay(for: date)
                 var marks: [Mark] = []
-                let session = w.plan.sessions.first { $0.weekday == wd }
+                let session = model.daySessions(in: w, weekday: wd).first
                 if w.off[wd] != nil { marks.append(.off) }
                 if doneDays.contains(day) { marks.append(.done) } else if session != nil, day >= today { marks.append(.planned) }
                 if w.climbing.contains(wd) { marks.append(.climb) }

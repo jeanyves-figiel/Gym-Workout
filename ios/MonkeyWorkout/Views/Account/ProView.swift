@@ -8,10 +8,10 @@ extension AccountTint {
                                     startPoint: .topLeading, endPoint: .bottomTrailing)
 }
 
-/// What Pro adds (decided 2026-10-24): Ask Coach, Generate & do today and the two AI scans. Everything else is free.
+/// What Pro adds (decided 2026-10-24): Ask Coach, Generate & do today, the two AI scans and Save from a video (#909). Everything else is free.
 /// Proposal only (#126): nothing is locked until the server mode is `enforced`.
 enum ProFeature: CaseIterable {
-    case askCoach, generateToday, gymScan, foodScan
+    case askCoach, generateToday, gymScan, foodScan, videoImport
 
     var symbol: String {
         switch self {
@@ -19,6 +19,7 @@ enum ProFeature: CaseIterable {
         case .generateToday: "wand.and.stars"
         case .gymScan: "camera.viewfinder"
         case .foodScan: "refrigerator.fill"
+        case .videoImport: "play.rectangle.on.rectangle.fill"
         }
     }
 
@@ -28,6 +29,7 @@ enum ProFeature: CaseIterable {
         case .generateToday: "Generate a workout and do it today"
         case .gymScan: "Gym scan: equipment sorts itself"
         case .foodScan: "Fridge and receipt scan for meals"
+        case .videoImport: "Save workouts from TikTok and Instagram"
         }
     }
 }
@@ -53,7 +55,7 @@ struct ProPlan: Identifiable {
             var note: String?
             if yearly, let monthly, monthly > 0 {
                 let save = Int((NSDecimalNumber(decimal: (1 - (p.price / 12) / monthly) * 100).doubleValue).rounded())
-                note = "\((p.price / 12).formatted(p.priceFormatStyle))/mo" + (save > 0 ? " · save \(save) %" : "")
+                note = "\((p.price / 12).formatted(p.priceFormatStyle))/mo" + (save > 0 ? " · save \(save)%" : "") // no space: "%" never wraps alone (#823)
             }
             return ProPlan(id: p.id, title: yearly ? "Yearly" : unit == .month ? "Monthly" : "Weekly", price: p.displayPrice,
                            period: yearly ? "year" : unit == .month ? "month" : "week", note: note, product: p)
@@ -61,7 +63,7 @@ struct ProPlan: Identifiable {
     }
 
     static let fallback = [
-        ProPlan(id: "monkeyworkout.pro.yearly", title: "Yearly", price: "CHF 60.00", period: "year", note: "CHF 5.00/mo · save 17 %", product: nil),
+        ProPlan(id: "monkeyworkout.pro.yearly", title: "Yearly", price: "CHF 60.00", period: "year", note: "CHF 5.00/mo · save 17%", product: nil),
         ProPlan(id: ProStore.lifetimeId, title: "Lifetime", price: "CHF 100.00", period: "lifetime", note: "Pay once · all future updates included", product: nil),
         ProPlan(id: "monkeyworkout.pro.monthly", title: "Monthly", price: "CHF 6.00", period: "month", note: nil, product: nil),
         ProPlan(id: "monkeyworkout.pro.weekly", title: "Weekly", price: "CHF 2.00", period: "week", note: nil, product: nil),
@@ -70,7 +72,7 @@ struct ProPlan: Identifiable {
 
 /// A Pro feature someone tapped (#126): heads the paywall sheet ("Ask Coach is Pro").
 enum ProGate: String, Identifiable {
-    case askCoach, generateWorkout, gymScan, foodScan
+    case askCoach, generateWorkout, gymScan, foodScan, videoImport
 
     var id: String { rawValue }
 
@@ -80,6 +82,7 @@ enum ProGate: String, Identifiable {
         case .generateWorkout: "Generate & do today is Pro"
         case .gymScan: "Gym scan is Pro"
         case .foodScan: "Fridge scan is Pro"
+        case .videoImport: "Save from a video is Pro"
         }
     }
 
@@ -89,6 +92,7 @@ enum ProGate: String, Identifiable {
         case .generateWorkout: "Pick muscles, get a workout and start it now. Adding it to a day stays free."
         case .gymScan: "Snap each area of your gym, the equipment sorts itself."
         case .foodScan: "Snap your fridge or a receipt, get meals that fit your day."
+        case .videoImport: "Share a TikTok or Instagram workout to MonkeyFit, Coach turns it into your own."
         }
     }
 
@@ -98,6 +102,7 @@ enum ProGate: String, Identifiable {
         case .generateWorkout: "wand.and.stars"
         case .gymScan: "camera.viewfinder"
         case .foodScan: "refrigerator.fill"
+        case .videoImport: "play.rectangle.on.rectangle.fill"
         }
     }
 }
@@ -329,7 +334,8 @@ struct ProView: View {
             Text(planLine(plan))
                 .font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
                 .frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.top, 4)
-            LimeActionButton(title: buyTitle(plan), busy: busy, disabled: plan.product == nil && !pro.testing) {
+            // Lime whenever a plan is picked (#822, design A): the App Store products load on the tap if needed.
+            LimeActionButton(title: buyTitle(plan), busy: busy) {
                 busy = true
                 Task {
                     await pro.buy(plan)

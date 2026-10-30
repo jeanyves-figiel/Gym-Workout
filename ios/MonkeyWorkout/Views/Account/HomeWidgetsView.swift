@@ -34,7 +34,8 @@ struct HomeWidgetsView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Home Screen widgets")
+        // The big heading above is the title (#823): no second one in the bar, as on Notifications.
+        .navigationTitle("")
         .toolbarTitleDisplayMode(.inline)
     }
 }

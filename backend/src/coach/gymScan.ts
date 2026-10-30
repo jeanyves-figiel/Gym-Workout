@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { COACH_MODEL_ID } from './chat.ts';
+import { AI_MODELS, CACHED, tracked } from './models.ts';
 
 /**
  * Gym scan (#406): a photo of one area of the member's gym in, the equipment on it out, picked only from the app's
@@ -31,8 +31,8 @@ export const cleanScan = (items: string[], catalog: ScanItem[]) => {
   return catalog.map((c) => c.id).filter((id) => found.has(id));
 };
 
-/** Claude Opus 5.5 vision with structured output, low effort. */
-export const claudeGymScan = (apiKey: string, workspaceId?: string): GymScanModel => {
+/** Scan model (#866) vision with structured output, low effort. */
+export const claudeGymScan = (apiKey: string, workspaceId?: string, model = AI_MODELS.scan): GymScanModel => {
   const client = new Anthropic({
     apiKey,
     timeout: 60_000,
@@ -40,8 +40,8 @@ export const claudeGymScan = (apiKey: string, workspaceId?: string): GymScanMode
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
   return async (jpeg, catalog) => {
-    const res = await client.beta.messages.create({
-      model: COACH_MODEL_ID,
+    const res = await tracked('gym-scan', model, () => client.beta.messages.create({
+      model,
       max_tokens: 2000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
@@ -51,12 +51,13 @@ export const claudeGymScan = (apiKey: string, workspaceId?: string): GymScanMode
         {
           role: 'user',
           content: [
+            // Catalog first and cached (same for every scan), then the photo (#866).
+            { type: 'text', text: `Equipment ids (id: name):\n${catalog.map((c) => `${c.id}: ${c.label}`).join('\n')}`, cache_control: CACHED },
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpeg.toString('base64') } },
-            { type: 'text', text: `Equipment ids (id: name):\n${catalog.map((c) => `${c.id}: ${c.label}`).join('\n')}` },
           ],
         },
       ],
-    });
+    }));
     if (res.stop_reason === 'refusal') return [];
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return cleanScan((JSON.parse(text) as { items: string[] }).items, catalog);

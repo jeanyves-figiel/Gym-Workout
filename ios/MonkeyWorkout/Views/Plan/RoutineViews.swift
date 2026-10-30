@@ -32,15 +32,17 @@ extension DailyRoutine {
 struct RoutineLengthChips: View {
     let lengths: [Int]
     let selected: Int
+    /// Breaths instead of minutes (4-7-8, #861).
+    var breaths = false
     var onPick: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
             if lengths.count > 1 {
                 ForEach(lengths, id: \.self) { m in
-                    SelectChip(title: "\(m)′", on: m == selected, offFill: AnyShapeStyle(.black.opacity(0.22)), offInk: .white,
+                    SelectChip(title: breaths ? "\(m) breaths" : "\(m)′", on: m == selected, offFill: AnyShapeStyle(.black.opacity(0.22)), offInk: .white,
                                height: 28, fills: false) { onPick(m) }
-                        .accessibilityLabel("\(m) minutes")
+                        .accessibilityLabel(breaths ? "\(m) breaths" : "\(m) minutes")
                 }
             }
         }
@@ -257,7 +259,7 @@ private struct PlusTile: View {
 }
 
 /// Full-width action on a gradient card: white (main) or dark glass.
-private struct CardAction: View {
+struct CardAction: View {
     let title: String
     let symbol: String
     var main = false
@@ -279,7 +281,7 @@ private struct CardAction: View {
 }
 
 /// ✕ on a card's top-right corner.
-private struct CardClose: View {
+struct CardClose: View {
     let label: String
     let action: () -> Void
 
@@ -374,8 +376,8 @@ struct CoachRoutineCard: View {
                 }
                 Spacer(minLength: 4)
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    Text("\(minutes)").font(Theme.display(30)).monospacedDigit()
-                    Text("′").font(Theme.label(14))
+                    // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                    Text("\(minutes)′").font(Theme.display(30)).monospacedDigit()
                 }
                 .padding(.trailing, 30)
             }
@@ -612,8 +614,8 @@ struct RoutineLibrarySection: View {
                     }
                     Spacer(minLength: 4)
                     HStack(alignment: .firstTextBaseline, spacing: 1) {
-                        Text("\(minutes)").font(Theme.display(30)).monospacedDigit()
-                        Text("′").font(Theme.label(14))
+                        // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                        Text("\(minutes)′").font(Theme.display(30)).monospacedDigit()
                     }
                 }
                 .contentShape(Rectangle())

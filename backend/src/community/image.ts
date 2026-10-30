@@ -17,6 +17,7 @@ export const sanitizeJpeg = (buf: Buffer): { data: Buffer; width: number; height
   let i = 2;
   let width = 0;
   let height = 0;
+  let scanned = false;
   while (i < buf.length) {
     if (buf[i] !== 0xff) throw bad('Corrupt JPEG.');
     const marker = buf[i + 1]!;
@@ -24,7 +25,12 @@ export const sanitizeJpeg = (buf: Buffer): { data: Buffer; width: number; height
       i++; // fill byte
       continue;
     }
-    if (marker === 0xd9) break; // EOI before SOS
+    if (marker === 0xd9) {
+      // End of image: everything after it is dropped (#929).
+      if (!scanned) break; // EOI before any scan
+      out.push(buf.subarray(i, i + 2));
+      return { data: Buffer.concat(out), width, height };
+    }
     if (marker >= 0xd0 && marker <= 0xd7) throw bad('Corrupt JPEG.');
     if (i + 4 > buf.length) throw bad('Corrupt JPEG.');
     const len = buf.readUInt16BE(i + 2);
@@ -38,12 +44,29 @@ export const sanitizeJpeg = (buf: Buffer): { data: Buffer; width: number; height
     const strip = (marker >= 0xe1 && marker <= 0xef) || marker === 0xfe;
     if (!strip) out.push(buf.subarray(i, end));
     if (marker === 0xda) {
-      // Start of scan: entropy-coded data + remaining markers to EOI are image data; keep as is.
-      out.push(buf.subarray(end));
       if (!width || !height) throw bad('Corrupt JPEG.');
       if (width < MIN_DIM || height < MIN_DIM || width > MAX_DIM || height > MAX_DIM)
         throw bad(`Image must be between ${MIN_DIM} and ${MAX_DIM} px per side.`);
-      return { data: Buffer.concat(out), width, height };
+      scanned = true;
+      // Scan data runs to the next marker that isn't byte stuffing (FF00) or a restart (FFD0-D7). Progressive JPEGs have
+      // more scans and tables after it; metadata between scans is dropped too, and nothing after EOI is kept (#929).
+      let j = end;
+      while (j < buf.length) {
+        if (buf[j] !== 0xff || j + 1 >= buf.length) {
+          j++;
+          continue;
+        }
+        const m = buf[j + 1]!;
+        if (m === 0x00 || m === 0xff || (m >= 0xd0 && m <= 0xd7)) {
+          j += m === 0xff ? 1 : 2;
+          continue;
+        }
+        break;
+      }
+      out.push(buf.subarray(end, j));
+      if (j >= buf.length) return { data: Buffer.concat(out), width, height };
+      i = j;
+      continue;
     }
     i = end;
   }

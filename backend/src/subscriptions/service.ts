@@ -53,6 +53,8 @@ export interface SubscriptionDeps {
   bundleIds: string[];
   /** Staging only: fake purchases (environment `Test`) and a per-account mode override. */
   tests?: boolean;
+  /** Allow-list for test mode (#924): lower-case emails, plus the `subscription_testers` table; undefined = every account. */
+  testEmails?: string[];
   /** Sandbox / TestFlight purchases count (#432). Off on production unless SUBSCRIPTION_SANDBOX=on (App Review). Default on. */
   sandbox?: boolean;
   log?: (m: string) => void;
@@ -75,16 +77,18 @@ export class SubscriptionService {
 
   entitlement(userId: string): Entitlement {
     const now = this.d.now().toISOString();
-    const testMode = this.d.tests ? this.testMode(userId) : undefined;
+    const tester = this.tester(userId);
+    const testMode = tester ? this.testMode(userId) : undefined;
     const mode = testMode ?? this.d.mode;
-    const base = { mode, products: this.d.productIds, ...(this.d.tests ? { test: { mode: testMode } } : {}) };
+    const base = { mode, products: this.d.productIds, ...(tester ? { test: { mode: testMode } } : {}) };
     const grant = this.d.db.prepare('SELECT expires_at FROM access_grants WHERE user_id = ?').get(userId) as { expires_at: string | null } | undefined;
     const subs = this.d.db
       .prepare('SELECT * FROM app_store_subscriptions WHERE user_id = ? AND revoked_at IS NULL')
       .all(userId) as unknown as SubRow[];
     // A non-consumable (Lifetime) has no expiry: it sorts after every date.
     const until = (s: SubRow) => (s.expires_at ? ([s.expires_at, s.grace_expires_at].filter(Boolean).sort().at(-1) ?? '') : '9999');
-    const active = subs.filter((s) => until(s) > now).sort((a, b) => until(b).localeCompare(until(a)))[0];
+    // Fake purchases count only for allow-listed testers (#924).
+    const active = subs.filter((s) => until(s) > now && (tester || s.environment !== 'Test')).sort((a, b) => until(b).localeCompare(until(a)))[0];
     if (active?.expires_at === null)
       return { ...base, pro: true, access: true, source: 'subscription', productId: active.product_id, lifetime: true, environment: active.environment };
     if (active)
@@ -214,8 +218,34 @@ export class SubscriptionService {
 
   // ───────────── staging test mode (SUBSCRIPTION_TESTS=on): Pro without Apple
 
-  private testsOn() {
-    if (!this.d.tests) throw new ApiError(404, 'not_found', 'Test purchases are off on this server.');
+  /** Test mode is on and this account is on the allow-list (#924). */
+  private tester(userId: string) {
+    if (!this.d.tests) return false;
+    if (!this.d.testEmails) return true;
+    const u = this.d.db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as { email: string | null } | undefined;
+    if (!u?.email) return false;
+    return this.d.testEmails.includes(u.email.toLowerCase()) || !!this.d.db.prepare('SELECT 1 FROM subscription_testers WHERE email = ?').get(u.email);
+  }
+
+  /** Staging testers kept in the database (#924), managed by `admin.ts tester-add / tester-remove / testers`. */
+  addTester(email: string, note?: string) {
+    this.d.db
+      .prepare('INSERT INTO subscription_testers (email, note, added_at) VALUES (?, ?, ?) ON CONFLICT(email) DO UPDATE SET note = excluded.note')
+      .run(email.trim().toLowerCase(), note ?? null, this.d.now().toISOString());
+  }
+
+  removeTester(email: string) {
+    return Number(this.d.db.prepare('DELETE FROM subscription_testers WHERE email = ?').run(email.trim()).changes) > 0;
+  }
+
+  testers() {
+    return this.d.db
+      .prepare('SELECT t.email, t.note, t.added_at, u.id IS NOT NULL AS account FROM subscription_testers t LEFT JOIN users u ON u.email = t.email ORDER BY t.added_at')
+      .all() as { email: string; note: string | null; added_at: string; account: number }[];
+  }
+
+  private testsOn(userId: string) {
+    if (!this.tester(userId)) throw new ApiError(404, 'not_found', 'Test purchases are off on this server.');
   }
 
   private testMode(userId: string) {
@@ -225,7 +255,7 @@ export class SubscriptionService {
 
   /** This account sees Pro as off / preview / enforced; null follows the server. */
   setTestMode(userId: string, mode: SubscriptionMode | null) {
-    this.testsOn();
+    this.testsOn(userId);
     this.d.db
       .prepare('INSERT INTO subscription_tests (user_id, mode, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET mode = excluded.mode, updated_at = excluded.updated_at')
       .run(userId, mode, this.d.now().toISOString());
@@ -234,7 +264,7 @@ export class SubscriptionService {
 
   /** Fake purchase: a subscription starts with its free week, Lifetime never expires. One test purchase per account. */
   testPurchase(userId: string, productId: string) {
-    this.testsOn();
+    this.testsOn(userId);
     if (!this.d.productIds.includes(productId)) throw new ApiError(400, 'unknown_product', 'Unknown product.');
     const now = this.d.now();
     const lifetime = productId.endsWith('.lifetime');
@@ -256,7 +286,7 @@ export class SubscriptionService {
 
   /** Cancel = auto-renew off (stays Pro until the end date); end = gone now (back to Free). */
   testCancel(userId: string, end: boolean) {
-    this.testsOn();
+    this.testsOn(userId);
     const id = `test-${userId}`;
     if (end) this.d.db.prepare('DELETE FROM app_store_subscriptions WHERE original_transaction_id = ?').run(id);
     else this.d.db.prepare('UPDATE app_store_subscriptions SET auto_renew = 0, updated_at = ? WHERE original_transaction_id = ?').run(this.d.now().toISOString(), id);

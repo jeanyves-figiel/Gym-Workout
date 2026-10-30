@@ -50,6 +50,22 @@ extension AppModel {
         current ? skippedIds.contains(sessionId) : isSkipped(sessionId, in: week)
     }
 
+    /// Skipped is gone (#849): once the Undo toast is over, a skipped workout leaves its day for good, never shown
+    /// with Unskip again. This week's (`week` nil) still shows when done or under way.
+    func skippedOff(_ s: Session, in week: PlanCalendar.Week? = nil) -> Bool {
+        guard let week else { return skippedIds.contains(s.id) && !doneIds.contains(s.id) && activeWorkout(s.id) == nil }
+        return isSkipped(s.id, in: week)
+    }
+
+    /// Workouts still on a weekday of a calendar week, as Train shows them (#936): this week's skips or a later
+    /// week's skips ahead are gone. Fuel and the Calendar widget read it so they match Train.
+    func daySessions(in week: PlanCalendar.Week, weekday: Int) -> [Session] {
+        let current = week.start == Progression.weekStart(Date(), planCalendar)
+        let skipped = current ? skippedIds.subtracting(doneIds)
+            : Set(state.skippedAhead?[PlanCalendar.key(week.start, planCalendar)] ?? [])
+        return PlanCalendar.sessions(in: week, weekday: weekday, skipped: skipped)
+    }
+
     func setSkipped(_ skipped: Bool, _ sessionId: String, in week: PlanCalendar.Week) {
         let key = PlanCalendar.key(week.start, planCalendar)
         var all = state.skippedAhead ?? [:]
@@ -61,37 +77,30 @@ extension AppModel {
         persist()
     }
 
-    // MARK: Remove (#784)
+    // MARK: Stop a weekday (#784)
 
-    private func removedKey(_ sessionId: String, in week: PlanCalendar.Week?) -> String {
-        (week.map { PlanCalendar.key($0.start, planCalendar) } ?? weekKey(Date())) + ":" + sessionId
+    /// Whether "Every <weekday>" fits `s` (#818): a workout of the regular week on one of the member's gym days, not
+    /// an added one or one moved there for that week only.
+    func canRemoveEveryWeek(_ s: Session, weekday: Int, in week: PlanCalendar.Week?) -> Bool {
+        guard !s.isPlanInsert, let p = profile else { return false }
+        let moved = week.map { laterMoves()[PlanCalendar.key($0.start, planCalendar)]?[s.id] != nil } ?? (movesThisWeek()[s.id] != nil)
+        // A planned HIIT day (#841) goes off its weekday through HIIT settings, whatever the gym days.
+        return !moved && (isPlannedHiit(s) || p.gymDays.isEmpty || p.gymDays.contains(weekday))
     }
 
-    /// Removed from its day only (#784): skipped without a "skipped · Unskip" line. `week` nil = this week.
-    func isRemoved(_ sessionId: String, in week: PlanCalendar.Week?) -> Bool {
-        state.removed?.contains(removedKey(sessionId, in: week)) ?? false
-    }
-
-    /// Removes a workout of this week (`week` nil) or a later week from its day only: the day turns into a rest day.
-    func removeSession(_ sessionId: String, in week: PlanCalendar.Week?) {
-        let key = removedKey(sessionId, in: week)
-        state.removed = (state.removed ?? []).filter { $0 != key } + [key]
-        if let week { setSkipped(true, sessionId, in: week) } else { skipMissed(sessionId) }
-    }
-
-    /// Puts a removed workout back (Undo).
-    func restoreSession(_ sessionId: String, in week: PlanCalendar.Week?) {
-        let key = removedKey(sessionId, in: week)
-        state.removed = state.removed?.filter { $0 != key }
-        if state.removed?.isEmpty == true { state.removed = nil }
-        if let week { setSkipped(false, sessionId, in: week) } else { unskip(sessionId) }
-    }
+    /// A HIIT day the plan adds from HIIT settings (#841), not one added from Explore.
+    func isPlannedHiit(_ s: Session) -> Bool { s.hiit != nil && !s.isPlanInsert && profile?.hiit?.days ?? 0 > 0 }
 
     /// Stops training on `weekday` every week (#784). Returns the profile before, for Undo.
     @discardableResult
-    func removeEveryWeek(_ weekday: Int) -> Profile? {
+    func removeEveryWeek(_ weekday: Int, hiit: Bool = false) -> Profile? {
         guard let p = profile else { return nil }
-        updateProfile(p.droppingGymDay(weekday, planned: (plan?.sessions ?? []).compactMap(\.weekday)))
+        // A HIIT day (#841): one HIIT day fewer, lifting days as they are.
+        if hiit {
+            updateProfile(p.droppingHiitDay(weekday, planned: (plan?.sessions ?? []).filter { $0.hiit != nil }.compactMap(\.weekday)))
+            return p
+        }
+        updateProfile(p.droppingGymDay(weekday, planned: (plan?.sessions ?? []).filter { $0.hiit == nil }.compactMap(\.weekday)))
         return p
     }
 

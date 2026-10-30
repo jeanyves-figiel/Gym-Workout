@@ -14,6 +14,7 @@ extension AppModel {
         let cutoff = PlanCalendar.key(planCalendar.date(byAdding: .day, value: -56, to: Date())!, planCalendar)
         list = list.filter { $0.end >= cutoff }
         p.sportTrips = list.isEmpty ? nil : list
+        p.clearSportOff(from: trip.start, through: trip.end)
         updateProfile(p)
     }
 
@@ -24,9 +25,11 @@ extension AppModel {
         updateProfile(p)
     }
 
-    /// Every week: adds the weekday to the sport's usual days (the sport is added, or switched back on, if needed).
-    func addWeeklySportDay(_ sport: Sport, weekday: Int) {
+    /// Every week: adds the weekday to the sport's usual days (the sport is added, or switched back on, if needed);
+    /// `key`, the day it was planned from, gets its sport back if it was turned into a rest day (#815).
+    func addWeeklySportDay(_ sport: Sport, weekday: Int, key: String? = nil) {
         guard var p = profile else { return }
+        if let key { p.clearSportOff(from: key, through: key) }
         if sport == .climbing {
             p.climbs = true
             p.climbingWeekdays = WeekSchedule.normalized((p.climbingWeekdays ?? []) + [weekday])

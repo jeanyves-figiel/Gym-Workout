@@ -13,14 +13,14 @@ Nothing runs on a laptop: hosting is Fly.io, setup and operations are GitHub Act
 | Used by | TestFlight builds, App Store sandbox notifications | App Store builds |
 | Pro test mode | `SUBSCRIPTION_TESTS=on` | off |
 
-Each: region `fra`, one `shared-cpu-1x` machine (256 MB), 1 GB volume at `/data` (SQLite, backups, voice cache), `/healthz` check every 30 s, machines stop when idle and start on request. Image: `ghcr.io/jeanyves-figiel/gym-workout-api:sha-<sha>` (Node 24, runs as `node`; the entrypoint only fixes `/data` ownership as root).
+Each: region `fra`, one `shared-cpu-1x` machine, volume at `/data` (SQLite, backups, voice cache), `/healthz` check every 30 s. Production (#923): 1 GB RAM, always on (no cold start), 10 GB volume. Staging: 256 MB, 1 GB volume, stops when idle and starts on request. Image: `ghcr.io/jeanyves-figiel/gym-workout-api:sha-<sha>` (Node 24, runs as `node`; the entrypoint only fixes `/data` ownership as root).
 
 ```mermaid
 flowchart LR
   Dev["Member device"] -- HTTPS --> CF["Cloudflare DNS<br/>CNAME, DNS only"] --> Edge["Fly edge<br/>TLS"] --> M["Fly machine (fra)<br/>API container"]
   M --- V[("Volume /data<br/>app.db · backups/ · voices/")]
   V -. daily snapshot .-> Snap[("Fly snapshots 14 d")]
-  M -. encrypted daily copy .-> T[("Tigris bucket 30 d")]
+  M -. encrypted daily + hourly copy .-> T[("Tigris bucket 30 d · hourly 48 h")]
 ```
 
 ## DNS
@@ -50,5 +50,6 @@ Non-secret settings are `[env]` in `fly.*.toml` (e.g. `NODE_ENV`, `DB_PATH`, `MA
 
 - `/healthz` checked by Fly; **Staging smoke test** runs after each staging deploy (and on demand against production).
 - **Fly logs** workflow pulls recent logs (machine auto-stop limits history to the last start).
+- **Hourly off-site copies** (#923): with the Tigris bucket set, the API also uploads an encrypted copy every hour (`hourly/app-<YYYY-MM-DDTHH>.db.enc`, same `BACKUP_KEY`, kept 48 h, `BACKUP_OFFSITE_HOURS`, `0` = off), so a lost volume costs at most an hour. **Fly backups** → offsite-fetch takes `YYYY-MM-DDTHH` too.
 - **Fly backups** runs daily at 04:30 UTC (snapshot check) and on demand: status, backup-now, snapshot-now, verify, retention, restore, member-restore, member-delete, off-site setup / rotate / fetch.
 - Crash reports: **TestFlight crashes** and **Symbolicate crash** workflows.

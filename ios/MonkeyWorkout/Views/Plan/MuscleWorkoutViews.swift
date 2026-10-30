@@ -162,8 +162,9 @@ struct MuscleGroupTile: View {
                     }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(group.label).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.7)
+                    // Two lines kept for every tile, so the row stays even and "Front delts · Si…" reads whole (#823).
                     Text(group.muscles.prefix(3).map(\.name).joined(separator: " · "))
-                        .font(.caption2.weight(.semibold)).opacity(0.85).lineLimit(1)
+                        .font(.caption2.weight(.semibold)).opacity(0.85).lineLimit(2, reservesSpace: true)
                 }
                 Spacer(minLength: 0)
             }
@@ -191,8 +192,9 @@ extension MuscleGroup {
         }
     }
 
-    var gradient: LinearGradient {
-        let c: WorkoutEngine.Category = switch self {
+    /// Category whose colours the group borrows.
+    private var palette: WorkoutEngine.Category {
+        switch self {
         case .shoulders: .power
         case .chest: .strength
         case .arms: .warmup
@@ -201,6 +203,9 @@ extension MuscleGroup {
         case .hips: .stretch
         case .legs: .strength
         }
-        return c.gradient
     }
+
+    var gradient: LinearGradient { palette.gradient }
+    /// Type colour on the group gradient: `Theme.ink` on light ones (#540).
+    var ink: Color { palette.ink }
 }

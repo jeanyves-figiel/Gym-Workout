@@ -109,7 +109,8 @@ extension AppModel {
         let days = Set(state.history.map { cal.startOfDay(for: $0.startedAt) })
         var inARow = 0
         while let d = cal.date(byAdding: .day, value: -(inARow + 1), to: today), days.contains(d) { inARow += 1 }
-        return TuneInputs(hrv: s?.hrv, hrvBaseline: s?.hrvBaseline, restingHR: s?.restingHR, restingHRBaseline: s?.restingHRBaseline,
+        // HRV: the 7-day average against the 30-day one (#864), the latest reading until a week is known.
+        return TuneInputs(hrv: s?.hrvWeek ?? s?.hrv, hrvBaseline: s?.hrvBaseline, restingHR: s?.restingHR, restingHRBaseline: s?.restingHRBaseline,
                           sleepHours: s?.sleepHours, lastRIR: rirs.isEmpty ? nil : Double(rirs.reduce(0, +)) / Double(rirs.count),
                           daysInARow: inARow, sore: Set(dayTune.sore))
     }
@@ -254,6 +255,10 @@ extension AppModel {
         saveGrowthDemo()
         state.dayTune = DayTune(day: PlanCalendar.key(Date(), planCalendar), level: nil, sore: [.legs], undone: [])
     }
+
+    /// The demo goal and growth level only (#823): every screen then shows the same goal % and level as the growth
+    /// path (Progress said 0 % and Level 3 next to its ~45 % and L4).
+    func applyDemoGrowthGoal() { saveGrowthDemo() }
 
     private func saveGrowthDemo() {
         var g = GrowthState()

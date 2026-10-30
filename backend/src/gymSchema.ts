@@ -63,6 +63,20 @@ export const ensureGymSchema = (db: DB): void => {
       count INTEGER NOT NULL,
       PRIMARY KEY (user_id, day)
     );
+    -- Meal ideas (#869): "What can I eat?" calls per member per day.
+    CREATE TABLE IF NOT EXISTS meal_ideas_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+    -- Save from a video (#909): imports per member per day (screenshots are never kept).
+    CREATE TABLE IF NOT EXISTS workout_import_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
   `);
   // Gym look-up by name (#715): `name_key` replaces a LIKE over every row; filled in JS for rows saved before it.
   for (const t of ['gym_reports', 'gym_maps']) {

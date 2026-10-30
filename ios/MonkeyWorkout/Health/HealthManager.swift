@@ -85,6 +85,8 @@ struct HealthSnapshot: Equatable, Codable {
     var restingHRBaseline: Double?
     var hrv: Double?
     var hrvBaseline: Double?
+    /// 7-day HRV average (#862): the Mind score compares it with the baseline, a single reading is too noisy.
+    var hrvWeek: Double?
     var vo2Max: Double?
     var sleepHours: Double?
     var climbingThisWeek = 0
@@ -147,7 +149,8 @@ enum Readiness: String {
     static func assess(_ s: HealthSnapshot) -> (Readiness, [String])? {
         guard s.hasRecoveryData else { return nil }
         var low: [String] = []
-        if let h = s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
+        // 7-day HRV average (#864): one reading is too noisy; the latest until a week is known.
+        if let h = s.hrvWeek ?? s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
         if let r = s.restingHR, let b = s.restingHRBaseline, r > b + restHRRise { low.append("Resting HR elevated") }
         if let sl = s.sleepHours, sl < minSleep { low.append("Short sleep") }
         return (low.count >= 2 ? .easy : low.count == 1 ? .normal : .ready, low)
@@ -234,7 +237,9 @@ final class HealthManager {
     private var shareTypes: Set<HKSampleType> {
         let base: Set<HKSampleType> = [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass),
                                        HKQuantityType(.height), HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass),
-                                       HKQuantityType(.waistCircumference), HKQuantityType(.dietaryWater)]
+                                       HKQuantityType(.waistCircumference), HKQuantityType(.dietaryWater),
+                                       // Breathing and relax sessions (#834).
+                                       HKCategoryType(.mindfulSession)]
         return base.union(HealthEffort.shareTypes)
     }
 
@@ -279,6 +284,7 @@ final class HealthManager {
         async let restingHRBaseline = average(.restingHeartRate, unit: bpm, from: d30, to: now)
         async let hrv = latestValue(.heartRateVariabilitySDNN, unit: ms)
         async let hrvBaseline = average(.heartRateVariabilitySDNN, unit: ms, from: d30, to: now)
+        async let hrvWeek = average(.heartRateVariabilitySDNN, unit: ms, from: now.addingTimeInterval(-7 * 86_400), to: now)
         async let vo2Max = latestValue(.vo2Max, unit: vo2Unit)
         async let sleep = sleepLastNight()
         async let weightTrend = trend(.bodyMass, unit: kg, days: 365)
@@ -313,6 +319,7 @@ final class HealthManager {
         s.restingHRBaseline = await restingHRBaseline
         s.hrv = await hrv?.value
         s.hrvBaseline = await hrvBaseline
+        s.hrvWeek = await hrvWeek
         s.vo2Max = await vo2Max?.value
         s.sleepHours = await sleep
         s.weightTrend = await weightTrend
@@ -852,6 +859,36 @@ final class HealthManager {
         try? await HealthEffort.saveMood(feel.rawValue, at: date, store: store)
     }
 
+    /// Mind check-in (#834): today's mood, with what it is about, as a daily State of Mind.
+    func saveCheckIn(_ c: MindCheckIn) async {
+        guard connected, available else { return }
+        await HealthEffort.authorize(store)
+        let assoc = Array(Set(c.feelings.map(Self.association))).sorted { $0.rawValue < $1.rawValue }
+        try? await HealthEffort.saveMood(c.mood, at: c.date, kind: .dailyMood, associations: assoc, store: store)
+    }
+
+    static func association(_ f: MindFeeling) -> HKStateOfMind.Association {
+        switch f {
+        case .sleep: .selfCare
+        case .work: .work
+        case .family: .family
+        case .friends: .friends
+        case .training: .fitness
+        case .health: .health
+        case .money: .money
+        case .weather: .weather
+        }
+    }
+
+    /// A finished breathing or relax session (#834) as mindful minutes.
+    func saveMindful(from start: Date, to end: Date) async {
+        guard connected, available, end > start else { return }
+        let type = HKCategoryType(.mindfulSession)
+        try? await store.requestAuthorization(toShare: [type], read: [])
+        let sample = HKCategorySample(type: type, value: HKCategoryValue.notApplicable.rawValue, start: start, end: end)
+        try? await store.save(sample)
+    }
+
     func heartRate(from: Date, to: Date) async -> (avg: Double?, max: Double?) {
         guard connected, available else { return (nil, nil) }
         let pred = HKSamplePredicate.quantitySample(type: HKQuantityType(.heartRate), predicate: HKQuery.predicateForSamples(withStart: from, end: to))
@@ -890,6 +927,19 @@ final class HealthManager {
         let sample = HKQuantitySample(type: HKQuantityType(.dietaryWater), quantity: HKQuantity(unit: .literUnit(with: .milli), doubleValue: ml),
                                       start: date, end: date)
         try? await store.save(sample)
+    }
+
+    /// Glasses taken off in Fuel (#819): today's water this app wrote is replaced by what's still counted, `keepMl`.
+    /// Delete-and-write needs only the sharing permission the glasses were written with (water isn't read).
+    func replaceTodayWater(keepMl: Double, now: Date = Date()) async {
+        guard connected, available else { return }
+        let ownToday = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: now), end: now.addingTimeInterval(60)),
+            HKQuery.predicateForObjects(from: HKSource.default()),
+        ])
+        // Not allowed any more (sharing turned off): Health keeps it, as before.
+        guard (try? await store.deleteObjects(of: HKQuantityType(.dietaryWater), predicate: ownToday)) != nil else { return }
+        await saveWater(ml: keepMl, at: now)
     }
 
     /// Writes body metrics entered in-app back to Apple Health.

@@ -63,14 +63,18 @@ extension AppModel {
         Routine.streak(routineDays(key), today: now, calendar: planCalendar)
     }
 
-    /// Today is one of the member's climbing days: daily hangs stay easy or wait for tomorrow.
-    var climbingToday: Bool { profile?.climbingDays.contains(todayWeekday) ?? false }
+    /// Today is one of the member's climbing days: daily hangs stay easy or wait for tomorrow. A day made a rest day
+    /// or taken by a dated sport day (#671, #474) isn't (#818).
+    var climbingToday: Bool {
+        daySport(onWeekday: todayWeekday, key: PlanCalendar.key(Date(), planCalendar)) == .climbing
+    }
 
     var isClimber: Bool { profile.map(Generator.isClimber) ?? false }
 
     /// Coach pick of the day (#732 C), from today's planned session (none = rest day) and climbing days.
     var coachRoutinePick: (routine: Routine, why: String) {
-        let today = plan?.sessions.first { $0.weekday == todayWeekday }
+        // A skipped or removed workout leaves a rest day (#818).
+        let today = plan?.sessions.first { $0.weekday == todayWeekday && !skippedIds.contains($0.id) }
         return Routine.coachPick(focus: today?.focus, climbing: climbingToday)
     }
 }

@@ -52,7 +52,11 @@ final class SharedPlans {
     func unshare(_ plan: MemberPlan, api: APIClient) async {
         mine.removeAll { $0.id == plan.id }
         guard !demo else { return }
-        do { try await api.deleteSharedPlan(plan.id) } catch { self.error = error.localizedDescription }
+        do { try await api.deleteSharedPlan(plan.id) } catch {
+            // Still shared on the server: show it again so it can be retried (#819).
+            upsertMine(plan)
+            self.error = error.localizedDescription
+        }
     }
 
     /// Saves a copy into My programmes (new id, same name) and counts it for the author. Returns the copy to open.

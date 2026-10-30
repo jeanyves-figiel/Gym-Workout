@@ -112,6 +112,8 @@ struct ExerciseDetailView: View {
         VStack(alignment: .leading, spacing: 22) {
             ExerciseImageHeader(exercise: e)
             PositionGuideLink(exercise: e)
+            // Form check (#833): the camera watches a set.
+            FormCheckLink(exercise: e)
             VStack(alignment: .leading, spacing: 10) {
                 CategoryPill(category: e.category)
                 Text(e.name).font(Theme.display(34)).fixedSize(horizontal: false, vertical: true)
@@ -164,8 +166,11 @@ struct ExerciseDetailView: View {
                 if plannedUid != nil && e.category == .strength && !e.equipment.isEmpty && e.unit != .sec {
                     weightLog
                 }
+                // Plateau explainer (#875 A): why the lift is stuck and one fix.
+                PlateauCard(exercise: e)
                 ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
                 PRCard(exerciseId: e.id)
+                FormHistoryCard(exerciseId: e.id)
                 // Lift Lab and Pro Sets (#499).
                 if ProSets.eligible(e) {
                     LiftLabCard(exercise: e)

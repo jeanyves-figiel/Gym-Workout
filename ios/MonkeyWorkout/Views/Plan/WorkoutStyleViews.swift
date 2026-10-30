@@ -95,9 +95,8 @@ struct WorkoutStyleSheet: View {
                 }
                 .readableWidth()
                 .background(Theme.bg.ignoresSafeArea())
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-                }
+                // ✕ like every sheet, not a "Done" capsule (#823): each pick already applies on tap.
+                .toolbar { CloseToolbarItem { dismiss() } }
             }
         }
         .preferredColorScheme(.dark)

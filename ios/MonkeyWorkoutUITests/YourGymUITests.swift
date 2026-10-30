@@ -28,7 +28,10 @@ final class YourGymUITests: XCTestCase {
         XCTAssertTrue(app.buttons["REBUILD PLAN"].waitForExistence(timeout: 10), "Your gym page")
     }
 
-    private func count(_ n: Int) -> XCUIElement { app.staticTexts["\(n) items"] }
+    /// The Equipment row reads "N items · M machines" (#823).
+    private func count(_ n: Int) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "\(n) items")).firstMatch
+    }
 
     private func save() {
         app.buttons["REBUILD PLAN"].tap()
