@@ -247,8 +247,11 @@ struct ExerciseMotionView: View {
         let position = reduceMotion ? raw.rounded() : raw
         let count = max(frames, 1)
         let video = state != nil ? playingClip?.image(at: time) : nil
-        // Frames: the play's position; with the clip, the resting frame.
-        let still = playingClip == nil ? position : Double(restingFrame)
+        // Frames: the play's position; with the clip, the resting frame (#949: the play's position again when the
+        // clip gave no picture, so the movement never stands still).
+        let clipShows = playingClip.map { !$0.failed } ?? false
+        let still = clipShows ? Double(restingFrame)
+            : playFrames == count ? position : position * Double(count - 1) / Double(max(playFrames - 1, 1))
         let (lower, upper) = MotionPlayback.blend(still, frames: count, window: MotionPlayback.switchWindow)
         return ZStack {
             if let video {
