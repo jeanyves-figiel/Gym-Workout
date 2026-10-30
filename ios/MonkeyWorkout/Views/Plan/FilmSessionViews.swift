@@ -127,6 +127,16 @@ struct FilmSessionView: View {
     @State private var depthSeen: Double = -10
     @State private var scene: Set<String> = []
     @State private var askKg: Int?
+    // In frame (#969, design B + C from `record-workout/detect/proposals.png`): a setup shape until the member holds
+    // still in view, then the screen's edge light (green / amber / red), what to move and the Coach saying it.
+    @State private var setup = true
+    @State private var clock: Double = 0
+    @State private var readySince: Double?
+    @State private var rawIssue: FrameCheck.Issue? = .nobody
+    @State private var rawSince: Double = 0
+    @State private var issue: FrameCheck.Issue? = .nobody
+    @State private var saidIssue: FrameCheck.Issue?
+    @State private var saidAt: Double = -100
     @State private var brightnessWas: CGFloat?
     // Clips: the last set of each move.
     @State private var clip: ClipRecorder?
@@ -145,10 +155,7 @@ struct FilmSessionView: View {
         .preferredColorScheme(.dark)
         .statusBarHidden(!reviewing)
         .persistentSystemOverlays(.hidden)
-        .onAppear {
-            UIApplication.shared.isIdleTimerDisabled = true
-            if dark { dim(true) }
-        }
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             camera.stop()
             motion.stop()
@@ -178,7 +185,7 @@ struct FilmSessionView: View {
 
     private var liveScreen: some View {
         ZStack {
-            if dark {
+            if dark && !setup {
                 Color.black.ignoresSafeArea()
             } else if !denied {
                 FormCameraPreview(session: camera.session).ignoresSafeArea()
@@ -186,16 +193,22 @@ struct FilmSessionView: View {
             } else {
                 LinearGradient(colors: [Color(hex: 0x2D3440), Color(hex: 0x1B1F27)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
             }
+            if setup && !denied { setupShape }
             VStack(spacing: 10) {
                 topBar
                 if denied {
                     deniedCard
+                } else if setup {
+                    Spacer()
+                    setupCard
                 } else if dark {
                     Spacer()
-                    darkNow
+                    if let issue { issueCard(issue) } else { darkNow }
                     Spacer()
                 } else {
                     nowCard
+                    Spacer()
+                    if let issue { issueCard(issue) }
                     Spacer()
                 }
                 if session.paused { pausedCard }
@@ -208,6 +221,132 @@ struct FilmSessionView: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 6)
         }
+        .overlay {
+            if !denied {
+                RoundedRectangle(cornerRadius: 44, style: .continuous)
+                    .strokeBorder(edgeColor, lineWidth: 10)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .animation(.easeInOut(duration: 0.3), value: issue)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    // MARK: In frame (B + C)
+
+    /// Green in frame, amber part of the body off, red nobody: readable from across the room, and on the dark screen.
+    private var edgeColor: Color {
+        switch issue {
+        case nil: Color(hex: 0x2BD67B)
+        case .nobody?: Color(hex: 0xFF4D6D)
+        default: Color(hex: 0xFFB02E)
+        }
+    }
+
+    private var setupShape: some View {
+        Image(systemName: "figure.stand")
+            .resizable()
+            .scaledToFit()
+            .fontWeight(.ultraLight)
+            .foregroundStyle((issue == nil ? Color(hex: 0x2BD67B) : Theme.lime).opacity(0.35))
+            .shadow(color: Theme.lime.opacity(0.8), radius: 6)
+            .padding(.vertical, 120)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private var countdown: Int? {
+        guard let r = readySince else { return nil }
+        return max(1, Int((Self.setupHold - (clock - r)).rounded(.up)))
+    }
+
+    private static let setupHold = 3.0
+
+    private var setupCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(countdown != nil ? "READY IN" : "STEP INTO THE SHAPE").font(Theme.label(10)).tracking(1.3).opacity(0.85)
+            if let n = countdown {
+                Text("\(n)").font(Theme.display(44)).monospacedDigit()
+                Text("Hold still · starts by itself").font(Theme.label(13))
+            } else {
+                Label(issue?.title ?? "Whole body in the picture", systemImage: issue?.symbol ?? "figure.stand")
+                    .font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.6)
+                Text(issue?.detail ?? "Any side: front, side or 45°").font(Theme.label(13))
+            }
+            Button { endSetup() } label: { Text("Start now").lineLimit(1) }
+                .buttonStyle(LimeButtonStyle(fill: .white))
+                .accessibilityIdentifier("film.session.startNow")
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(LinearGradient(colors: countdown != nil ? [Color(hex: 0x2B6CFF), Color(hex: 0x7B4DFF)] : [Color(hex: 0xFF4D6D), Color(hex: 0xFF9A3C)],
+                                 startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func issueCard(_ i: FrameCheck.Issue) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: i.symbol).font(.system(size: 44, weight: .black))
+                .foregroundStyle(i == .nobody ? Color(hex: 0xFF4D6D) : Color(hex: 0xFFB02E))
+            Text(i.title).font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.6)
+            Text(i.detail).font(Theme.label(12)).opacity(0.85).multilineTextAlignment(.center)
+        }
+        .foregroundStyle(.white)
+        .padding(16)
+        .frame(maxWidth: 260)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.7)))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("film.session.frame")
+    }
+
+    /// The picture's check, steadied: a change shows (and is said) after 1 s, so the edge doesn't flicker.
+    private func frame(_ p: FormPose?, at t: Double, aspect a: Double) {
+        clock = t
+        let now = FrameCheck.issue(p, aspect: a, mirrored: front)
+        if now != rawIssue {
+            rawIssue = now
+            rawSince = t
+        }
+        if t - rawSince >= 1, issue != rawIssue {
+            issue = rawIssue
+            framed(issue)
+        }
+        guard setup else { return }
+        if rawIssue == nil {
+            let r = readySince ?? t
+            readySince = r
+            if t - r >= Self.setupHold { endSetup() }
+        } else {
+            readySince = nil
+        }
+    }
+
+    private func framed(_ i: FrameCheck.Issue?) {
+        guard voiceOn else { return }
+        if let i {
+            guard i != saidIssue || clock - saidAt > 10 else { return }
+            say(i.spoken)
+            saidIssue = i
+            saidAt = clock
+        } else if saidIssue != nil {
+            if !setup { say(FrameCheck.inFrame) }
+            saidIssue = nil
+        }
+    }
+
+    /// In frame long enough (or Start now): filming starts.
+    private func endSetup() {
+        guard setup else { return }
+        setup = false
+        readySince = nil
+        saidIssue = nil
+        started = Date()
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        if voiceOn { say("\(FrameCheck.inFrame). Start when ready") }
+        if dark { dim(true) }
     }
 
     private var topBar: some View {
@@ -224,7 +363,7 @@ struct FilmSessionView: View {
             square(voiceOn ? "speaker.wave.2.fill" : "speaker.slash.fill", label: voiceOn ? "Mute Coach" : "Coach says each set") { voiceOn.toggle() }
             square(dark ? "sun.max.fill" : "moon.fill", label: dark ? "Show the camera" : "Dark screen, saves battery") {
                 dark.toggle()
-                dim(dark)
+                if !setup { dim(dark) }
             }
             if !denied && !dark {
                 square("arrow.triangle.2.circlepath.camera.fill", label: "Switch camera") {
@@ -552,6 +691,9 @@ struct FilmSessionView: View {
         guard !reviewing else { return }
         aspect = a
         pose = p
+        frame(p, at: t, aspect: a)
+        // Nothing is counted while setting up.
+        if setup { return }
         if p?.world != nil { depthSeen = t }
         // With the 3D pose found, only its frames are counted: angles from the picture and from 3D don't mix.
         if p != nil, p?.world == nil, t - depthSeen < 2 { return }
