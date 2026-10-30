@@ -763,6 +763,9 @@ struct GymPicker: View {
 
             if !missing.isEmpty { missingCard }
 
+            // What it also has (#960 C): a gym with a boulder wall shows on Log climb, one with a pool on Log swim.
+            GymExtrasGrid(gym: selectedSaved ?? model.homeGym)
+
             Text("Your plan is built for this gym. Switching keeps your other gyms below, each with its own list. Trips and holidays go in the calendar.")
                 .font(.footnote).foregroundStyle(Theme.muted)
 

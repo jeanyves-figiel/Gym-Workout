@@ -40,6 +40,7 @@ struct AccountView: View {
         static let pro = "MonkeyWorkout Pro membership subscription trial lifetime"
         static let profile = "Your profile name nickname photo about avatar community social gym buddies live sharing blocked gender pronouns coach calls you how we talk to you share prompts story stories instagram tiktok socials moments"
         static let gym = "Your gym equipment trip travel"
+        static let places = "Your places climbing gym crag ski resort snow park trail pool court studio home spot boulder wall"
         static let body = "Body & Health height weight sex figure apple health"
         static let onboarding = "Onboarding set up setup guide tour show me round gym machines map first plan programme start again"
         static let method = "Training method block dup rir volume minimal"
@@ -71,7 +72,7 @@ struct AccountView: View {
         static let support = "Support help contact"
         static let report = "Report a problem bug feedback broken idea shake screenshot"
 
-        static let you = [pro, profile, gym, body, onboarding]
+        static let you = [pro, profile, gym, places, body, onboarding]
         static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift, garmin, bike]
         static let look = [style, widgets, hd, monkeyGrade]
@@ -224,6 +225,14 @@ struct AccountView: View {
                 }
                 // Current gym (#160): home gym, or the trip's while away.
                 if search.matches(Find.gym) { YourGymCard(compact: true) }
+                // Your places (#960): climbing gyms, crags, resorts, trails… with a home spot each.
+                if search.matches(Find.places) {
+                    NavigationLink { YourPlacesView() } label: {
+                        SettingsRow(symbol: "mappin.and.ellipse", title: "Your places",
+                                    value: model.placeBook.homes.isEmpty ? nil : "\(model.placeBook.homes.count) home spot\(model.placeBook.homes.count == 1 ? "" : "s")")
+                    }
+                    .buttonStyle(.plain)
+                }
                 if search.matches(Find.body) {
                     NavigationLink { BodyHealthView() } label: {
                         let kg = health.snapshot.weightKg ?? model.body.weightKg

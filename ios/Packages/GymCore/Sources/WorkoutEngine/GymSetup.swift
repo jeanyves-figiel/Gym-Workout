@@ -181,17 +181,20 @@ public struct SavedGym: Codable, Hashable, Sendable, Identifiable {
     public var updated: Date
     /// Where its equipment sits (#274); nil = not set up.
     public var layout: GymLayout?
+    /// What it also has (#960): boulder wall, pool, courts… a gym is offered for those sports' logs.
+    public var extras: [GymExtra]?
 
     public var id: String { ref.id }
 
     public init(ref: GymRef, kind: GymKind? = nil, equipment: [Equipment], unsure: [Equipment]? = nil, updated: Date = Date(),
-                layout: GymLayout? = nil) {
+                layout: GymLayout? = nil, extras: [GymExtra]? = nil) {
         self.ref = ref
         self.kind = kind
         self.equipment = equipment
         self.unsure = unsure?.isEmpty == true ? nil : unsure
         self.updated = updated
         self.layout = layout
+        self.extras = extras?.isEmpty == true ? nil : extras
     }
 
     /// Gym without a map place (home, hotel room, a gym Apple Maps doesn't know, #680): an id of its own.

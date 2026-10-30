@@ -1637,7 +1637,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {climbs, deleted?, serverTime} climbing sessions (optional place {id, name, address?, latitude?, longitude?, gymId?}, #832)",
+        "summary": "→ {climbs, deleted?, serverTime} climbing sessions (optional place {id, name, address?, latitude?, longitude?, gymId?, kind?}, #832; kind = place type such as climbingGym, crag, skiResort, #960)",
         "security": [
           {
             "bearer": []

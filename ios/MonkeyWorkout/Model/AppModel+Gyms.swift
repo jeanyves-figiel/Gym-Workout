@@ -12,7 +12,7 @@ extension AppModel {
         let ref = profile?.gym ?? Gym.puls5.ref
         let saved = state.synced?.savedGyms?.first { $0.id == ref.id }
         return SavedGym(ref: ref, kind: saved?.kind, equipment: profile?.equipment ?? Gym.puls5.equipment,
-                        unsure: saved?.unsure, updated: saved?.updated ?? Date(), layout: profile?.gymLayout)
+                        unsure: saved?.unsure, updated: saved?.updated ?? Date(), layout: profile?.gymLayout, extras: saved?.extras)
     }
 
     /// Adds or replaces a saved gym (max 20, oldest dropped) and shares a place's list with gym memory.
@@ -22,6 +22,8 @@ extension AppModel {
         var list = state.synced?.savedGyms ?? []
         var gym = gym
         if keepLayout, gym.layout == nil { gym.layout = list.first { $0.id == gym.id }?.layout }
+        // What it also has (#960) is set on Your gym only: a redo of its equipment keeps it.
+        if gym.extras == nil { gym.extras = list.first { $0.id == gym.id }?.extras }
         list.removeAll { $0.id == gym.id }
         list.insert(gym, at: 0)
         state.synced?.savedGyms = Array(list.sorted { $0.updated > $1.updated }.prefix(20))
@@ -213,7 +215,7 @@ extension AppModel {
         p.gym = gym.ref
         p.equipment = gym.equipment
         p.gymLayout = layout
-        saveGym(SavedGym(ref: gym.ref, kind: gym.kind, equipment: gym.equipment, unsure: gym.unsure, layout: layout), share: false)
+        saveGym(SavedGym(ref: gym.ref, kind: gym.kind, equipment: gym.equipment, unsure: gym.unsure, layout: layout, extras: gym.extras), share: false)
         updateProfile(p)
     }
 

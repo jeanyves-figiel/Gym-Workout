@@ -12,6 +12,8 @@ export const sessionPlace = z.object({
   latitude: z.number().min(-90).max(90).nullish(),
   longitude: z.number().min(-180).max(180).nullish(),
   gymId: z.string().max(200).nullish(),
+  /** Climbing gym, crag, ski resort… (#960); the app's `PlaceKind` raw value. */
+  kind: z.string().regex(/^[a-zA-Z]{1,40}$/).nullish(),
 });
 
 /** Climbing sessions (#312): were kept only on the device; now synced like PR attempts (upsert by client id). */
