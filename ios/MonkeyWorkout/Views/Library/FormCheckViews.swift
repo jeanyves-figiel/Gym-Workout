@@ -21,6 +21,8 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
     /// Film my workout (#952): while set, frames go to the text reader (twice a second) instead of the body pose, to
     /// read the weight shown to the camera. On the main thread.
     var onText: (([WeightReading.Seen]) -> Void)?
+    /// Film whole session (#957): the text reader runs once a second alongside the body pose instead of replacing it.
+    var textWithPose = false
     /// Film my workout's review clip (#952): frames are also written here while set.
     var clip: ClipRecorder?
     private let textRequest: VNRecognizeTextRequest = {
@@ -85,14 +87,15 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         let aspect = Double(CVPixelBufferGetWidth(buffer)) / Double(max(1, CVPixelBufferGetHeight(buffer)))
         clip?.append(sampleBuffer)
         if let onText {
-            guard t - lastText >= 0.5 else { return }
-            lastText = t
-            try? VNImageRequestHandler(cvPixelBuffer: buffer, orientation: mirrored ? .upMirrored : .up).perform([textRequest])
-            let seen = (textRequest.results ?? []).compactMap { o in
-                o.topCandidates(1).first.map { WeightReading.Seen($0.string, size: Double(o.boundingBox.height)) }
+            if t - lastText >= (textWithPose ? 1 : 0.5) {
+                lastText = t
+                try? VNImageRequestHandler(cvPixelBuffer: buffer, orientation: mirrored ? .upMirrored : .up).perform([textRequest])
+                let seen = (textRequest.results ?? []).compactMap { o in
+                    o.topCandidates(1).first.map { WeightReading.Seen($0.string, size: Double(o.boundingBox.height)) }
+                }
+                DispatchQueue.main.async { onText(seen) }
             }
-            DispatchQueue.main.async { onText(seen) }
-            return
+            if !textWithPose { return }
         }
         try? VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up).perform([request])
         // The person filling the frame most.

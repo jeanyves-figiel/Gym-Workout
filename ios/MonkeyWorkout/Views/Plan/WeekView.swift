@@ -1791,7 +1791,8 @@ private struct GymSessionTile: View {
     let action: () -> Void
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
-    @State private var filming = false
+    @State private var choosingFilm = false
+    @State private var filming: FilmMode?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1799,7 +1800,7 @@ private struct GymSessionTile: View {
             // Film my workout (#952): the camera builds and logs the workout.
             Button {
                 Haptics.start()
-                filming = true
+                choosingFilm = true
             } label: {
                 Image(systemName: "video.fill")
                     .font(.system(size: 16, weight: .heavy))
@@ -1813,16 +1814,28 @@ private struct GymSessionTile: View {
             .accessibilityHint("The camera names each move, counts reps, reads the weight and logs the workout")
             .accessibilityIdentifier("train.film")
         }
-        .fullScreenCover(isPresented: $filming) {
-            FilmWorkoutView { moves, started in
-                guard let r = model.recordFilmed(moves, startedAt: started) else { return }
-                Task {
-                    let hr = await health.save(r)
-                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
-                }
-                UndoCloseCenter.shared.show(.workoutSaved(r, model: model))
+        // Step by step (#952) or the whole session hands-free (#957).
+        .sheet(isPresented: $choosingFilm) {
+            FilmModeSheet { mode in
+                choosingFilm = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { filming = mode }
             }
         }
+        .fullScreenCover(item: $filming) { mode in
+            switch mode {
+            case .steps: FilmWorkoutView(onDone: saveFilmed)
+            case .session: FilmSessionView(onSave: saveFilmed)
+            }
+        }
+    }
+
+    private func saveFilmed(_ moves: [FilmedMove], _ started: Date) {
+        guard let r = model.recordFilmed(moves, startedAt: started) else { return }
+        Task {
+            let hr = await health.save(r)
+            model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+        }
+        UndoCloseCenter.shared.show(.workoutSaved(r, model: model))
     }
 
     private var sessionButton: some View {

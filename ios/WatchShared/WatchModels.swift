@@ -266,6 +266,8 @@ enum WatchEvent: Codable, Equatable {
     /// (`Breath` raw value, seconds breathed). The phone saves them and writes Apple Health.
     case mindCheckIn(date: Date, mood: Int, feelings: [String])
     case mindSession(breath: String, start: Date, seconds: Int)
+    /// Film whole session (#957 C): ✓ (`ok`) or ✗ on the move the camera named (`WFilmGuess.move`).
+    case filmAnswer(move: Int, ok: Bool)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
@@ -706,6 +708,8 @@ enum WatchKeys {
     static let swimBuddy = "swimBuddy"
     /// Gym buddy (#626 B): `WBuddyPing` phone → Watch, a buddy's set or a cheer for you.
     static let buddy = "buddy"
+    /// Film whole session (#957 C): `WFilmGuess` phone → Watch, answered with `WatchEvent.filmAnswer`.
+    static let filmGuess = "filmGuess"
     /// Climbing live (#829): `WClimbLive` phone → Watch after each change on the iPhone (Watch → phone is a `WatchEvent`).
     static let climbLive = "climbLive"
 }
@@ -884,6 +888,17 @@ struct WSwimBuddy: Codable, Equatable {
     var start: Date
     var minutes: Int
     var ended: Bool
+}
+
+/// Film whole session (#957 C), phone → Watch: the move the camera just named, with ✓ / ✗ on the wrist so the member
+/// never walks back to the phone. ✗ swaps to `alternative`.
+struct WFilmGuess: Codable, Equatable, Identifiable {
+    var id = UUID()
+    /// Index of the move in the session.
+    var move: Int
+    var name: String
+    var alternative: String?
+    var reps: Int
 }
 
 /// Gym buddy link (#626 B), phone → Watch: a paired buddy just finished a set (`cheer` nil, the Watch offers
