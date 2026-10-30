@@ -57,6 +57,7 @@ All manual, target `staging` or `production`, run commands on the Fly machine ov
 | Free access | Grant / revoke / list free Pro access per account, or grant-all with an end date |
 | Staging testers | Add / remove / list accounts allowed to use Pro test mode (fake purchases) on staging (#924) |
 | Week challenge review | List member challenge suggestions waiting for review, approve (into the member-week vote) or reject one (#748) |
+| CodeQL export | Same CodeQL suite as default setup, no upload: prints every result for one language (Swift default) to the log and summary (#964) |
 | AI usage | Paid AI calls per day and feature: calls, failures, tokens, cache hit, estimated US$ cost, `AI_DAILY_LIMIT` use (#877) |
 
 ## Signing and App Store
