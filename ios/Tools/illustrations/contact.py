@@ -195,9 +195,10 @@ UNILATERAL = ("lunge", "split", "step", "single", "one", "pistol", "bulgarian", 
               "side", "traverse", "climb", "crossover", "kick", "bird", "fire", "clamshell", "sprint", "skip", "march")
 
 
-def mirror_legs(ex, j):
-    """A bilateral pose keeps both legs the same: the 2D depth guess scissored them a little."""
-    if any(w in ex.split("-") for w in UNILATERAL):
+def mirror_legs(ex, j, view="s"):
+    """A bilateral pose keeps both legs the same: the 2D depth guess scissored them a little. Side view only: in a
+    front or back view the legs are drawn apart across the picture, so mirroring them would swap a wide stance."""
+    if view != "s" or any(w in ex.split("-") for w in UNILATERAL):
         return False
     J = {n: np.asarray(v, float) for n, v in j.items() if not n.startswith("_")}
     asym = max(np.linalg.norm((J[a + "N"] - J[a + "F"]) * [1, 1, 0]) for a in ("knee", "ankle", "toe"))
@@ -826,7 +827,7 @@ def run(ids=None):
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:
-            mirror_legs(ex, k["j"])
+            mirror_legs(ex, k["j"], e["v"])
             J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
             V = R.pose(k["j"], k["p"])
             if hangs(ex) and hanging(J, R.held) and hang_legs(k["j"], J):
