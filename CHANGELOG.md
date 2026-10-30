@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Security
-- **Security alerts triage 2026-10-30** (#964): Dependabot (`npm audit` 0), CodeQL JS/python/actions (local run: only the known `hibp.ts` false positive) and secret scanning (clean) checked on `main`. Swift alerts could not be read from the session (alerts API 403, Swift needs macOS): new manual workflow **CodeQL export** (`codeql-export.yml`) runs the default-setup suite with `upload: never` and prints every result to the job log and summary. Docs `security-alerts.md`, `ci-cd.md`.
+- **Security alerts triage 2026-10-30** (#964): Dependabot (`npm audit` 0), CodeQL JS/python/actions (local run: only the known `hibp.ts` false positive) and secret scanning (clean) checked on `main`. Swift alerts could not be read from the session (alerts API 403, Swift needs macOS), so a new manual workflow **CodeQL export** (`codeql-export.yml`) runs the default-setup suite with `upload: never` and prints every result to the job log and summary; its first Swift run found 0 results (167 of 634 Swift files covered by autobuild). Docs `security-alerts.md`, `ci-cd.md`.
 
 ### Added
 - **What's new 2026-10-30.3** (bundle 89, TestFlight 89): Every machine holds together (animation art fixes, #954); 2026-10-30.2 moved to history as build 88.
