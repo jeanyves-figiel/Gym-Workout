@@ -15,6 +15,8 @@ extension Notification.Name {
     static let watchPractice = Notification.Name("watchPractice")
     /// Live heart rate from the Watch tracking the iPhone workout (#371).
     static let watchHeartRate = Notification.Name("watchHeartRate")
+    /// Film whole session (#957 C): ✓ / ✗ from the Watch (object: `FilmAnswer`).
+    static let watchFilmAnswer = Notification.Name("watchFilmAnswer")
 }
 
 /// App style (#219, #227): one pick for the Watch home and screens and the iPhone's game look (Monkey coach,
@@ -264,6 +266,13 @@ final class WatchSync: NSObject {
         session.sendMessage([WatchKeys.buddy: data], replyHandler: nil, errorHandler: nil)
     }
 
+    /// Film whole session (#957 C): the move the camera named, for ✓ / ✗ on the wrist (best effort, reachable only).
+    func sendFilmGuess(_ guess: WFilmGuess) {
+        guard let session, session.activationState == .activated, session.isReachable,
+              let data = try? JSONEncoder.watch.encode(guess) else { return }
+        session.sendMessage([WatchKeys.filmGuess: data], replyHandler: nil, errorHandler: nil)
+    }
+
     /// The Watch app is open and can take a message now.
     var watchReachable: Bool {
         guard let session, session.activationState == .activated else { return false }
@@ -402,6 +411,9 @@ final class WatchSync: NSObject {
             if let b = Breath(rawValue: breath) { model.finishCalm(b, from: start, to: start.addingTimeInterval(Double(seconds))) }
         case let .buddyCheer(userId, kind):
             if let k = LiveCheer(rawValue: kind) { LiveRoom.shared.cheer(userId, k, api: model.api) }
+            return
+        case let .filmAnswer(move, ok):
+            NotificationCenter.default.post(name: .watchFilmAnswer, object: FilmAnswer(move: move, ok: ok))
             return
         case let .climbLive(live):
             guard let health else { return }
@@ -622,4 +634,10 @@ extension WatchSync: WCSessionDelegate {
         guard let raw = message[WatchKeys.command] as? String, let command = WCommand(rawValue: raw) else { return }
         Task { @MainActor in NotificationCenter.default.post(name: .watchCommand, object: command) }
     }
+}
+
+/// Film whole session (#957 C): the Watch's answer on a named move.
+struct FilmAnswer {
+    let move: Int
+    let ok: Bool
 }

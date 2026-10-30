@@ -211,6 +211,7 @@ struct WatchRootView: View {
     private var main: some View {
         screens
             .overlay(alignment: .top) { BuddyPingView() }
+            .overlay(alignment: .top) { FilmGuessView() }
             .onAppear(perform: startFromActionButton)
             .onChange(of: ActionButton.shared.startRequested) { _, on in if on { startFromActionButton() } }
             .onOpenURL { url in if url.host == "mind" { showMind = true } }

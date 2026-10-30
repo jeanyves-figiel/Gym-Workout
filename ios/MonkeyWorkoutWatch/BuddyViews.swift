@@ -43,3 +43,49 @@ struct BuddyPingView: View {
         }
     }
 }
+
+/// Film whole session (#957 C): the move the iPhone's camera just named, ✓ to keep it, ✗ for the next guess. Over any
+/// screen for 8 s; no answer keeps the camera's pick.
+struct FilmGuessView: View {
+    @Environment(WatchStore.self) private var store
+
+    var body: some View {
+        if let g = store.filmGuess {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Camera · looks like").font(W.label(10)).tracking(1).textCase(.uppercase)
+                Text(g.name).font(W.display(16)).lineLimit(2).minimumScaleFactor(0.7)
+                Text("\(g.reps) reps").font(W.label(12)).opacity(0.85)
+                HStack(spacing: 4) {
+                    answer(g, ok: true)
+                    if g.alternative != nil { answer(g, ok: false) }
+                }
+                if let alt = g.alternative {
+                    Text("✗ = \(alt)").font(W.label(9)).opacity(0.8).lineLimit(1)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(W.gradient(0xFF3B5C, 0xFF9A3C)))
+            .padding(.horizontal, W.edge)
+            .task(id: g.id) {
+                try? await Task.sleep(for: .seconds(8))
+                if store.filmGuess?.id == g.id { store.filmGuess = nil }
+            }
+        }
+    }
+
+    private func answer(_ g: WFilmGuess, ok: Bool) -> some View {
+        Button {
+            store.answerFilm(move: g.move, ok: ok)
+            store.filmGuess = nil
+        } label: {
+            Image(systemName: ok ? "checkmark" : "xmark")
+                .font(.system(size: 15, weight: .black))
+                .frame(maxWidth: .infinity, minHeight: 32)
+                .background(RoundedRectangle(cornerRadius: 8).fill(ok ? Color(red: 0.17, green: 0.84, blue: 0.48) : .white.opacity(0.22)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(ok ? "Yes, \(g.name)" : "No, \(g.alternative ?? "other")")
+    }
+}

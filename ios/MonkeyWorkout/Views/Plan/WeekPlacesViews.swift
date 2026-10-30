@@ -96,6 +96,8 @@ struct DayComboRow: View {
     /// The sport part as a menu (#947): Track live (today) and Log; nil = not offered (a coming day).
     var onSportTrack: ((Sport) -> Void)? = nil
     var onSportLog: ((Sport) -> Void)? = nil
+    /// Skips just the sport part that day (#966, design A); the workout stays.
+    var onSportSkip: ((Sport) -> Void)? = nil
     @State private var link = WatchLink.shared
     @Environment(AppModel.self) private var model
     @AppStorage(RoutinePrefs.tilesKey) private var tilesRaw = ""
@@ -141,11 +143,11 @@ struct DayComboRow: View {
                         if let sport {
                             let face = part(n + (run == nil ? 1 : 2), sport == .climbing ? "Climb" : sport.label, sport == .climbing ? "figure.climbing" : sport.symbol,
                                             sport == .climbing ? WorkoutEngine.Category.power.colors : sport.colors)
-                            if onSportTrack != nil || onSportLog != nil {
+                            if onSportTrack != nil || onSportLog != nil || onSportSkip != nil {
                                 // The day's sport is picked here too (#947): its own actions, not the gym session's page.
                                 Menu { sportItems(sport) } label: { face }
                                     .buttonStyle(.plain)
-                                    .accessibilityHint("Track or log \(sport.label.lowercased())")
+                                    .accessibilityHint("Track, log or skip \(sport.label.lowercased())")
                                     .accessibilityIdentifier("train.daySport")
                             } else {
                                 face
@@ -186,6 +188,16 @@ struct DayComboRow: View {
                 Label(sport == .climbing ? "Log climb" : "Log \(sport.short.lowercased())", systemImage: "plus.circle.fill")
             }
         }
+        if let onSportSkip {
+            Button(role: .destructive) { onSportSkip(sport) } label: {
+                Label(Self.skipSportTitle(sport, today: thisWeek && day == model.todayWeekday), systemImage: "nosign")
+            }
+        }
+    }
+
+    /// "Skip climb today", "Skip run": the sport part's Skip (#966).
+    static func skipSportTitle(_ sport: Sport, today: Bool) -> String {
+        "Skip \(sport == .climbing ? "climb" : sport.short.lowercased())" + (today ? " today" : "")
     }
 
     /// HIIT blocks in order, repeats of the same format and length merged: "Pyramid 4′ ×2", "EMOM 17′".

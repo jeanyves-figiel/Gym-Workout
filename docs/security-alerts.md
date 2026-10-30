@@ -21,7 +21,7 @@ Default setup runs on push to `main`, on PRs to `main` and weekly. The Swift job
 3. Dependencies: `cd backend && npm audit` gives the same advisories as Dependabot alerts; fix with `npm audit fix` (lockfile) in a PR.
 4. Local check when the alert list is out of reach (the Claude session token cannot read the alerts API): download the CodeQL bundle and run the same suite, for example
    `codeql database create db --language=javascript --source-root=. && codeql database analyze db --format=csv --output=out.csv codeql/javascript-queries:codeql-suites/javascript-code-scanning.qls`.
-   Swift needs macOS and is read from the GitHub run.
+   Swift needs macOS: run the manual **CodeQL export** workflow (`codeql-export.yml`, language `swift` default). It runs the same suite with `upload: never` and prints every result (level, rule, file:line, message) to the job log and summary, SARIF as artifact (#964). Also runs on PRs that change it.
 
 ## Triage
 
@@ -43,3 +43,4 @@ Default setup runs on push to `main`, on PRs to `main` and weekly. The Swift job
 | 2026-10-25 | same | python 0, actions 0. Swift: 15 min on `macos-latest`, autobuild extracted 143 of 550 Swift files (partial coverage); alert count only in the Security tab | Owner reads Swift alerts in the Security tab |
 | 2026-10-25 | `npm audit` (Dependabot alerts just enabled) | `fast-uri` (moderate, scheme injection), `ip-address` (moderate, ReDoS), both transitive | Fixed by `npm audit fix` lockfile bump (#762) |
 | 2026-10-25 | Swift CodeQL (owner screenshot) | `swift/cleartext-transmission` (high) `APIClient.swift:594`: APNs token in the sign-out URL path (`/v1/me/push-device/<token>`), so in request logs | Fixed: token in the body, old path redacted in logs (#762) |
+| 2026-10-30 | Owner security email; `main` 31f561ee: `npm audit`, local CodeQL JS/python/actions, secret pattern grep, `CodeQL` check of PRs merged since 2026-10-24 | npm 0; CodeQL only the known `hibp.ts` false positive; secrets clean; PR #962 alert fixed in its PR. Swift via the new **CodeQL export** run on PR #965: 0 results (autobuild scanned 167 of 634 Swift files) | Nothing to fix. **CodeQL export** workflow added to read Swift results from the session (#964) |
