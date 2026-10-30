@@ -71,6 +71,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var onboarding: OnboardingProgress?
     /// One-off places (#700): day ("yyyy-MM-dd") → saved gym id, picked on Train for just that day.
     var placeOnDay: [String: String]?
+    /// Your places (#960): typed places and the home spot of each group; nil = none yet.
+    var placeBook: PlaceBook?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {
