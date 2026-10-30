@@ -73,7 +73,7 @@ struct ProfileView: View {
                         .lineLimit(2...4)
                         .font(.body.weight(.semibold))
                         .focused($focus, equals: .bio)
-                        .onChange(of: bio) { _, v in if v.count > 160 { bio = String(v.prefix(160)) } }
+                        .onChange(of: bio) { _, v in if v.utf16.count > 160 { bio = v.utf16Capped(160) } }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("\(bio.count)/160").font(.caption).foregroundStyle(Theme.muted)
                 }

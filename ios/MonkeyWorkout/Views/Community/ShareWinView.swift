@@ -43,7 +43,7 @@ struct ShareWinView: View {
                     TextField("Optional caption", text: $caption, axis: .vertical)
                         .lineLimit(1...4)
                         .card(padding: 14)
-                        .onChange(of: caption) { _, v in if v.count > 280 { caption = String(v.prefix(280)) } }
+                        .onChange(of: caption) { _, v in if v.utf16.count > 280 { caption = v.utf16Capped(280) } }
 
                     Text("Who can see it").eyebrow()
                     VisibilityPicker(selection: $visibility)

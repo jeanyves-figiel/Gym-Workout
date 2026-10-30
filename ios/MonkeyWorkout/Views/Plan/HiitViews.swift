@@ -222,7 +222,10 @@ struct HiitBuilderSheet: View {
             .accessibilityIdentifier("hiit.doToday")
             Menu {
                 ForEach(model.todayWeekday...7, id: \.self) { wd in
-                    Button(wd == model.todayWeekday ? "Today" : WeekSchedule.name(wd)) { add(wd) }
+                    // Today is "Generate and do today" too (#990): Pro like Do today; later days stay free.
+                    Button(wd == model.todayWeekday ? "Today" : WeekSchedule.name(wd)) {
+                        if wd == model.todayWeekday { ProStore.shared.run(.generateWorkout, $gate) { add(wd) } } else { add(wd) }
+                    }
                 }
             } label: {
                 Text("Add to day").font(Theme.label(15)).frame(maxWidth: .infinity, minHeight: 52)

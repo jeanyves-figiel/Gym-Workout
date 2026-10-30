@@ -72,7 +72,9 @@ Pro (PRO badge; tap opens the paywall sheet when `enforced`):
 | Entry point | Client gate | Server |
 |---|---|---|
 | Ask Coach: 🐵 bubble, Ask sparks, Ask bar, player voice ask, Siri/Shortcuts "Ask Coach" | `.askCoach` (Siri lands on RootView's chat sheet, gated there) | `POST /v1/me/coach-chat` 402 |
-| Generate & do today: builder **Start now**, Coach chat **Start now**, HIIT **Do today** | `.generateWorkout` (Add to a day stays free) | on device |
+| Generate & do today: builder **Start now**, Coach chat **Start now**, HIIT **Do today** and HIIT **Add to day → Today** (#990) | `.generateWorkout` (Add to a later day stays free) | on device |
+| Talk to Coach mid-set, free-form questions (on-device answers and "too heavy?" / "how long to rest?" stay free) | `ProStore.shared.locked` → on-device answer + Pro line | `POST /v1/me/coach-set` 402 |
+| Weekly review from Coach (Monday card) | `ProStore.shared.locked` → not built | `POST /v1/me/coach-review` 402 |
 | Gym scan | `.gymScan` | `POST /v1/me/gym-scan` 402 |
 | Fridge / receipt scan | `.foodScan` | `POST /v1/me/food-scan` 402 |
 | What can I eat? (meal ideas from the pantry, #869) | `.foodScan` | `POST /v1/me/meal-ideas` 402 |

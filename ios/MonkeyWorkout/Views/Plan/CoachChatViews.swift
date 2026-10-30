@@ -84,8 +84,9 @@ extension AppModel {
         if demo { return try Demo.coachAnswer(messages.last?.text ?? "", focus: focus) }
         #endif
         let name = coachCallIsName ? coachCallName : nil
-        let turns = messages.filter { !$0.text.isEmpty }.map { m in
-            CoachChatTurn(role: m.role.rawValue, text: m.role == .coach ? Self.slotName(m.text, name) : m.text)
+        // The server takes the last 30 turns of up to 600 characters (#990): a long chat would otherwise be refused.
+        let turns = messages.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.suffix(30).map { m in
+            CoachChatTurn(role: m.role.rawValue, text: (m.role == .coach ? Self.slotName(m.text, name) : m.text).trimmingCharacters(in: .whitespacesAndNewlines).utf16Capped(600))
         }
         var answer = try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus), photo: photo,
                                              as: CoachWorkoutSettings.self)

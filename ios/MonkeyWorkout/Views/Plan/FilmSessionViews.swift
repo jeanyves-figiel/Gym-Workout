@@ -119,7 +119,8 @@ struct FilmSessionView: View {
     @Environment(AppModel.self) private var model
     @AppStorage("formCheck.front") private var front = true
     @AppStorage("film.dark") private var dark = false
-    @AppStorage("film.voice") private var voiceOn = true
+    // Starts from the Coach voice setting (#990): off there means quiet here until unmuted.
+    @AppStorage("film.voice") private var voiceOn = CoachPref.on && CoachPref.voice != .off
     @State private var camera = FormCamera()
     @State private var motion = FilmMotion()
     @State private var voice = CoachVoice()
