@@ -541,7 +541,9 @@ public struct FormAnalyzer: Sendable {
         if !moving {
             topMin = min(topMin, p)
             if p <= 0.15 { lastAtStart = time }
-            if p > FormModel.Limit.repStart {
+            // A rep starts from the start position: stepping into view half-way down (or, filming a whole session, the
+            // move before) is not a rep (#957).
+            if p > FormModel.Limit.repStart, lastAtStart != nil {
                 if !live.reps.isEmpty && topMin > FormModel.Limit.lockout { live.reps[live.reps.count - 1].add(.noLockout) }
                 moving = true
                 repStarted = lastAtStart ?? time
