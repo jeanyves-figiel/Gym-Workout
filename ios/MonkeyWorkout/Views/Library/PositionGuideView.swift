@@ -17,6 +17,9 @@ struct PositionGuideView: View {
     @State private var showMistake = false
     @State private var snapFrom: (yaw: Double, at: Date)?
     @State private var snapTarget: Double?
+    /// Pinch / button zoom of the stage (1 = whole movement framed).
+    @State private var zoom = 1.0
+    @State private var pinchBase: Double?
 
     init(exercise: Exercise, position: ExercisePosition, key: Int? = nil, demoMistake: Bool = false) {
         self.exercise = exercise
@@ -97,7 +100,7 @@ struct PositionGuideView: View {
         TimelineView(.animation(paused: snapFrom == nil)) { ctx in
             let y = currentYaw(at: ctx.date)
             GeometryReader { geo in
-                let camera = PositionCamera(position: position, size: geo.size)
+                let camera = PositionCamera(position: position, size: geo.size, zoom: zoom)
                 ZStack {
                     PositionFigureView(exerciseId: exercise.id, position: position, key: key, ghost: ghost,
                                        highlight: exercise.primary, yaw: y, camera: camera)
@@ -117,7 +120,15 @@ struct PositionGuideView: View {
                 yaw = base + Double(v.translation.width) * 0.012
             }
             .onEnded { _ in dragBase = nil })
+        .simultaneousGesture(MagnifyGesture()
+            .onChanged { v in
+                let base = pinchBase ?? zoom
+                pinchBase = base
+                zoom = Self.clampZoom(base * Double(v.magnification))
+            }
+            .onEnded { _ in pinchBase = nil })
         .overlay(alignment: .top) { snaps.padding(.top, 12) }
+        .overlay(alignment: .bottomTrailing) { zoomButtons.padding(10) }
         .overlay(alignment: .bottomLeading) {
             Label("Drag to turn", systemImage: "rotate.3d")
                 .font(Theme.label(10)).tracking(1.5).textCase(.uppercase)
@@ -127,6 +138,44 @@ struct PositionGuideView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(exercise.name), \(ExerciseMotionView.label(key, of: position.keys.count)) position in 3D")
+    }
+
+    static let zoomRange = 1.0...3.0
+    static func clampZoom(_ z: Double) -> Double { min(zoomRange.upperBound, max(zoomRange.lowerBound, z)) }
+
+    /// Zoom out / in buttons (pinch does the same); the level shows between them and resets on tap.
+    private var zoomButtons: some View {
+        HStack(spacing: 2) {
+            zoomButton("minus", label: "Zoom out", enabled: zoom > Self.zoomRange.lowerBound + 0.01) {
+                zoom = Self.clampZoom(zoom / 1.4)
+            }
+            Button { withAnimation(.snappy) { zoom = 1 } } label: {
+                Text(String(format: "%.1f×", zoom))
+                    .font(Theme.label(11)).monospacedDigit()
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 34, minHeight: 34)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Reset zoom")
+            zoomButton("plus", label: "Zoom in", enabled: zoom < Self.zoomRange.upperBound - 0.01) {
+                zoom = Self.clampZoom(zoom * 1.4)
+            }
+        }
+        .padding(3)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.3)))
+    }
+
+    private func zoomButton(_ icon: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button { withAnimation(.snappy) { action() } } label: {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .black))
+                .foregroundStyle(.white.opacity(enabled ? 1 : 0.35))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.14)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     private func currentYaw(at date: Date) -> Double {
@@ -331,7 +380,7 @@ struct PositionCamera: Equatable {
     let distance: Double
     let size: CGSize
 
-    init(position: ExercisePosition, size: CGSize) {
+    init(position: ExercisePosition, size: CGSize, zoom: Double = 1) {
         var lo = SIMD3<Double>(repeating: .greatestFiniteMagnitude), hi = -lo
         for k in position.keys {
             for p in k.joints.values {
@@ -347,7 +396,7 @@ struct PositionCamera: Equatable {
         let height = max(ext.y, 120)
         let aspect = max(0.3, Double(size.width / max(size.height, 1)))
         let need = max(height, horizontal / aspect) * 0.5 + 44
-        distance = need / tan(Self.fov * .pi / 360) + max(ext.x, ext.z) * 0.5
+        distance = (need / tan(Self.fov * .pi / 360) + max(ext.x, ext.z) * 0.5) / max(zoom, 0.1)
         self.size = size
     }
 
@@ -813,6 +862,12 @@ enum Mannequin {
                     h.simdPosition = v(c) + SIMD3(0, Float(-rb * 0.1), 0)
                     h.simdOrientation = simd_quatf(angle: .pi / 2, axis: SIMD3(1, 0, 0))
                     root.addChildNode(h)
+                } else if kind == "roller" || kind == "foam" {
+                    // padded machine roller / foam roller across the machine
+                    let ax = axis.map(simd_normalize) ?? SIMD3(0, 0, 1)
+                    let half = kind == "foam" ? 30.0 : 18.0
+                    let foam = material(UIColor(red: 0.17, green: 0.44, blue: 0.72, alpha: 1), ghost: false)
+                    root.addChildNode(cylinder(c - ax * half, c + ax * half, r: r0 > 0 ? r0 : 7, kind == "foam" ? foam : pad))
                 } else {
                     let g = SCNSphere(radius: CGFloat(r))
                     g.firstMaterial = kind == "ball"
