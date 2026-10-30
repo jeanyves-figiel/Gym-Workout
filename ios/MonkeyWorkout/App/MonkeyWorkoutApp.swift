@@ -16,6 +16,8 @@ struct MonkeyWorkoutApp: App {
         let model = AppModel.live()
         _model = State(initialValue: model)
         AppDependencyManager.shared.add(dependency: model)
+        // Film my workout (#952): a review clip left by a crash never survives a launch.
+        ClipRecorder.wipeAll()
     }
 
     var body: some Scene {

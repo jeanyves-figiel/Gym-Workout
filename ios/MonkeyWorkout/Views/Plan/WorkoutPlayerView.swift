@@ -50,6 +50,9 @@ struct WorkoutPlayerView: View {
     @State private var formFor: Exercise?
     /// Form check (#833): the camera watches this set; its rep count can fill the set.
     @State private var filmFor: Exercise?
+    /// Film my workout (#952): filming the next move of a custom session, and its sets waiting for the move to open.
+    @State private var filmingNext = false
+    @State private var filmed: FilmedMove?
     @State private var prFor: Exercise?
     /// "Not here?" (#162): the planned item whose equipment the gym lacks.
     @State private var notHereFor: PlannedExercise?
@@ -232,8 +235,21 @@ struct WorkoutPlayerView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
         .fullScreenCover(item: $filmFor) { e in
-            FormCheckView(exercise: e) { reps in
-                if let i = log.rows.firstIndex(where: { !$0.logged }) { log.setReps(i, reps) }
+            // Film this set (#952): the camera counts the reps and reads the weight into the next sets to log.
+            FilmWorkoutView(exercise: e, oneMove: true, startKg: log.rows.first { !$0.logged }.flatMap { SetLogState.parseKg($0.kg) }) { moves, _ in
+                guard let m = moves.first, var i = log.rows.firstIndex(where: { !$0.logged }) else { return }
+                for set in m.sets where log.rows.indices.contains(i) {
+                    log.setReps(i, set.reps)
+                    if set.kg > 0 { log.setKg(i, set.kg) }
+                    i += 1
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $filmingNext) {
+            FilmWorkoutView(oneMove: true) { moves, _ in
+                guard let m = moves.first, !m.sets.isEmpty else { return }
+                filmed = m
+                addFree([Exercise.get(m.exerciseId)], jump: true)
             }
         }
         .sheet(item: $freeBrowse) { b in
@@ -886,7 +902,8 @@ struct WorkoutPlayerView: View {
                               ready: done >= sets && queued.isEmpty,
                               onQueued: { go(queued[$0]) },
                               onPick: { addFree([$0], jump: false) },
-                              onMore: { freeBrowse = FreeBrowse(group: nil, jump: false) })
+                              onMore: { freeBrowse = FreeBrowse(group: nil, jump: false) },
+                              onFilm: { filmingNext = true })
         } else {
             HStack(spacing: 8) {
                 // Talk to Coach (#874 A): hold the mic, ask about this set.
@@ -1928,6 +1945,25 @@ struct WorkoutPlayerView: View {
     private func reloadLog() {
         guard steps.indices.contains(index), steps[index].loggable else { return }
         log.load(item: steps[index].item, sessionId: sessionId, model: model)
+        applyFilmed()
+    }
+
+    /// Film next move (#952): once the filmed move opens, its sets are logged as filmed and it counts as done.
+    private func applyFilmed() {
+        guard let m = filmed, steps.indices.contains(index), steps[index].item.exerciseId == m.exerciseId else { return }
+        filmed = nil
+        let uid = steps[index].item.uid
+        model.setFreestyleSets(sessionId, uid: uid, sets: m.sets.count)
+        guard let item = steps.first(where: { $0.item.uid == uid })?.item else { return }
+        log.load(item: item, sessionId: sessionId, model: model)
+        for (i, set) in m.sets.enumerated() where log.rows.indices.contains(i) {
+            log.setReps(i, set.reps)
+            log.setKg(i, set.kg)
+            _ = log.log(i, model: model)
+        }
+        setsDone[uid] = m.sets.count
+        model.setTicked(uid)
+        saveProgress()
     }
 
     /// `interrupted`: the app is going to the background with the player open (#359), not a pause by the member.

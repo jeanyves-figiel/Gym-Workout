@@ -18,6 +18,20 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
     private var startTime: Double?
     /// On the main thread: the frame's pose (nil = nobody in view), its time in seconds and its width ÷ height.
     var onPose: ((FormPose?, Double, Double) -> Void)?
+    /// Film my workout (#952): while set, frames go to the text reader (twice a second) instead of the body pose, to
+    /// read the weight shown to the camera. On the main thread.
+    var onText: (([WeightReading.Seen]) -> Void)?
+    /// Film my workout's review clip (#952): frames are also written here while set.
+    var clip: ClipRecorder?
+    private let textRequest: VNRecognizeTextRequest = {
+        let r = VNRecognizeTextRequest()
+        r.recognitionLevel = .fast
+        r.usesLanguageCorrection = false
+        return r
+    }()
+    private var lastText: Double = -1
+    /// Front camera frames are mirrored like the preview: the text reader flips them back.
+    private var mirrored = false
 
     static func allowed() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -53,6 +67,7 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
                 }
             }
             session.commitConfiguration()
+            mirrored = front
             startTime = nil
             if !session.isRunning { session.startRunning() }
         }
@@ -68,6 +83,17 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         let t0 = startTime ?? t
         startTime = t0
         let aspect = Double(CVPixelBufferGetWidth(buffer)) / Double(max(1, CVPixelBufferGetHeight(buffer)))
+        clip?.append(sampleBuffer)
+        if let onText {
+            guard t - lastText >= 0.5 else { return }
+            lastText = t
+            try? VNImageRequestHandler(cvPixelBuffer: buffer, orientation: mirrored ? .upMirrored : .up).perform([textRequest])
+            let seen = (textRequest.results ?? []).compactMap { o in
+                o.topCandidates(1).first.map { WeightReading.Seen($0.string, size: Double(o.boundingBox.height)) }
+            }
+            DispatchQueue.main.async { onText(seen) }
+            return
+        }
         try? VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up).perform([request])
         // The person filling the frame most.
         let best = (request.results ?? []).max { Self.seen($0) < Self.seen($1) }

@@ -172,6 +172,8 @@ struct FreestyleQueueBar: View {
     let onQueued: (Int) -> Void
     let onPick: (Exercise) -> Void
     let onMore: () -> Void
+    /// Film my workout (#952): film the next move; the camera names it and logs its sets.
+    var onFilm: (() -> Void)? = nil
 
     private static let slots = 3
 
@@ -183,6 +185,19 @@ struct FreestyleQueueBar: View {
                 Text(queued.isEmpty ? (ready ? "Pick next · Coach" : "Line up next · Coach picks") : "Queue · \(queued.count) lined up")
                     .font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85).lineLimit(1)
                 Spacer(minLength: 4)
+                if let onFilm {
+                    Button(action: onFilm) {
+                        Label("Film", systemImage: "video.fill")
+                            .font(Theme.label(10)).lineLimit(1).fixedSize()
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFF3B5C), Color(hex: 0xFF9A3C)],
+                                                                      startPoint: .leading, endPoint: .trailing)))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Film next move")
+                    .accessibilityIdentifier("freestyle.film")
+                }
                 Button(action: onMore) {
                     Label("More", systemImage: "magnifyingglass")
                         .font(Theme.label(10)).lineLimit(1).fixedSize()
