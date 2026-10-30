@@ -24,6 +24,7 @@ extension APIClient {
         struct Left: Encodable { var protein: Int; var carbs: Int }
         struct Body: Encodable { var pantry: [GymScanItem]; var meal: String; var left: Left; var diet: String?; var avoid: [String] }
         let body = Body(pantry: pantry, meal: meal, left: Left(protein: protein, carbs: carbs), diet: diet, avoid: avoid)
+        try await requireAI(.ideas)
         return try await scanRequest("/v1/me/meal-ideas", body, as: MealIdeasResult.self)
     }
 }

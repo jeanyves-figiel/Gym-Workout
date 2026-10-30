@@ -38,7 +38,7 @@ Set for staging and prod: MonkeyWorkout by Figiel, Schlieren, contact@monkeygrad
 | 5.1.1(i) privacy policy in app + ASC | Account → Legal & support → Privacy policy; sign-up and Sign in with Apple link it |
 | 5.1.1(v) account deletion | Account → Delete account (server delete + Sign in with Apple revoke) |
 | 5.1.2 data use | No tracking, no ads, no third-party SDKs (`NSPrivacyTracking` false) |
-| 5.1.2(i) third-party AI | Privacy policy § AI features names Anthropic and what each feature sends (#973); explicit in-app consent before first AI use: #972 |
+| 5.1.2(i) third-party AI | Privacy policy § AI features names Anthropic and what each feature sends (#973); the app asks before the first AI call (sheet with a switch per feature) and Settings → Account → AI & privacy keeps the switches; refused calls never leave the device (`APIClient.requireAI`, #972) |
 | 5.1.1 purpose strings | Every `NS…UsageDescription` in `ios/project.yml` says what is sent where (camera: scans go to Anthropic, #974) |
 | 5.1.3 health | HealthKit data not used for ads, not sold, not in iCloud; sleep, HRV and mood go to Anthropic only for Coach's week review (health management, disclosed in policy); usage strings in `ios/project.yml` |
 | 1.2 user-generated content | Terms (zero tolerance), guidelines accepted on join, word filter + AI check refuse objectionable text and photos, report, block, auto-hide after 3 reports |
@@ -65,4 +65,4 @@ AI features send data to Anthropic as a service provider (processing for app fun
 
 ## Audit 2026-10-30 (#971)
 
-Checked against the App Review Guidelines: privacy policy, labels and manifests, account creation and deletion, Sign in with Apple, HealthKit, camera and AI, subscriptions, UGC moderation and purpose strings. Gaps found: #972 (AI consent, in progress), #973 (policy AI section), #974 (camera string), #975 (listing text, widget manifest, age override, this doc). Still by hand: App Privacy labels, age rating override, review demo account (#882).
+Checked against the App Review Guidelines: privacy policy, labels and manifests, account creation and deletion, Sign in with Apple, HealthKit, camera and AI, subscriptions, UGC moderation and purpose strings. Gaps found: #972 (AI consent), #973 (policy AI section), #974 (camera string), #975 (listing text, widget manifest, age override, this doc). Still by hand: App Privacy labels, age rating override, review demo account (#882).

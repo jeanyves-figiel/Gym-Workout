@@ -150,6 +150,10 @@ struct MainTabView: View {
         .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
             whatsNewSheet($0)
         }
+        // Coach's AI consent (#972 A): the first AI use waits for this answer.
+        .sheet(item: Binding(get: { AIConsentStore.shared.asking }, set: { if $0 == nil { AIConsentStore.shared.dismissed() } })) { _ in
+            NavigationStack { AIConsentSheet() }
+        }
         // HD animations offer (#932 A): once per device, when nothing else is showing (after sign-up and the tour).
         .sheet(isPresented: Binding(get: { showHDOffer }, set: { if !$0 { hd.offered = true } })) {
             NavigationStack { HDAnimationsOffer() }
@@ -464,6 +468,8 @@ private struct DemoScreen: View {
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "video-import": VideoImportSheet()
         case "video-import-check": VideoImportSheet(read: AppModel.demoVideoImport)
+        case "ai-consent": NavigationStack { AIConsentSheet() }
+        case "ai-privacy": NavigationStack { AIPrivacyView() }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "muscle-picker": MusclePickerScreen(primary: [.glutes], secondary: [.hamstrings], heat: [.glutes: 1, .hamstrings: 0.35]) { _ in }

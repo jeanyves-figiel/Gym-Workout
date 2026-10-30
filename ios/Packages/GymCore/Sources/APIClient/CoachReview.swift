@@ -9,6 +9,7 @@ extension APIClient {
 
     /// Errors: `daily_limit` (429), `pro_required` (402), `coach_unavailable` (503), `coach_failed` (502).
     public func coachReview<D: Encodable & Sendable, R: Decodable & Sendable>(_ digest: D, as _: R.Type) async throws -> R {
-        try await authorized("POST", "/v1/me/coach-review", CoachReviewBody(digest: digest), as: R.self)
+        try await requireAI(.review)
+        return try await authorized("POST", "/v1/me/coach-review", CoachReviewBody(digest: digest), as: R.self)
     }
 }

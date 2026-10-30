@@ -10,11 +10,13 @@ extension APIClient {
 
     /// Errors: `daily_limit` / `busy` (429), `coach_unavailable` (503), `coach_failed` (502).
     public func coachPlan<R: Decodable & Sendable>(_ text: String, as _: R.Type) async throws -> R {
-        try await authorized("POST", "/v1/me/coach-plan", CoachPlanBody(text: text), as: R.self)
+        try await requireAI(.ideas)
+        return try await authorized("POST", "/v1/me/coach-plan", CoachPlanBody(text: text), as: R.self)
     }
 
     /// Same errors as `coachPlan`.
     public func coachPlanHelp<A: Encodable & Sendable, R: Decodable & Sendable>(_ ask: A, as _: R.Type) async throws -> R {
-        try await authorized("POST", "/v1/me/coach-plan/help", ask, as: R.self)
+        try await requireAI(.ideas)
+        return try await authorized("POST", "/v1/me/coach-plan/help", ask, as: R.self)
     }
 }

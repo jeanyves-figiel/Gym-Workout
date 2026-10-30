@@ -111,7 +111,7 @@ const privacy = (l: Legal) => `
 <p>Purchases are made and billed by Apple through the App Store. We never see your payment details; we receive only the subscription status (product, trial, renewal and expiry dates) needed to unlock features. Complimentary access granted by the operator is recorded on your account.</p>
 
 <h3>AI features (Anthropic)</h3>
-<p>Some features send data to Anthropic (Claude), an AI provider, to answer. Each one only runs when you use it. Never sent: your name, email or account id. Anthropic does not use it to train models and deletes it within 30 days (kept only for abuse monitoring); our server keeps only counts per day (for daily limits and costs).</p>
+<p>Some features send data to Anthropic (Claude), an AI provider, to answer. The app asks before the first one sends anything, and you can turn each kind off any time in Settings → AI &amp; privacy (off: Coach answers on your iPhone only). Each one only runs when you use it. Never sent: your name, email or account id. Anthropic does not use it to train models and deletes it within 30 days (kept only for abuse monitoring); our server keeps only counts per day (for daily limits and costs).</p>
 <ul>
 <li><b>Ask Coach</b> (chat, also from Add exercises and Build as you go): your messages, training settings (goal, level, session length, equipment, readiness), your pronouns and call term (a first name is replaced on your iPhone, never sent), what the screen you ask from shows (an exercise, a chart, a day) and a machine photo if you snap one.</li>
 <li><b>Talk to Coach mid-set</b>: the words you said and the set on screen (exercise, weight, reps, effort), when the app can't answer on the iPhone.</li>
@@ -119,7 +119,7 @@ const privacy = (l: Legal) => `
 <li><b>Plan setup by talking to Coach</b>: the sentence you typed or said and the plan form's answers.</li>
 <li><b>What can I eat?</b>: the foods in What I have, the meal, protein and carbs left today, diet and foods to avoid.</li>
 <li><b>Save from a video</b>: the post's link and caption (or its public caption from TikTok / YouTube), your own words and up to 4 screenshots. The video is never fetched; screenshots are not kept.</li>
-<li><b>Gym scan, fridge and receipt scan</b>: the photo, once; never stored on our server.</li>
+<li><b>Gym scan, fridge, receipt and meal scans</b> (Magic Snap, plate): the photo, once; never stored on our server.</li>
 <li><b>Community checks</b>: before a nickname, about text, caption, shared plan or workout name or profile photo goes public, it is checked against the community guidelines; refused content is not posted.</li>
 </ul>
 

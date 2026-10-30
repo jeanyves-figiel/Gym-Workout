@@ -32,6 +32,7 @@ describe('legal pages (#125)', () => {
       expect(res.body).toContain(feature);
     }
     expect(res.body).toContain('heart rate variability');
+    expect(res.body).toContain('Settings → AI &amp; privacy');
   });
 
   it('shows placeholders until the operator is configured', async () => {
