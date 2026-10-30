@@ -423,8 +423,12 @@ def _open_book(stage):
     arm = [(28, 6, 6), (-90, -90, -90), (-160, -164, -164)][stage]
     h = [-6, -30, -58][stage]
     p = P(front=True, t=0, h=h, lN=(166, 192, 196), lF=(162, 190, 194), aN=(22, 4, 4), aF=arm)
-    pin = rest(dict(p, aF=(30, 4, 4)), "hip", 200, MAT)["pin"]
-    return dict(p, pin=pin)
+    # #949: rest the bottom leg and trunk on the mat (not the bottom arm: the body floated above it), then
+    # lower the bottom arm until it lies on the mat too.
+    base = dict(p, aF=(30, 4, 4))
+    pin = rest(base, "hip", 200, MAT, parts=("thighN", "shinN", "footN", "torso"))["pin"]
+    a = solve(lambda v: lowest(dict(base, pin=pin, aN=(v, v - 18, v - 18)), ("upperN", "foreN", "handN")) - MAT, -30, 22)
+    return dict(p, pin=pin, aN=(a, a - 18, a - 18))
 
 
 def _ob_back(doc, j):
@@ -653,7 +657,7 @@ LAT_E = (LAT_X0 + 12, BENCH_TOP - 5)
 
 def _bench_lat(doc, j):
     """Flat bench (kit.flat_bench) with its legs set further in, clear of the head sinking at the front edge."""
-    x0, x1, top, t = LAT_X0, LAT_X0 + 90, BENCH_TOP - 12, 12
+    x0, x1, top, t = LAT_X0, LAT_X0 + 90, BENCH_TOP, 12  # #949: pad top at BENCH_TOP (elbows sat mid-pad)
     for x in (x0 + 30, x1 - 16):
         art.tube(doc, (x, top + t), (x, GROUND - 2), 7, "butt")
         kit.feet(doc, x - 12, x + 12)

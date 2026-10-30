@@ -194,7 +194,7 @@ def zercher_arms(t):
 def sb_lunge_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 186, 100)
-    else:
+        # #949: bag behind the arms (on the front layer it hid the near forearm and hand: no arm held it).
         sandbag(doc, zbag(j), h=36, ang=0, end=True)
 
 

@@ -203,6 +203,7 @@ hollow-hold                        strength  handN      UP/DOWN effort UP   path
 human-flag                         strength  toeN       UP/DOWN effort UP   path yes
 inchworm                           warmup    handN    PUSH/PULL effort PUSH path yes
 incline-bench-press                strength  handN    DOWN/UP   effort UP   path yes
+incline-chest-press-machine        strength  handN    PUSH/PULL effort PUSH path yes
 incline-db-curl                    strength  handN      UP/DOWN effort UP   path yes
 incline-db-fly                     strength  handN     OUT/IN   effort IN   path yes
 incline-db-press                   strength  handN    DOWN/UP   effort UP   path yes
@@ -251,6 +252,8 @@ lunge-twist                        warmup    handF    PULL/PUSH effort PUSH path
 lying-leg-raise                    strength  toeF       UP/DOWN effort UP   path yes
 machine-calf-raise                 strength  handN      UP/DOWN effort UP   path no 
 machine-curl                       strength  handN      UP/DOWN effort UP   path yes
+machine-high-row                   strength  handN    DOWN/UP   effort DOWN path yes
+machine-lateral-raise              strength  handN      UP/DOWN effort UP   path yes
 machine-pullover                   strength  handN    PUSH/PULL effort PULL path yes
 machine-row                        strength  handN    PULL/PUSH effort PULL path yes
 machine-row-single                 strength  handN    PULL/PUSH effort PULL path yes
@@ -335,8 +338,10 @@ seated-cable-row                   strength  handN    PULL/PUSH effort PULL path
 seated-calf-raise                  strength  handN      UP/DOWN effort UP   path no 
 seated-db-calf-raise               strength  handN      UP/DOWN effort UP   path no 
 seated-db-press                    strength  handN      UP/DOWN effort UP   path yes
+seated-dip-machine                 strength  handN    DOWN/UP   effort DOWN path yes
 seated-forward-fold                stretch   handN    DOWN/UP   effort UP   path yes
 seated-lateral-raise               strength  handN      UP/DOWN effort UP   path yes
+seated-leg-curl                    strength  toeN     DOWN/UP   effort DOWN path yes
 shoulder-car                       mobility  handN    PULL/PUSH effort PUSH path yes
 shoulder-tap-push-up               strength  handN      UP/DOWN effort UP   path yes
 side-bend                          stretch   handN     OUT/IN   effort OUT  path yes
@@ -379,6 +384,7 @@ squat-jump                         power     hip        UP/DOWN effort UP   path
 squat-to-stand                     warmup    handN      UP/DOWN effort UP   path yes
 stair-climber                      cardio    toeF     STEP/STRIDE effort STEP path yes
 standing-calf-raise                strength  handN      UP/DOWN effort UP   path no 
+standing-leg-curl                  strength  toeN       UP/DOWN effort UP   path yes
 standing-quad-stretch              stretch   handF      UP/DOWN effort UP   path yes
 step-up                            strength  handN      UP/DOWN effort UP   path yes
 stir-the-pot                       strength  handN    PUSH/PULL effort PUSH path yes

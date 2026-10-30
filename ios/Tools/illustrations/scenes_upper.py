@@ -545,7 +545,7 @@ def chest_press_scene(doc, j, layer):
         # Backrest frame + seat.
         a, b = back_pad(doc, CP_HIP, CP_T, 0.14, 1.0)
         art.tube(doc, art.add(b, (-4, 4)), (126, GROUND - 2), 7)
-        art.tube(doc, art.add(a, (-6, 0)), (122, 36), 6)
+        art.tube(doc, art.add(a, (1, 8)), (122, 36), 6)  # #949: reaches the pad back (ended 6px off its top corner)
         art.tube(doc, (CP_HIP[0] + 2, CP_SEAT + 12), (CP_HIP[0] + 2, GROUND - 2), 8, "butt")
         kit.feet(doc, 34, 236)
         art.pad(doc, (CP_HIP[0] - 34, CP_SEAT + 12), (CP_HIP[0] + 36, CP_SEAT + 12), 12)
