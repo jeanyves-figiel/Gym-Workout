@@ -33,7 +33,7 @@ flowchart TD
     Community
   end
   Tabs --> Lock["Face ID lock screen when enabled"]
-  Tabs --> Me["Me pill (every tab, top right) → Me sheet → Profile · Levels · Settings chapters"]
+  Tabs --> Me["Me pill (every tab, top right) → Me page (pushed in the tab) → Profile · Levels · Settings chapters"]
 ```
 
 The app turns signed-in from the Keychain token before any network call, so every tab renders from the local cache on the first frame. Every tab header is a `TabHeader` with tab actions as 44 pt square tiles and the **Me pill** (level + photo) at the right.
@@ -138,7 +138,7 @@ Layout (#738, `SocialStories`): header (Coach, **+** → `ShareHubSheet`: Win, P
 
 ## Me sheet and Settings (`Views/Account`)
 
-Me sheet (#736): hero with photo, name, @nickname and **Edit ›** → **Your profile**; its level bar → Levels; then six square Settings chapter tiles (`SettingsChapter.summary`) opening `AccountView(start:)` at that chapter, and **All ›** for Settings at the top. Under the tiles, a full-width lime **How it works** tile (#769) opens `HowItWorksView`: one gradient card per topic from `HowItWorks.topics` (GymCore) with the member's live number (`HowItWorksLive`); a topic page (`HowItWorksTopicView`) shows where the numbers show, *You: …* with the member's own values, each rule, sources and **Feels off?** (Report a problem, area *How it works*, screen the topic). Rules quote the engine constants (`GameProgress`, `DailyMove`, `Fuel`, `AutoTune`, `HeartZones`, …) so the page follows code changes; `HowItWorksTests` pins them. Any new member-facing calculation gets a topic or part there. Settings (`AccountView`) has a chapter bar and search:
+Me sheet (#736), pushed inside the tab it was opened from since #991 so the tab bar stays (`meDestination(_:)`, X top right, `AppModel.meTab`): hero with photo, name, @nickname and **Edit ›** → **Your profile**; its level bar → Levels; then six square Settings chapter tiles (`SettingsChapter.summary`) opening `AccountView(start:)` at that chapter, and **All ›** for Settings at the top. Under the tiles, a full-width lime **How it works** tile (#769) opens `HowItWorksView`: one gradient card per topic from `HowItWorks.topics` (GymCore) with the member's live number (`HowItWorksLive`); a topic page (`HowItWorksTopicView`) shows where the numbers show, *You: …* with the member's own values, each rule, sources and **Feels off?** (Report a problem, area *How it works*, screen the topic). Rules quote the engine constants (`GameProgress`, `DailyMove`, `Fuel`, `AutoTune`, `HeartZones`, …) so the page follows code changes; `HowItWorksTests` pins them. Any new member-facing calculation gets a topic or part there. Science (#976): every topic cites at least one peer-reviewed study (`everyTopicIsBackedByAStudy`); the app's own choices are listed in the topic's sources starting with `HowItWorks.appDesign` (`App design:`) and tracked on GitHub (#977–#984). Topics: XP, Daily Move, streaks, plan, methods, load, warm-up & PR tests, readiness, growth, heart zones, effort, runs & HIIT, fuel, water, caffeine & supplements, recovery, train around pain, life stages, body, form check, Mind, Coach nudges. Settings (`AccountView`) has a chapter bar and search:
 
 | Chapter | Contents |
 |---|---|
