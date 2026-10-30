@@ -1003,6 +1003,11 @@ private struct NextUpCard: View {
     @State private var editingTrip: SportTrip?
     /// HIIT settings (#757) from the Format tile.
     @State private var hiitSettings = false
+    /// The day's sport on a workout day (#947): climb log, climbing live, or the sport's log already picked.
+    @State private var loggingClimb: ClimbLog?
+    @State private var climbingLive = false
+    @State private var pickedSport: SportLog?
+    @State private var trackingPicked: SportLog?
     /// Remove… from the long press (#784).
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
@@ -1082,6 +1087,35 @@ private struct NextUpCard: View {
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
         .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
+        .sheet(item: $loggingClimb) { LogClimbView(initial: $0) }
+        .sheet(isPresented: $climbingLive) { ClimbLiveView() }
+        .sheet(item: $pickedSport) { LogSportView(initial: $0, picked: true) }
+        .sheet(item: $trackingPicked) { LogSportView(initial: $0, picked: true, live: true) }
+    }
+
+    /// The day's climbing or other sport (#947): a dated sport day or trip, else the weekly one.
+    private var daySport: Sport? {
+        guard let d = later?.weekday ?? day else { return nil }
+        let date = dayKey.flatMap { PlanCalendar.date($0, model.planCalendar) } ?? Date()
+        return model.daySport(onWeekday: d, key: dayKey, date: date)
+    }
+
+    /// Log the day's sport: a climb opens the climb log, any other sport Log sport with it picked.
+    private func logSport(_ sport: Sport) {
+        let start = past ? sportStart : Date().addingTimeInterval(-120 * 60)
+        if sport == .climbing { loggingClimb = ClimbLog(start: start) } else { pickedSport = SportLog(sport: sport, start: start) }
+    }
+
+    /// Track live: climbing opens Climbing live (iPhone, Watch mirrored, #829); others the live log with it picked.
+    private func trackSport(_ sport: Sport) {
+        if sport == .climbing { climbingLive = true } else { trackingPicked = SportLog(sport: sport, start: Date()) }
+    }
+
+    /// An earlier day's sport starts at 18:00 that day.
+    private var sportStart: Date {
+        let cal = model.planCalendar
+        guard let d = day, let date = cal.date(byAdding: .day, value: d - 1, to: Progression.weekStart(Date(), cal)) else { return Date() }
+        return cal.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date
     }
 
     /// Long press (#643, #671): the same moves as the card's tiles, this week or a later one.
@@ -1148,9 +1182,11 @@ private struct NextUpCard: View {
 
     /// Plan sport + Log sport + Track live in one tile (#773, design A).
     private var sportTile: some View {
-        DaySportTile(trip: dayKey.flatMap { model.profile?.sportTrip(on: $0) }, today: isToday,
-                  onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
-                  onTrack: { trackingSport = SportLog(start: Date()) },
+        // The day's sport, when it has one (#947): Already done and Track live open it, not a blank sport log.
+        let sport = isToday ? daySport : nil
+        return DaySportTile(trip: dayKey.flatMap { model.profile?.sportTrip(on: $0) }, today: isToday, sport: sport,
+                  onLog: { if let sport { logSport(sport) } else { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) } },
+                  onTrack: { if let sport { trackSport(sport) } else { trackingSport = SportLog(start: Date()) } },
                   onPlan: { planningSport = true }, onEdit: { editingTrip = $0 })
     }
 
@@ -1201,7 +1237,10 @@ private struct NextUpCard: View {
                 DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact, showPlace: placeDay == nil,
                             // Skipped ones are gone (#849).
                             daySessions: (later?.week.plan ?? model.plan)?.sessions.filter { $0.weekday == d && !model.skippedOff($0, in: later?.week) } ?? [],
-                            onSelect: onSelect, dayKey: dayKey, routines: !isToday && !past && !done)
+                            onSelect: onSelect, dayKey: dayKey, routines: !isToday && !past && !done,
+                            // The sport part is picked like the tiles (#947): today Track live + Log, earlier days Log.
+                            onSportTrack: later == nil && isToday ? trackSport : nil,
+                            onSportLog: later == nil && (isToday || past) ? logSport : nil)
             }
             if !compact { BlockStripe(blocks: session.blocks) }
         }
@@ -1705,6 +1744,8 @@ private extension View {
 private struct DaySportTile: View {
     let trip: SportTrip?
     let today: Bool
+    /// The day's sport on a workout day (#947): named in the menu; climbing tracks without a Watch (#829).
+    var sport: Sport? = nil
     let onLog: () -> Void
     let onTrack: () -> Void
     let onPlan: () -> Void
@@ -1718,9 +1759,14 @@ private struct DaySportTile: View {
         Group {
             if today {
                 Menu {
-                    Button(action: onLog) { Label("Already done", systemImage: "checkmark.circle.fill") }
-                    if link.ready {
-                        Button(action: onTrack) { Label("Track live", systemImage: "applewatch.radiowaves.left.and.right") }
+                    Button(action: onLog) {
+                        Label(sport.map { $0 == .climbing ? "Log climb" : "Log \($0.short.lowercased())" } ?? "Already done", systemImage: "checkmark.circle.fill")
+                    }
+                    if link.ready || sport == .climbing {
+                        Button(action: onTrack) {
+                            Label(sport == .climbing ? (ClimbLive.shared.running ? "Climbing live" : "Track climbing live") : "Track live",
+                                  systemImage: link.ready ? "applewatch.radiowaves.left.and.right" : "dot.radiowaves.left.and.right")
+                        }
                     }
                     if let trip {
                         Button { onEdit(trip) } label: { Label("Edit \(trip.title)", systemImage: "calendar") }

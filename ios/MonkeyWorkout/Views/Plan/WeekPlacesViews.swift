@@ -93,6 +93,10 @@ struct DayComboRow: View {
     var dayKey: String? = nil
     /// Daily routines as parts too (#758): coming days, not today (Train's Daily row has them).
     var routines = false
+    /// The sport part as a menu (#947): Track live (today) and Log; nil = not offered (a coming day).
+    var onSportTrack: ((Sport) -> Void)? = nil
+    var onSportLog: ((Sport) -> Void)? = nil
+    @State private var link = WatchLink.shared
     @Environment(AppModel.self) private var model
     @AppStorage(RoutinePrefs.tilesKey) private var tilesRaw = ""
     @AppStorage(RoutinePrefs.lengthsKey) private var lengthsRaw = ""
@@ -135,8 +139,17 @@ struct DayComboRow: View {
                         let n = hiitBlocks == nil ? sessions.count : 0
                         if let run { part(n + 1, "\(run.title) \(run.minutes)′", run.symbol, WorkoutEngine.Category.cardio.colors) }
                         if let sport {
-                            part(n + (run == nil ? 1 : 2), sport == .climbing ? "Climb" : sport.label, sport == .climbing ? "figure.climbing" : sport.symbol,
-                                 sport == .climbing ? WorkoutEngine.Category.power.colors : sport.colors)
+                            let face = part(n + (run == nil ? 1 : 2), sport == .climbing ? "Climb" : sport.label, sport == .climbing ? "figure.climbing" : sport.symbol,
+                                            sport == .climbing ? WorkoutEngine.Category.power.colors : sport.colors)
+                            if onSportTrack != nil || onSportLog != nil {
+                                // The day's sport is picked here too (#947): its own actions, not the gym session's page.
+                                Menu { sportItems(sport) } label: { face }
+                                    .buttonStyle(.plain)
+                                    .accessibilityHint("Track or log \(sport.label.lowercased())")
+                                    .accessibilityIdentifier("train.daySport")
+                            } else {
+                                face
+                            }
                         }
                         ForEach(tiles) { r in
                             let minutes = RoutinePrefs.length(lengthsRaw, r)
@@ -157,6 +170,21 @@ struct DayComboRow: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("train.dayCombo")
+        }
+    }
+
+    /// Track live (a paired Watch, or climbing, which tracks on the iPhone too, #829) and Log.
+    @ViewBuilder private func sportItems(_ sport: Sport) -> some View {
+        if let onSportTrack, link.ready || sport == .climbing {
+            let live = sport == .climbing && ClimbLive.shared.running
+            Button { onSportTrack(sport) } label: {
+                Label(live ? "Climbing live" : "Track live", systemImage: link.ready ? "applewatch.radiowaves.left.and.right" : "dot.radiowaves.left.and.right")
+            }
+        }
+        if let onSportLog {
+            Button { onSportLog(sport) } label: {
+                Label(sport == .climbing ? "Log climb" : "Log \(sport.short.lowercased())", systemImage: "plus.circle.fill")
+            }
         }
     }
 
