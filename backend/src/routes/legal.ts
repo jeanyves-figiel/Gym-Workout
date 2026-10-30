@@ -6,7 +6,7 @@ import type { Config } from '../config.ts';
  * Same URLs serve App Store Connect (Privacy Policy URL, Support URL, custom EULA) and the app's Account links.
  * Operator, address and contact come from env (`LEGAL_*`); unset values render as a visible placeholder.
  */
-export const LEGAL_UPDATED = '2026-10-20';
+export const LEGAL_UPDATED = '2026-10-30';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -110,12 +110,24 @@ const privacy = (l: Legal) => `
 <h3>Subscriptions</h3>
 <p>Purchases are made and billed by Apple through the App Store. We never see your payment details; we receive only the subscription status (product, trial, renewal and expiry dates) needed to unlock features. Complimentary access granted by the operator is recorded on your account.</p>
 
+<h3>AI features (Anthropic)</h3>
+<p>Some features send data to Anthropic (Claude), an AI provider, to answer. Each one only runs when you use it. Never sent: your name, email or account id. Anthropic does not use it to train models and deletes it within 30 days (kept only for abuse monitoring); our server keeps only counts per day (for daily limits and costs).</p>
+<ul>
+<li><b>Ask Coach</b> (chat, also from Add exercises and Build as you go): your messages, training settings (goal, level, session length, equipment, readiness), your pronouns and call term (a first name is replaced on your iPhone, never sent), what the screen you ask from shows (an exercise, a chart, a day) and a machine photo if you snap one.</li>
+<li><b>Talk to Coach mid-set</b>: the words you said and the set on screen (exercise, weight, reps, effort), when the app can't answer on the iPhone.</li>
+<li><b>Coach's week review</b>: a summary of the week (workouts done and skipped, new bests, sleep, heart rate variability against your usual, Mind check-ins) and next week's workouts. Sleep, HRV and mood are health data: they are sent only when the review runs.</li>
+<li><b>Plan setup by talking to Coach</b>: the sentence you typed or said and the plan form's answers.</li>
+<li><b>What can I eat?</b>: the foods in What I have, the meal, protein and carbs left today, diet and foods to avoid.</li>
+<li><b>Save from a video</b>: the post's link and caption (or its public caption from TikTok / YouTube), your own words and up to 4 screenshots. The video is never fetched; screenshots are not kept.</li>
+<li><b>Gym scan, fridge and receipt scan</b>: the photo, once; never stored on our server.</li>
+<li><b>Community checks</b>: before a nickname, about text, caption, shared plan or workout name or profile photo goes public, it is checked against the community guidelines; refused content is not posted.</li>
+</ul>
+
 <h3>Kept on your device only</h3>
 <ul>
 <li>Location for "Gyms near you": used only for the search with Apple Maps, never sent to our server.</li>
-<li>Gym scan photos: sent once to Anthropic to spot the equipment, never stored on our server (only a count of scans per day).</li>
-<li>Fuel (food pointers): your food settings, meals and water counted, recipes, what you have at home, meal plan and grocery list stay on your iPhone and are never sent to our server. Fridge or receipt photos you choose to scan are sent once to Anthropic to list the foods, never stored (only a count of scans per day). A scanned barcode is looked up on Open Food Facts; only the barcode number is sent. Water you count can be saved to Apple Health if you allow it.</li>
-<li>Ask Coach: the conversation stays on this device. Our server passes each message to Anthropic and keeps only a count of messages per day (for the daily limit). When you talk to Coach, Apple speech recognition turns your voice into text, on your iPhone when it supports it (otherwise by Apple); no audio is sent to us or to Anthropic, only the words.</li>
+<li>Fuel (food pointers): your food settings, meals and water counted, recipes, what you have at home, meal plan and grocery list stay on your iPhone and are never sent to our server. Fridge or receipt scans and meal ideas use Coach's AI (see AI features above). A scanned barcode is looked up on Open Food Facts; only the barcode number is sent. Water you count can be saved to Apple Health if you allow it.</li>
+<li>Ask Coach: the conversation stays on this device (what is sent to answer it: see AI features above). When you talk to Coach, Apple speech recognition turns your voice into text, on your iPhone when it supports it (otherwise by Apple); no audio is sent to us or to Anthropic, only the words.</li>
 <li>Coach voice: if you pick a studio voice and the coach calls you by your name, that first name (letters only) is recorded once by Amazon Polly as a short clip, kept on our server and on your iPhone; no account id or email is sent.</li>
 <li>Face ID / Touch ID app lock: handled by iOS; we never receive biometric data.</li>
 <li>MonkeyGrade link (optional): your MonkeyGrade sign-in token stays in this device's Keychain; the app reads your climbing sessions directly from MonkeyGrade.</li>
@@ -131,7 +143,7 @@ const privacy = (l: Legal) => `
 <li><b>Tigris Data</b> (object storage offered through Fly.io): encrypted copies of the daily database backup, encrypted on our server before upload with a key the provider does not have.</li>
 <li><b>Amazon Web Services (SES)</b>: sending account emails (Zurich, Switzerland).</li>
 <li><b>Amazon Web Services (Polly)</b>: records the studio coach voice lines and, if you choose it, the short call with your first name (Frankfurt, Germany).</li>
-<li><b>Anthropic</b> (Claude): answers Ask Coach and reads gym scan and fridge scan photos. Only your chat messages, training settings (goal, level, session length, equipment, readiness), your pronouns and the call term you picked (Champ, Queen…; a first name is replaced on your iPhone, never sent), what the screen you ask from shows (an exercise, a chart, a day) or the scan photo are sent, never your name, email or account id; they are not used to train models.</li>
+<li><b>Anthropic</b> (Claude): the AI features listed in section 2 (United States); data is not used to train models.</li>
 <li><b>Apple</b>: Sign in with Apple, push notifications (APNs), App Store purchases, Apple Health on your device.</li>
 </ul>
 <p>Some providers are part of groups based in the United States; transfers are covered by the EU/Swiss adequacy frameworks or standard contractual clauses. </p>
