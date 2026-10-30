@@ -23,6 +23,7 @@ public enum FilmWorkout {
     /// Extra score for a move planned today and for one logged lately (moves that look alike: the likely one wins).
     public static let planBoost = 0.25
     public static let recentBoost = 0.12
+    public static let sameMoveBoost = 0.2
     /// Reps seen before the screen names the move.
     public static let repsToGuess = 2
     /// The top guess is taken without a tap after this many reps.
@@ -30,8 +31,9 @@ public enum FilmWorkout {
 
     /// The moves `frames` look like, best first. Each model counts reps over the same frames; a move scores by how close
     /// the bottom of its reps came to its guide (70 %) and how much of its range was reached (30 %).
+    /// `current`: the move done just before (whole session, #957): a set after a rest is most likely the same move.
     public static func guess(_ frames: [Frame], models: [FormModel], planned: Set<String> = [], recent: [String] = [],
-                             limit: Int = 3) -> [Guess] {
+                             current: String? = nil, limit: Int = 3) -> [Guess] {
         let recentSet = Set(recent.prefix(10))
         var scored: [(id: String, reps: Int, score: Double)] = []
         for m in models {
@@ -45,6 +47,7 @@ public enum FilmWorkout {
             var s = match * 0.7 + depth * 0.3
             if planned.contains(m.exerciseId) { s += planBoost }
             if recentSet.contains(m.exerciseId) { s += recentBoost }
+            if m.exerciseId == current { s += sameMoveBoost }
             scored.append((m.exerciseId, reps.count, s))
         }
         let top = scored.sorted { $0.score != $1.score ? $0.score > $1.score : $0.id < $1.id }.prefix(max(1, limit))
@@ -149,5 +152,175 @@ public enum WeightReading {
             let unit: Unit? = u.map { $0.hasPrefix("l") || $0.hasPrefix("p") ? .lb : .kg }
             return (v, unit)
         }
+    }
+}
+
+/// Film whole session (#957, designs A + B + C from `record-workout/session/proposals.png`): the camera runs for the
+/// whole workout with no tap between exercises. Frames of a set wait in `pending` until the app names the move
+/// (`FilmWorkout.guess`, then `accept`); a set ends after `FilmWorkout.restAfter` without a rep; the next set is the
+/// same move or a new one. A weight read during a rest goes to the next set; the phone being moved pauses it all.
+public struct FilmSession: Sendable {
+    public struct Move: Sendable, Hashable, Identifiable {
+        public var id = UUID()
+        public var exerciseId: String
+        /// Other moves the frames looked like, best first (the Watch's ✗ and the review offer them).
+        public var alternatives: [String]
+        /// The top guess stood out, or the member confirmed it.
+        public var sure: Bool
+        public var sets: [FilmedSet] = []
+        /// Weight of the coming sets; nil until read or filled from history.
+        public var kg: Double?
+        /// The weight was read off its print (not last time's).
+        public var kgRead = false
+
+        public init(exerciseId: String, alternatives: [String] = [], sure: Bool = true, kg: Double? = nil, kgRead: Bool = false) {
+            self.exerciseId = exerciseId
+            self.alternatives = alternatives
+            self.sure = sure
+            self.kg = kg
+            self.kgRead = kgRead
+        }
+    }
+
+    public enum Event: Sendable, Equatable {
+        /// A move not done just before started (index in `moves`).
+        case newMove(Int)
+        /// Another set of the move done just before.
+        case sameMove(Int)
+        /// A set ended: its move, its number (1-based) and reps.
+        case setLogged(move: Int, set: Int, reps: Int)
+    }
+
+    /// Share of the top guesses above which a move counts as sure.
+    public static let sureShare = 50
+    /// Frames kept while a move is unknown (about 40 s).
+    public static let maxPending = 1200
+    /// Frames needed before naming is tried.
+    public static let minPending = 60
+
+    /// Editable in the review.
+    public var moves: [Move] = []
+    public private(set) var pending: [FilmWorkout.Frame] = []
+    /// The move of the set in progress, once named.
+    public private(set) var current: Int?
+    public private(set) var live = FormLive()
+    public private(set) var paused = false
+    private var analyzer: FormAnalyzer?
+    private var lastRepAt: Double?
+    private var nextKg: Double?
+
+    public init() {}
+
+    /// A set's move is known and being counted.
+    public var inSet: Bool { analyzer != nil }
+    /// Frames of an unknown move wait for `accept`.
+    public var needsGuess: Bool { !paused && analyzer == nil && pending.count >= Self.minPending }
+    /// The moves with at least one set, for logging.
+    public var filmed: [FilmedMove] {
+        moves.filter { !$0.sets.isEmpty }.map { FilmedMove(id: $0.id, exerciseId: $0.exerciseId, sets: $0.sets) }
+    }
+
+    /// One camera frame. Returns `setLogged` when the set in progress ends.
+    @discardableResult
+    public mutating func add(_ pose: FormPose?, at time: Double) -> Event? {
+        guard !paused else { return nil }
+        guard var an = analyzer else {
+            pending.append((time: time, pose: pose))
+            if pending.count > Self.maxPending { pending.removeFirst(pending.count - Self.maxPending) }
+            return nil
+        }
+        let before = live.reps.count
+        live = an.add(pose, at: time)
+        analyzer = an
+        if live.reps.count > before { lastRepAt = time }
+        return FilmWorkout.setEnded(reps: live.reps.count, lastRepAt: lastRepAt, now: time) ? endSet() : nil
+    }
+
+    /// Names the waiting set from `guesses` (best first) once the top one counted `repsToGuess` reps; its reps so far
+    /// are counted again on the waiting frames.
+    @discardableResult
+    public mutating func accept(_ guesses: [FilmWorkout.Guess]) -> Event? {
+        guard analyzer == nil, !paused, let top = guesses.first, top.reps >= FilmWorkout.repsToGuess,
+              let model = FormModel(exercise: Exercise.get(top.exerciseId)) else { return nil }
+        var an = FormAnalyzer(model: model)
+        for f in pending { an.add(f.pose, at: f.time) }
+        analyzer = an
+        live = an.live
+        lastRepAt = pending.last?.time
+        pending = []
+        let read = nextKg
+        nextKg = nil
+        if let i = moves.indices.last, moves[i].exerciseId == top.exerciseId {
+            if let read {
+                moves[i].kg = read
+                moves[i].kgRead = true
+            }
+            current = i
+            return .sameMove(i)
+        }
+        moves.append(Move(exerciseId: top.exerciseId, alternatives: guesses.dropFirst().map(\.exerciseId),
+                          sure: top.confidence >= Self.sureShare, kg: read, kgRead: read != nil))
+        current = moves.count - 1
+        return .newMove(moves.count - 1)
+    }
+
+    /// A weight read off its print: between sets it goes to the next set, during a set to this move.
+    public mutating func read(kg: Double) {
+        if let i = current {
+            moves[i].kg = kg
+            moves[i].kgRead = true
+        } else {
+            nextKg = kg
+        }
+    }
+
+    /// Last time's weight for a new move with none read.
+    public mutating func fill(kg: Double, move i: Int) {
+        guard moves.indices.contains(i), moves[i].kg == nil else { return }
+        moves[i].kg = kg
+    }
+
+    /// The member confirmed the move (Watch ✓).
+    public mutating func confirm(_ i: Int) {
+        guard moves.indices.contains(i) else { return }
+        moves[i].sure = true
+    }
+
+    /// Not this move (Watch ✗): the next alternative takes its place; the rejected one goes last.
+    public mutating func reject(_ i: Int) {
+        guard moves.indices.contains(i), !moves[i].alternatives.isEmpty else { return }
+        let old = moves[i].exerciseId
+        let next = moves[i].alternatives.removeFirst()
+        moves[i].exerciseId = next
+        moves[i].alternatives.append(old)
+        moves[i].sure = true
+    }
+
+    /// The phone is being moved: the set in progress ends (if it had reps) and nothing is counted until `resume`.
+    @discardableResult
+    public mutating func pause() -> Event? {
+        guard !paused else { return nil }
+        let e = endSet()
+        pending = []
+        paused = true
+        return e
+    }
+
+    public mutating func resume() { paused = false }
+
+    /// Stop: the set in progress is kept.
+    @discardableResult
+    public mutating func end() -> Event? { endSet() }
+
+    private mutating func endSet() -> Event? {
+        defer {
+            analyzer = nil
+            live = FormLive()
+            lastRepAt = nil
+            current = nil
+        }
+        guard let i = current, !live.reps.isEmpty else { return nil }
+        moves[i].sets.append(FilmedSet(reps: live.reps.count, kg: moves[i].kg ?? 0, form: live.score))
+        return .setLogged(move: i, set: moves[i].sets.count, reps: live.reps.count)
     }
 }

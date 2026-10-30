@@ -18,6 +18,12 @@
       "tint": "cardio",
       "title": "Places know what they are",
       "body": "Climbing gyms, crags, resorts and trails only show for their sports. Set a home spot per sport in Your places."
+    },
+    {
+      "symbol": "forward.fill",
+      "tint": "warmup",
+      "title": "Skip just the climb",
+      "body": "On a Lift + Climb day, Skip asks which part. Your lift stays."
     }
   ]
 }

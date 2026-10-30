@@ -18,6 +18,8 @@ final class WatchStore: NSObject {
     var remoteTimer: WWodRemote?
     /// Gym buddy link (#626 B): a buddy's set or a cheer for you, shown a few seconds.
     var buddyPing: WBuddyPing?
+    /// Film whole session (#957 C): the move the iPhone's camera just named.
+    var filmGuess: WFilmGuess?
     /// The iPhone started a workout and woke this Watch (#347): the start prompt shows.
     var offered = false
     /// Last store made by the app, for the app delegate the iPhone wakes (#347).
@@ -235,6 +237,11 @@ final class WatchStore: NSObject {
             SportTracker.shared.climbFromPhone(c)
             return
         }
+        if let data = message[WatchKeys.filmGuess] as? Data, let g = try? JSONDecoder.watch.decode(WFilmGuess.self, from: data) {
+            filmGuess = g
+            WKInterfaceDevice.current().play(.click)
+            return
+        }
         if let data = message[WatchKeys.buddy] as? Data, let p = try? JSONDecoder.watch.decode(WBuddyPing.self, from: data) {
             buddyPing = p
             WKInterfaceDevice.current().play(p.cheer == nil ? .click : .success)
@@ -369,6 +376,11 @@ final class WatchStore: NSObject {
         if Demo.on { return }
         #endif
         sendNow(.climbLive(live))
+    }
+
+    /// Film whole session (#957 C): ✓ / ✗ on the move the camera named, at once while the phone films.
+    func answerFilm(move: Int, ok: Bool) {
+        sendNow(.filmAnswer(move: move, ok: ok))
     }
 
     /// Sent at once when the phone is reachable (it decides who saves the Health workout), queued otherwise.

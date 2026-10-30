@@ -20,7 +20,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `swim.json` | `SwimStore` | Swim plan, pool length, gym-day swim blocks, buddy alert minutes | No (today's swim sent to the Watch) |
 | `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
 | `form-reports.json` | `FormReportStore` | Form check reports (#833): reps, scores, faults and the joints of the worst rep (no pictures), last 60; wiped on sign-out | No |
-| `tmp/film-clips/*.mp4` | `ClipRecorder` | Film my workout review clip (#952): the last set only, 2 min max; deleted on Next, when the film screen closes and at every launch; never uploaded | No |
+| `tmp/film-clips/*.mp4` | `ClipRecorder` | Film my workout review clip (#952): the last set only (whole session #957: the last set of each move), 2 min max each; deleted on Next / Save / Discard, when the film screen closes and at every launch; never uploaded | No |
 | `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
 | `hd-animations/` | `HDAnimations` | HD exercise animation pack (#932): `<id>.mwf` per exercise, its movement clip `<id>.mp4` (#944) + `installed.json`; excluded from backup; kept on sign-out (not account data), deleted by Settings → HD animations off | No (downloaded) |
 | `gym-workout-export.json` (temporary directory) | `AccountView` | Data export while it is shared; protection `complete` | n/a |
