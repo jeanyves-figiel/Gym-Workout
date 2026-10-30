@@ -574,8 +574,9 @@ def assisted_dip_scene(doc, j, layer):
         art.shroud(doc, x - 5, 70, GROUND - 4, 44)
         st = art.stack(doc, x, 84, GROUND - 4, 34, 11, lift)
         art.tube(doc, (AD_COL, GROUND - 2), (AD_COL, 30), 11, "butt")
-        art.tube(doc, (x - 10, 30), (AD_GRIP[0] + 10, 30), 9)
-        art.tube(doc, (AD_GRIP[0] + 4, 30), (AD_GRIP[0] + 14, 46), 5)
+        # #949: beam stops short of the head (it ran through the head at the top of the dip).
+        art.tube(doc, (x - 10, 30), (AD_GRIP[0] - 38, 30), 9)
+        art.tube(doc, (AD_GRIP[0] - 44, 30), (AD_GRIP[0] - 34, 46), 5)
         kit.feet(doc, x - 14, AD_GRIP[0] + 10)
         # Cable: stack → pulley on the beam → down to the lever horn behind the pivot.
         horn = art.add(AD_PIV, ld, -30)
@@ -591,6 +592,7 @@ def assisted_dip_scene(doc, j, layer):
         # Knee-pad lever.
         pad_mid = lerp(top_a, top_b, 0.5)
         art.tube(doc, AD_PIV, art.add(pad_mid, dn, 10), 8)
+        art.tube(doc, (AD_COL, AD_PIV[1]), AD_PIV, 8)  # #949: pivot bracket (the hub stood clear of the column)
         hub(doc, AD_PIV, 7)
     else:
         grip_handle(doc, AD_GRIP, 0, 9)
@@ -688,7 +690,8 @@ def cm_scene(doc, j, layer):
         art.pulley(doc, (CM_RAIL - 8, GROUND - 16), 5.5)
         art.cable(doc, [(p[0] + 5.5, p[1]), (px + 5.5, p[1]), (px + 5.5, GROUND - 16)])
         art.cable(doc, [(px, GROUND - 10.5), (CM_RAIL - 8, GROUND - 10.5)])
-        art.cable(doc, [(CM_RAIL - 13.5, GROUND - 16), (CM_RAIL - 13.5, pad_y + 18)])
+        # #949: cable now ties into the carriage (it stopped 3.5px short of it, hanging in the air).
+        art.cable(doc, [(CM_RAIL - 13.5, GROUND - 16), (CM_RAIL - 13.5, pad_y + 18), (CM_RAIL - 8, pad_y + 18)])
         doc.add(f'<rect x="{CM_RAIL - 10:.1f}" y="{pad_y - 12:.1f}" width="20" height="34" rx="3" fill="#2A2E34" '
                 f'stroke="#0A0B0D" stroke-width="0.8"/>')
         art.tube(doc, (CM_RAIL, pad_y + 2), (sh[0] - 6, pad_y + 2), 8)

@@ -353,7 +353,8 @@ def belt_squat_scene(doc, j, layer):
         art.tube(doc, (264, GROUND - BS_H + 6), (264, GROUND - 2), 7, "butt")
         kit.feet(doc, BS_PIV[0] - 20, 300)
         # Lever from the rear pivot under the deck; chain from the belt down to it, plates on the front horn.
-        hook = (hip[0] + 2, GROUND - BS_H - 6 + (hip[1] - BS_POSE[0][0][1]) * 0.3)
+        # #949: drop 0.15 (was 0.3) so the plate at the lever tip stays above the floor at the bottom.
+        hook = (hip[0] + 2, GROUND - BS_H - 6 + (hip[1] - BS_POSE[0][0][1]) * 0.15)
         d = art.norm(art.sub(hook, BS_PIV))
         tip = art.add(BS_PIV, d, 168)
         art.tube(doc, BS_PIV, tip, 9)

@@ -16,7 +16,7 @@ public enum ExerciseIllustrations {
         "arnold-press": 25,
         "back-extension": 25,
         "back-lever": 33,
-        "ball-slam": 49,
+        "ball-slam": 33,
         "band-dislocates": 49,
         "band-external-rotation": 25,
         "band-good-morning": 25,

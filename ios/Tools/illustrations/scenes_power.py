@@ -236,7 +236,7 @@ def depth_jump(doc, j, layer):
 
 
 DJ = [
-    B((126, 85), -90, ankN=(128, BOX_TOP), lF=(36, 84, 10), aN=(100, 95), aF=(80, 70), h=-92),
+    B((126, 90), -90, ankN=(128, BOX_TOP), lF=(36, 84, 10), aN=(100, 95), aF=(80, 70), h=-92),  # #949: hip low enough for the foot to reach the box
     B((214, 182), -52, ankN=(236, FOOT_Y), ankF=(232, FOOT_Y), aN=(150, 135), aF=(146, 132), h=-62),
     B((236, 124), -86, ankN=(240, 232), ankF=(236, 234), footN=70, footF=70, aN=(-62, -70), aF=(-68, -74),
       h=-88, front_props=[arrow((282, 150), -90)]),
@@ -340,7 +340,7 @@ def slam(doc, j, layer):
 
 SLAM_C = ("#2B2F36", "#0E1013")
 SLAM = [
-    B((200, 140), -88, ankN=(204, GROUND - 12), ankF=(200, GROUND - 12), footN=50, footF=50,
+    B((200, 144), -88, ankN=(204, GROUND - 12), ankF=(200, GROUND - 12), footN=50, footF=50,  # #949: toes reach the floor
       aN=(-84, -88, -95), aF=(-88, -92, -95), h=-90, front_props=[held_ball(14, SLAM_C, 0, -10)]),
     B((192, 158), -66, ankN=(204, FOOT_Y), ankF=(200, FOOT_Y), wrN=(266, 112), wrF=(262, 114), h=-66,
       front_props=[held_ball(14, SLAM_C, 6, 0)]),
@@ -412,7 +412,7 @@ def clean(doc, j, layer):
 
 HPC = [
     B((178, 160), -64, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), aN=(92, 92), aF=(90, 90), h=-70),
-    B((196, 140), -96, ankN=(202, GROUND - 12), ankF=(198, GROUND - 12), footN=50, footF=50,
+    B((196, 144), -96, ankN=(202, GROUND - 12), ankF=(198, GROUND - 12), footN=50, footF=50,  # #949: toes reach the floor
       aN=(98, 96), aF=(96, 94), h=-94),
     B((186, 172), -78, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), aN=(12, -158, -110), aF=(14, -156, -110), h=-84),
 ]
@@ -757,7 +757,8 @@ def bike(doc, j, layer):
         art.tube(doc, (278, 128), (292, 122), 6)
         rect(doc, 268, 104, 26, 18, 3, ("#2A2F35", "#15181B"))
         screen(doc, 271, 107, 20, 12)
-        art.tube(doc, (184, 206), (176, 168), 8)
+        # Seat tube rises from the rear post (#949: it used to float above the frame) to under the saddle.
+        art.tube(doc, (194, 248), (176, 168), 8)
         art.pad(doc, (152, 170), (196, 164), 9)
 
 
@@ -798,7 +799,7 @@ def treadmill(tilt=0.0):
         # Uprights, console, handrails.
         art.tube(doc, (front + 34, hy), (front + 14, 104), 9)
         art.tube(doc, (front + 14, 104), (front - 4, 100), 8)
-        art.tube(doc, (front + 8, 140), (front - 74, 140 - 0 * k), 7)
+        art.tube(doc, (front + 19, 140), (front - 74, 140 - 0 * k), 7)  # #949: rail runs into the upright
         housing(doc, f"M{front - 30},88 L{front + 22},84 Q{front + 30},84 {front + 28},94 L{front + 18},116 "
                      f"L{front - 26},118 Q{front - 34},118 {front - 32},110 Z")
         screen(doc, front - 22, 92, 38, 18)
@@ -950,7 +951,8 @@ def elliptical(doc, j, layer):
 def el_pose(phase):
     _, _, pn = el_links(phase)
     _, _, pf = el_links(phase + 180)
-    p = B((196, 128 + 3 * math.sin(math.radians(phase))), -84, ankN=(pn[0], pn[1] - 13), ankF=(pf[0], pf[1] - 13),
+    # #949: hips drop on each stride (abs), so the far foot also reaches its pedal at the bottom.
+    p = B((196, 128 + 3 * abs(math.sin(math.radians(phase)))), -84, ankN=(pn[0], pn[1] - 13), ankF=(pf[0], pf[1] - 13),
           footN=0, footF=0, wrN=el_handle(phase), wrF=el_handle(phase + 180), handN=-80, handF=-80, h=-86,
           props=[el_side(phase + 180, False)], front_props=[el_side(phase, True)])
     return p
@@ -975,7 +977,8 @@ WGS = [
       wrF=(244, GROUND - 6), handN=0, handF=0, h=-10),
     B((WGS_HIP[0], WGS_HIP[1] + 4), -6, ankN=(264, FOOT_Y), ankF=(94, GROUND - 13), footF=48, aN=(100, 24, 24),
       wrF=(240, GROUND - 6), handF=0, h=6),
-    B(WGS_HIP, -30, ankN=(264, FOOT_Y), ankF=(94, GROUND - 13), footF=48, aN=(-88, -90),
+    # #949: hips a bit lower and trunk less upright so the far hand still reaches the floor.
+    B((WGS_HIP[0], WGS_HIP[1] + 6), -24, ankN=(264, FOOT_Y), ankF=(94, GROUND - 13), footF=48, aN=(-88, -90),
       wrF=(244, GROUND - 6), handF=0, h=-64),
 ]
 
