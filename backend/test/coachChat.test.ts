@@ -230,8 +230,16 @@ describe('ask from any screen (#412)', () => {
     expect(clean({ reply: 'a', workout: null, action: { target: 'progress', exercise: 'x', label: 'See progress' } }, {}).action).toEqual({
       target: 'progress',
       exercise: null,
-      label: 'See progress',
+      label: 'Open Insights',
     });
+  });
+
+  it('labels the Insights tab Insights, never Progress (#894, #1010)', () => {
+    const open = (label: string) => clean({ reply: 'a', workout: null, action: { target: 'progress', exercise: null, label } }, {}).action?.label;
+    expect(open('Open Progress')).toBe('Open Insights');
+    expect(open('')).toBe('Open Insights');
+    expect(open('See my trends')).toBe('See my trends');
+    expect(describeMember({}).length).toBeGreaterThan(0);
   });
 });
 
@@ -281,6 +289,21 @@ describe('pronouns and call name (#415)', () => {
     expect(calls[0]!.context).toEqual({ memory });
     expect(describeMember({ memory })).toContain('Left knee: no deep lunges');
     expect(describeMember({}).includes('remember')).toBe(false);
+  });
+
+  it('passes the member\'s own training to the prompt, capped (#1010)', async () => {
+    start();
+    const t = await signUp('tr@example.com');
+    const training = ['Workouts: 9 in the last 28 days (2.3 per week)', 'Thu 30 Oct (yesterday): Upper push, 52 min, 18 sets'];
+    const res = await chat(t, { turns: [{ role: 'member', text: 'My progression over the last few days' }], context: { training } });
+    expect(res.statusCode).toBe(200);
+    expect(calls[0]!.context).toEqual({ training });
+    expect(describeMember({ training })).toContain('Their training (newest first):\nWorkouts: 9');
+    expect(describeMember({}).includes('Their training')).toBe(false);
+    const long = await chat(t, { turns: [{ role: 'member', text: 'Hi' }], context: { training: ['x'.repeat(161)] } });
+    expect(long.statusCode).toBe(400);
+    const many = await chat(t, { turns: [{ role: 'member', text: 'Hi' }], context: { training: Array(25).fill('x') } });
+    expect(many.statusCode).toBe(400);
   });
 
   it('asks for neutral wording when pronouns are not set', () => {

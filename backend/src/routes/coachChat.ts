@@ -25,6 +25,8 @@ const body = z.object({
       callName: z.string().trim().max(30).optional(),
       memory: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
       exercises: z.array(z.string().trim().min(1).max(60)).max(400).optional(),
+      /** The member's training digest (#1010): CoachDigest lines from the app. */
+      training: z.array(z.string().trim().min(1).max(160)).max(24).optional(),
     })
     .default({}),
   /** JPEG of the machine in front of the member (#856), base64, sent with the last message. */

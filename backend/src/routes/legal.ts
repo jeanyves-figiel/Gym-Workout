@@ -6,7 +6,7 @@ import type { Config } from '../config.ts';
  * Same URLs serve App Store Connect (Privacy Policy URL, Support URL, custom EULA) and the app's Account links.
  * Operator, address and contact come from env (`LEGAL_*`); unset values render as a visible placeholder.
  */
-export const LEGAL_UPDATED = '2026-10-30';
+export const LEGAL_UPDATED = '2026-10-31';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -113,7 +113,7 @@ const privacy = (l: Legal) => `
 <h3>AI features (Anthropic)</h3>
 <p>Some features send data to Anthropic (Claude), an AI provider, to answer. The app asks before the first one sends anything, and you can turn each kind off any time in Settings → AI &amp; privacy (off: Coach answers on your iPhone only). Each one only runs when you use it. Never sent: your name, email or account id. Anthropic does not use it to train models and deletes it within 30 days (kept only for abuse monitoring); our server keeps only counts per day (for daily limits and costs).</p>
 <ul>
-<li><b>Ask Coach</b> (chat, also from Add exercises and Build as you go): your messages, training settings (goal, level, session length, equipment, readiness), your pronouns and call term (a first name is replaced on your iPhone, never sent), what the screen you ask from shows (an exercise, a chart, a day) and a machine photo if you snap one.</li>
+<li><b>Ask Coach</b> (chat, also from Add exercises and Build as you go): your messages, training settings (goal, level, session length, equipment, readiness), your pronouns and call term (a first name is replaced on your iPhone, never sent), what the screen you ask from shows (an exercise, a chart, a day), a summary of your own logged training (recent workouts with sets and weights, lift trends, body weight) so Coach can answer progress questions, and a machine photo if you snap one.</li>
 <li><b>Talk to Coach mid-set</b>: the words you said and the set on screen (exercise, weight, reps, effort), when the app can't answer on the iPhone.</li>
 <li><b>Coach's week review</b>: a summary of the week (workouts done and skipped, new bests, sleep, heart rate variability against your usual, Mind check-ins) and next week's workouts. Sleep, HRV and mood are health data: they are sent only when the review runs.</li>
 <li><b>Plan setup by talking to Coach</b>: the sentence you typed or said and the plan form's answers.</li>

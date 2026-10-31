@@ -34,10 +34,14 @@ public struct CoachChatContext: Codable, Sendable, Equatable {
     public var memory: [String]?
     /// Exercise names Coach may hand back (#856, freestyle screen).
     public var exercises: [String]?
+    /// The member's own training (#1010): recent workouts, lift trends, body weight (`CoachDigest`), no ids.
+    public var training: [String]?
 
     public init(goal: String? = nil, level: String? = nil, sessionMinutes: Int? = nil, equipment: [String]? = nil,
                 readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil, screen: String? = nil, focus: String? = nil,
-                pronouns: String? = nil, callName: String? = nil, memory: [String]? = nil, exercises: [String]? = nil) {
+                pronouns: String? = nil, callName: String? = nil, memory: [String]? = nil, exercises: [String]? = nil,
+                training: [String]? = nil) {
+        self.training = training
         self.memory = memory
         self.exercises = exercises
         self.pronouns = pronouns

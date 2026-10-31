@@ -68,7 +68,15 @@ extension AppModel {
                                 // What the coach remembers (#495), within the server's limits.
                                 memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) },
                                 // Building as they go (#856): the names Coach may hand back as exercises to add.
-                                exercises: focus?.wantsExercises == true ? Freestyle.coachNames(profile: p) : nil)
+                                exercises: focus?.wantsExercises == true ? Freestyle.coachNames(profile: p) : nil,
+                                // Their own workouts, lift trends and body weight (#1010), so progress questions get real numbers.
+                                training: coachTraining)
+    }
+
+    /// The member's training digest for Coach (#1010): no ids, capped like the server.
+    var coachTraining: [String]? {
+        let lines = CoachDigest.lines(records: history, weights: measurementSeries(.weight))
+        return lines.isEmpty ? nil : lines
     }
 
     /// Throws when the server can't be reached, so the chat shows an error card with Retry (#539).
