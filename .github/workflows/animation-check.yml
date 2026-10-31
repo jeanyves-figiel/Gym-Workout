@@ -1,0 +1,37 @@
+# 2D exercise animation checks (#229, #719, #1020): joints jump, limbs stretch, sinks into the floor, bends the
+# wrong way (check.py), and hands off the grip, feet off the plates, figure floating in the air (kit2d.py).
+# Fails on a flag not listed with a reason in the scripts' allow lists.
+name: Animation check
+on:
+  pull_request:
+    paths:
+      - 'ios/Tools/illustrations/*.py'
+      - '.github/workflows/animation-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  coherence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet numpy==2.5.3 pillow==12.3.0
+      - run: python3 ios/Tools/illustrations/check.py
+  kit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get install -y --no-install-recommends libcairo2
+      - run: pip install --quiet numpy==2.5.3 scipy==1.18.1 pillow==12.3.0 cairosvg==2.7.1
+      - run: python3 ios/Tools/illustrations/kit2d.py --shard ${{ matrix.shard }}/4

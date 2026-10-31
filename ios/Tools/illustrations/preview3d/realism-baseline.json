@@ -2,25 +2,15 @@
 "archer-pull-up": [
 "through"
 ],
-"assisted-dip": [
-"limb",
-"through"
-],
 "assisted-pull-up": [
 "through"
 ],
 "barbell-thruster": [
 "through"
 ],
-"cable-external-rotation": [
-"limb"
-],
 "cable-hip-adduction": [
 "limb",
 "through"
-],
-"cable-lateral-raise": [
-"limb"
 ],
 "cable-low-high-chop": [
 "limb"
@@ -55,17 +45,10 @@
 "muscle-up": [
 "through"
 ],
-"pendulum-squat": [
-"limb",
-"through"
-],
 "prone-pulldown": [
 "limb"
 ],
 "rotational-throw": [
-"limb"
-],
-"seated-dip-machine": [
 "limb"
 ],
 "side-delt-stretch": [
@@ -73,9 +56,6 @@
 ],
 "side-lying-external-rotation": [
 "through"
-],
-"single-arm-pulldown": [
-"limb"
 ],
 "ski-erg": [
 "through"

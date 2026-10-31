@@ -346,7 +346,7 @@ def _wipers_key(tilt):
     return {n: [round(float(c), 1) for c in v] for n, v in J.items()}
 
 
-SEATED = ("butterfly", "hip-90-90", "windshield-wipers", "sleeper-stretch")
+SEATED = ("butterfly", "hip-90-90", "windshield-wipers", "sleeper-stretch", "cable-external-rotation")
 
 
 def _sleeper(k, ang):
@@ -376,6 +376,23 @@ def _sleeper(k, ang):
 def seated_scenes(ex, e):
     """Floor exercises drawn from the front with no depth, authored in 3D (#1020)."""
     if ex not in SEATED:
+        return
+    if ex == "cable-external-rotation":
+        # elbow at the side, forearm turning out from across the belly (the 2D front view put the start hand
+        # behind the body and the cable through it)
+        for k, fdir in zip(e["k"], ((0.75, -0.08, 0.65), (1.0, -0.05, 0.0), None)):
+            if fdir is None:
+                continue
+            J = k["j"]; E = np.asarray(J["elbowN"], float)
+            f = np.asarray(fdir, float); f /= np.linalg.norm(f)
+            W = E + 30.0 * f; H = W + 9.0 * f
+            J["wristN"] = [round(float(c), 1) for c in W]; J["handN"] = [round(float(c), 1) for c in H]
+            for p in k["p"]:
+                if p["k"] == "rod" and p.get("s") == "handle" and p["a"][1] > 100:
+                    p["a"] = [round(float(H[0] + 2), 1), round(float(H[1] - 6), 1), round(float(H[2]), 1)]
+                    p["b"] = [round(float(H[0] + 2), 1), round(float(H[1] + 6), 1), round(float(H[2]), 1)]
+                elif p["k"] == "rod" and p.get("s") == "cable" and p["b"][1] > 100 and abs(p["b"][2] - p["a"][2]) > 40:
+                    p["b"] = [round(float(H[0] + 2), 1), round(float(H[1]), 1), round(float(H[2]), 1)]
         return
     if ex == "sleeper-stretch":
         for k, ang in zip(e["k"], (0.0, 45.0, 70.0)):
@@ -790,6 +807,37 @@ def lift_hang(ex, keys):
                     if e in p:
                         p[e] = [p[e][0], round(p[e][1] + lift, 1), p[e][2]]
     return lift
+
+
+def side_levers(ex, keys):
+    """Seated dip machine: the 2D side view drew the two lever arms as one diagonal rod across the lap and the
+    hands at the figure's shoulder width, inside the hips. Each lever runs from the pivot to its own handle beside
+    the hip, the hands on them (#1020)."""
+    if ex != "seated-dip-machine":
+        return
+    Z = 30.0
+    for k in keys:
+        J = k["j"]
+        hands = {d: np.asarray(J["hand" + d], float) for d in "NF"}
+        pivot = None
+        keep = []
+        for p in k["p"]:
+            if p["k"] == "rod" and p.get("s") != "cable" and 40 < p["a"][1] < 140 and 40 < p["b"][1] < 140 and \
+                    min(np.linalg.norm(np.asarray(p[e], float) - h) for e in ("a", "b") for h in hands.values()) < 14:
+                pivot = p["a"] if np.linalg.norm(np.asarray(p["a"], float) - hands["N"]) > 30 else pivot
+                continue
+            keep.append(p)
+        if pivot is None:
+            continue
+        for d, sz in (("N", 1.0), ("F", -1.0)):
+            h = hands[d].copy(); h[2] = sz * Z
+            for n, dz in (("hand", 0.0), ("wrist", 0.0)):
+                J[n + d] = [J[n + d][0], J[n + d][1], round(sz * Z, 1)]
+            J["elbow" + d] = [J["elbow" + d][0], J["elbow" + d][1], round(sz * (Z - 4), 1)]
+            keep.append(dict(k="rod", a=[pivot[0], pivot[1], sz * Z], b=[round(float(h[0]), 1), round(float(h[1]), 1), sz * Z], r=3.5))
+            keep.append(dict(k="rod", a=[round(float(h[0] - 7), 1), round(float(h[1]), 1), sz * Z],
+                             b=[round(float(h[0] + 7), 1), round(float(h[1]), 1), sz * Z], r=3.0, s="handle"))
+        k["p"][:] = keep
 
 
 def parallel_grips(ex, keys):
@@ -1416,13 +1464,16 @@ def arms_clear(ex, keys, R, iters=5):
     for k in keys:
         before = copy.deepcopy(k)
         g0 = grip_gaps(k)
+        lost = lambda g1: len(g1) < len(g0) or any(b > max(a, 6.0) + 0.5 for a, b in zip(g0, g1))
         _arms_clear_key(k, R, names, iters)
-        g1 = grip_gaps(k)
-        if len(g1) < len(g0) or any(b > max(a, 6.0) + 0.5 for a, b in zip(g0, g1)):     # lost the grip: keep as drawn
-            k.clear(); k.update(before)
+        if lost(grip_gaps(k)):            # lost the grip: try moving the arm straight out to the side instead
+            k.clear(); k.update(copy.deepcopy(before))
+            _arms_clear_key(k, R, names, iters, lateral=True)
+            if lost(grip_gaps(k)):        # still lost: keep as drawn
+                k.clear(); k.update(before)
 
 
-def _arms_clear_key(k, R, names, iters):
+def _arms_clear_key(k, R, names, iters, lateral=False):
     from scipy.spatial import cKDTree
     if True:
         for _ in range(iters):
@@ -1442,7 +1493,10 @@ def _arms_clear_key(k, R, names, iters):
                         carry = [(q, "c") for q in k["p"] if q["k"] == h[0] and np.allclose(q["c"], h[2])]
                     elif h[0] == "rod":
                         q = next((q for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0]) and np.allclose(q["b"], h[2][1])), None)
-                        if q is None or q.get("s") == "cable":     # a bare cable in the fist: the 2D chop's handle, left as drawn
+                        if q is not None and q.get("s") == "cable":     # the fist reads the cable: hold its handle
+                            q = next((c for c in k["p"] if c["k"] == "rod" and c.get("s") == "handle" and
+                                      min(np.linalg.norm(np.asarray(c[e], float) - J["hand" + d]) for e in ("a", "b")) < 14), None)
+                        if q is None:      # a bare cable with no handle near: left as drawn
                             continue
                         if q.get("s") == "band" or (q.get("s") == "handle" and np.linalg.norm(np.asarray(q["a"]) - np.asarray(q["b"])) < 40):
                             carry = [(c, e) for c in k["p"] if c["k"] == "rod" and c.get("s") in ("cable", "band")
@@ -1475,6 +1529,9 @@ def _arms_clear_key(k, R, names, iters):
                 if np.linalg.norm(n) < 1e-3:
                     continue
                 v = n / np.linalg.norm(n) * (float(np.percentile(dep[inside], 90)) + 1.0)
+                if lateral:          # out to the arm's own side, same distance
+                    sz = np.sign(J["shoulder" + d][2] - J["shoulder"][2]) or 1.0
+                    v = np.array([0.0, 0.0, sz * np.linalg.norm(v)])
                 v[1] = max(v[1], 2.0 - min(J["hand" + d][1], J["wrist" + d][1]))   # never into the floor
                 if isinstance(carry, tuple):
                     q = carry[1]
@@ -1693,6 +1750,7 @@ def run(ids=None):
         bar_clear(ex, keys)
         handles(ex, keys)
         parallel_grips(ex, keys)
+        side_levers(ex, keys)
         machine_parts(ex, keys)
         straps(ex, keys)
         lift_hang(ex, keys)
