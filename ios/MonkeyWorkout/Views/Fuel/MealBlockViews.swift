@@ -119,7 +119,10 @@ struct MyPlansCard: View {
     @Environment(AppModel.self) private var model
     @State private var store = FuelStore.shared
     @State private var editing: NamedMealPlan?
-    let replan: () -> Void
+    @State private var creating = false
+    @State private var openId: UUID?
+    /// Re-plans the days; true = say how many meals were planned (not after a delete).
+    let replan: (_ announce: Bool) -> Void
 
     var body: some View {
         let cal = model.planCalendar
@@ -144,6 +147,7 @@ struct MyPlansCard: View {
                 let p = NamedMealPlan(name: first ? "My plan" : "New plan", blocks: [MealBlock(pattern: .lunchDinner, days: 7)],
                                       periods: first ? [MealPeriod(from: store.key(Date()))] : [])
                 store.savePlan(p)
+                creating = true
                 editing = p
             } label: {
                 Label("New plan", systemImage: "plus").font(Theme.label(13)).foregroundStyle(.white)
@@ -152,14 +156,15 @@ struct MyPlansCard: View {
                         .strokeBorder(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
             }
             .buttonStyle(.plain)
-            Stepper(value: Binding(get: { store.saved.people }, set: { store.setPlanOptions(people: $0) }), in: 1...8) {
-                Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people")").font(Theme.display(16))
-            }
-            Text("Meals follow each day's training, your diet and favourites, use what you have first, and don't repeat within 3 days. Batch dinners become next day's lunch when that day has lunch.")
+            Text("Meals follow each day's training, your diet and favourites, use what you have first, and come back as often as your Variety pick says. Batch dinners become next day's lunch when that day has lunch.")
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
         }
         .foregroundStyle(.white)
-        .sheet(item: $editing, onDismiss: replan) { p in MealPlanEditor(planId: p.id) }
+        // Closing the plan sheet (button, ✕ or swipe) always re-plans the days (#1015): no empty days to fill by hand.
+        .sheet(item: $editing, onDismiss: {
+            creating = false
+            replan(store.book.plans.contains { $0.id == openId })
+        }) { p in MealPlanEditor(planId: p.id, isNew: creating).onAppear { openId = p.id } }
     }
 
     private func label(_ t: String) -> some View {
@@ -167,7 +172,7 @@ struct MyPlansCard: View {
     }
 
     private func card(_ p: NamedMealPlan, book: MealPlanBook, active: Bool, cal: Calendar) -> some View {
-        Button { editing = p } label: {
+        Button { creating = false; editing = p } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top) {
                     Text(p.name).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
@@ -179,6 +184,8 @@ struct MyPlansCard: View {
                     }
                 }
                 Text(MealPlanFormat.summary(p)).font(.caption.weight(.semibold)).opacity(0.9).lineLimit(2)
+                Text("\(store.saved.people) \(store.saved.people == 1 ? "person" : "people") · \(store.saved.budget.map { "\(BudgetFormat.money($0.rounded())) a week" } ?? "no budget limit")")
+                    .font(.caption.weight(.semibold)).opacity(0.9).lineLimit(1)
                 HStack(spacing: 5) {
                     ForEach(p.periods.isEmpty ? ["Not scheduled"] : p.periods.map { MealPlanFormat.period($0, cal) }, id: \.self) { t in
                         Text(t).font(Theme.label(10)).lineLimit(1)
@@ -194,12 +201,20 @@ struct MyPlansCard: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button("Edit", systemImage: "pencil") { editing = p }
-            Button("Delete plan", systemImage: "trash", role: .destructive) { MealPlanDelete.run(p) { replan() } }
+            Button("Edit", systemImage: "pencil") { creating = false; editing = p }
+            Button("Delete plan", systemImage: "trash", role: .destructive) { MealPlanDelete.run(p) { replan(false) } }
         }
         .accessibilityLabel("\(p.name)\(active ? ", active today" : ""). Edit")
-        .accessibilityAction(named: "Delete plan") { MealPlanDelete.run(p) { replan() } }
+        .accessibilityAction(named: "Delete plan") { MealPlanDelete.run(p) { replan(false) } }
     }
+}
+
+/// One choice on the plan sheet's variety cards (#1015).
+private struct VarietyCard: Identifiable {
+    let id: MealVariety
+    let title: String
+    let detail: String
+    let colors: [Color]
 }
 
 /// Deletes a named plan with an Undo bar that brings back the plan and its planned meals.
@@ -274,13 +289,17 @@ struct PlanLanes: View {
     }
 }
 
-/// One named plan: name, blocks, repeat, when it runs, delete. Saves as it's changed.
+/// One named plan: name, blocks, repeat, when it runs, people, budget, delete. Saves as it's changed; the sticky
+/// button (#1015) confirms and closes, and closing fills the days.
 struct MealPlanEditor: View {
     let planId: UUID
+    var isNew = false
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     @State private var store = FuelStore.shared
     @State private var editing: MealBlock?
+    @State private var ownBudget = false
+    @State private var preview: (week: [Recipe], distinct: Int)?
 
     private var plan: NamedMealPlan? { store.book.plans.first { $0.id == planId } }
 
@@ -323,6 +342,15 @@ struct MealPlanEditor: View {
                         }
                         Text(p.periods.isEmpty ? "Not scheduled: add dates to use it." : "Days no plan covers get nothing planned. Where plans overlap, the dates that start last win.")
                             .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                        label("FOR")
+                        Stepper(value: Binding(get: { store.saved.people }, set: { store.setPlanOptions(people: $0) }), in: 1...8) {
+                            Text("\(store.saved.people) \(store.saved.people == 1 ? "person" : "people")").font(Theme.display(16))
+                        }
+                        .accessibilityIdentifier("fuel.plan.people")
+                        label("BUDGET A WEEK")
+                        budget()
+                        label("VARIETY")
+                        variety()
                         Button {
                             dismiss()
                             // The meal list is re-planned when the sheet closes.
@@ -338,13 +366,111 @@ struct MealPlanEditor: View {
                     .padding(16)
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                Button { dismiss() } label: {
+                    Label(isNew ? "SAVE & PLAN MY DAYS" : "SAVE & RE-PLAN", systemImage: "wand.and.stars")
+                }
+                .buttonStyle(LimeButtonStyle())
+                .accessibilityHint("Closes and fills your days, keeping meals you picked")
+                .accessibilityIdentifier("fuel.plan.save")
+                .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 6)
+                .background(LinearGradient(colors: [Theme.bg.opacity(0), Theme.bg], startPoint: .top, endPoint: .center).ignoresSafeArea())
+            }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(plan?.name ?? "Plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
             .sheet(item: $editing) { b in MealBlockSheet(planId: planId, blockId: b.id) }
+            // The plan is re-planned when this sheet closes.
+            .sheet(isPresented: $ownBudget) { BudgetSheet(replan: {}).presentationDetents([.large]) }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Same meals / Some variety / Always new as cards (design B), with a live preview of the dinners it gives (C).
+    private func variety() -> some View {
+        let current = store.saved.variety ?? .varied
+        let cards: [VarietyCard] = [
+            VarietyCard(id: .same, title: "🔁 Same meals", detail: "A few favourites on repeat · simpler shopping",
+             colors: [Color(red: 0.18, green: 0.72, blue: 0.63), Color(red: 0.23, green: 0.53, blue: 0.94)]),
+            VarietyCard(id: .varied, title: "⚖️ Some variety", detail: "No meal twice in 3 days",
+             colors: [Color(red: 0.48, green: 0.3, blue: 0.94), Color(red: 0.9, green: 0.31, blue: 0.65)]),
+            VarietyCard(id: .new, title: "🌈 Always new", detail: "Different every day for 2 weeks",
+             colors: [Color(red: 0.94, green: 0.63, blue: 0.23), Color(red: 0.93, green: 0.31, blue: 0.54)]),
+        ]
+        return VStack(alignment: .leading, spacing: 8) {
+            ForEach(cards) { card in
+                let on = card.id == current
+                Button { store.setVariety(card.id) } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(card.title).font(Theme.display(16))
+                            Text(card.detail).font(.caption.weight(.semibold)).opacity(0.9)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.system(size: 20, weight: .heavy))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(LinearGradient(colors: card.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    .opacity(on ? 1 : 0.55)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(card.title.dropFirst(2)). \(card.detail)")
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+            if let preview, !preview.week.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("NEXT 7").font(Theme.label(10)).tracking(1.2).foregroundStyle(Theme.muted)
+                        Spacer()
+                        Text("≈ \(preview.distinct) different in 4 weeks").font(Theme.label(11)).foregroundStyle(Theme.lime)
+                    }
+                    HStack(spacing: 5) {
+                        ForEach(Array(preview.week.enumerated()), id: \.offset) { _, r in
+                            Text(r.emoji).font(.system(size: 20))
+                                .frame(maxWidth: .infinity).padding(.vertical, 7)
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
+                        }
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Next meals: \(preview.week.map(\.name).joined(separator: ", ")). About \(preview.distinct) different in 4 weeks.")
+            }
+        }
+        .task(id: "\(current.rawValue)-\(store.saved.people)-\(store.version)") {
+            preview = model.mealVarietyPreview(current)
+        }
+    }
+
+    /// Saver / Normal / Treat for these people and meals, the member's own amount, or no limit (#1015).
+    private func budget() -> some View {
+        let market = BudgetFormat.market
+        let current = store.saved.budget.map { BudgetFormat.whole($0) }
+        let value: (BudgetLevel) -> Double = { BudgetFormat.whole($0.weekly(people: store.saved.people, share: store.mealShare)) }
+        let isLevel = BudgetLevel.allCases.contains { l in current.map { abs($0 - value(l)) < 0.5 } ?? false }
+        let money: (Double) -> String = { $0.formatted(.currency(code: market.currency).precision(.fractionLength(0))) }
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach(BudgetLevel.allCases) { level in
+                    let v = value(level)
+                    chip("\(level.emoji) \(level.label) \(Int(v))", on: current.map { abs($0 - v) < 0.5 } ?? false) {
+                        store.setBudget(BudgetFormat.toCHF(v))
+                    }
+                }
+            }
+            HStack(spacing: 6) {
+                chip(current != nil && !isLevel ? "✏️ Own · \(money(current ?? 0))" : "✏️ Own", on: current != nil && !isLevel) { ownBudget = true }
+                chip("No limit", on: current == nil) { store.setBudget(nil) }
+            }
+            Text("\(market.currency) for everyone, \(Int((store.mealShare * 21).rounded())) meals a week. The plan picks recipes to fit.")
+                .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+        }
+        .accessibilityIdentifier("fuel.plan.budget")
     }
 
     private func update(_ change: (inout NamedMealPlan) -> Void) {
