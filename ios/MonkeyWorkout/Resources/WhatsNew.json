@@ -1,35 +1,29 @@
 {
-  "id": "2026-10-31.1",
+  "id": "2026-10-31.2",
   "items": [
     {
-      "symbol": "camera.viewfinder",
-      "tint": "strength",
-      "title": "Film from any side",
-      "body": "Front, side or 45°, no buttons. The screen edge shows if you're in frame, and weight is asked only when it can't be read."
-    },
-    {
-      "symbol": "lock.shield.fill",
+      "symbol": "bubble.left.and.text.bubble.right.fill",
       "tint": "cardio",
-      "title": "Coach's AI asks first",
-      "body": "Pick what Coach's AI may see. Change it any time in Settings → Account → AI & privacy."
+      "title": "Coach does it for you",
+      "body": "Tell Coach you drank water, ate, how you feel, or to move, skip or swap today's workout. Undo any time."
     },
     {
-      "symbol": "book.fill",
+      "symbol": "ruler.fill",
       "tint": "mobility",
-      "title": "How it works, with the science",
-      "body": "Every rule cites its studies. New topics: Warm-up, Pain, Life stages and Coach."
+      "title": "Coach logs your measurements",
+      "body": "Say \"weight is now 66\" or \"waist 82 cm\" and it's saved, with Undo."
     },
     {
-      "symbol": "person.crop.circle",
+      "symbol": "xmark.circle.fill",
+      "tint": "strength",
+      "title": "Close a custom session any time",
+      "body": "What you added stays. Resume it from Train."
+    },
+    {
+      "symbol": "arrow.down.circle.fill",
       "tint": "power",
-      "title": "Me keeps the tab bar",
-      "body": "Your profile and Settings open inside the tab you're on."
-    },
-    {
-      "symbol": "wrench.and.screwdriver.fill",
-      "tint": "warmup",
-      "title": "Lots of little fixes",
-      "body": "Skip a climb after your workout, Watch follows your After the last set setting, longer Coach chats."
+      "title": "See when your moves were updated",
+      "body": "Settings → HD animations shows the pack date, last check and update. Train shows a pill while new moves download."
     }
   ]
 }

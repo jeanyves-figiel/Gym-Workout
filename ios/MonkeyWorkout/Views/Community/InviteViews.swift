@@ -38,6 +38,7 @@ struct InviteView: View {
                     .padding(.top, 8)
             }
             .padding(16)
+            .scopedRefreshable { await store.load(api: model.api, userId: model.user?.id) }
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
@@ -49,7 +50,6 @@ struct InviteView: View {
             #endif
             await store.load(api: model.api, userId: model.user?.id)
         }
-        .refreshable { await store.load(api: model.api, userId: model.user?.id) }
     }
 
     private var code: String { store.code ?? "·······" }

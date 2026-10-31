@@ -360,6 +360,8 @@ struct WorkoutLibraryView: View {
                 }
             }
             .padding(16)
+            // Not in pick mode (#1005): that's a sheet, the pull closes it.
+            .scopedRefreshable(enabled: onPick == nil) { memberState = await model.loadSharedLibrary(query: query) }
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
@@ -369,7 +371,6 @@ struct WorkoutLibraryView: View {
         .searchable(text: $query, prompt: "Name, muscle or goal")
         .onSubmit(of: .search) { Task { memberState = await model.loadSharedLibrary(query: query) } }
         .task { memberState = await model.loadSharedLibrary() }
-        .refreshable { memberState = await model.loadSharedLibrary(query: query) }
         .toolbar {
             if onPick == nil {
                 ToolbarItem(placement: .topBarTrailing) {
