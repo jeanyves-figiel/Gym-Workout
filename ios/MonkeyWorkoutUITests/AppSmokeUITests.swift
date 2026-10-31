@@ -93,7 +93,7 @@ final class AppSmokeUITests: XCTestCase {
         XCTAssertNotNil(start, "Start workout on Train")
         start?.tap()
 
-        let menu = app.buttons["Workout menu"]
+        let menu = app.buttons["player.close"]
         XCTAssertTrue(menu.waitForExistence(timeout: 15), "Player open")
 
         // Warm-up and timed items have START instead of SET n DONE: skip to the first loggable set.
@@ -125,7 +125,7 @@ final class AppSmokeUITests: XCTestCase {
         }
         XCTAssertNotNil(after, "Set logged")
 
-        // Finish from the workout map (#538).
+        // Finish from the workout map (#538), opened by ✕ (#1025).
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         menu.tap()
         XCTAssertTrue(app.staticTexts["What's left"].waitForExistence(timeout: 5), "Workout map")

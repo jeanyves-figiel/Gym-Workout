@@ -51,8 +51,8 @@ final class WorkoutMapUITests: XCTestCase {
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Start ")).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 10), "A pick to start")
         start.tap()
-        let menu = app.buttons["Workout menu"].firstMatch
-        XCTAssertTrue(menu.waitForExistence(timeout: 10), "Player with workout menu")
+        let menu = app.buttons["player.close"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "Player ✕ (opens the workout map, #1025)")
         XCTAssertTrue(waitEnabled(menu), "Menu enabled once an exercise is in")
         menu.tap()
         let discard = app.buttons["Discard"].firstMatch
@@ -84,6 +84,10 @@ final class WorkoutMapUITests: XCTestCase {
         let close = app.buttons["player.close"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 10), "Player ✕")
         close.tap()
+        // #1025 A: ✕ opens the workout map; Pause & leave keeps it.
+        let pause = app.buttons["player.pauseLeave"].firstMatch
+        XCTAssertTrue(pause.waitForExistence(timeout: 5), "Pause & leave in the map")
+        pause.tap()
         XCTAssertTrue(app.staticTexts["Workout kept"].firstMatch.waitForExistence(timeout: 5), "Kept, not discarded")
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
                                              object: app.staticTexts["Workout kept"].firstMatch)
