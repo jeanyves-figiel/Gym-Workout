@@ -321,7 +321,7 @@ describe('freestyle: Coach adds exercises (#856)', () => {
 });
 
 describe('Coach can act (#999)', () => {
-  const none = { glasses: null, foods: null, meal: null, mood: null, weekday: null, from: null, to: null };
+  const none = { glasses: null, foods: null, meal: null, mood: null, weekday: null, from: null, to: null, minutes: null, on: null, value: null };
   const ctx: ChatContext = { weekday: 5, todayExercises: ['Back squat', 'Leg press'] };
 
   it('keeps allowlisted actions in range, drops the rest', () => {
@@ -343,6 +343,25 @@ describe('Coach can act (#999)', () => {
       { ...none, kind: 'move', weekday: 6 },
       { ...none, kind: 'swap', from: 'Back squat', to: 'Hack squat' },
     ]);
+  });
+
+  it('logs only earlier days, keeps one reminder and one voice setting', () => {
+    const out = cleanDo([
+      { ...none, kind: 'done', weekday: 2 },
+      { ...none, kind: 'done', weekday: 2 },
+      { ...none, kind: 'done', weekday: 6 },
+      { ...none, kind: 'reminder', minutes: 390, on: true },
+      { ...none, kind: 'reminder', on: false },
+      { ...none, kind: 'voice', value: 'loud' as never },
+      { ...none, kind: 'voice', value: 'never' },
+    ], ctx);
+    expect(out).toEqual([
+      { ...none, kind: 'done', weekday: 2 },
+      { ...none, kind: 'reminder', minutes: 390, on: true },
+      { ...none, kind: 'voice', value: 'never' },
+    ]);
+    expect(cleanDo([{ ...none, kind: 'reminder', minutes: 2000, on: true }], ctx)).toEqual([]);
+    expect(cleanDo([{ ...none, kind: 'reminder', on: false }], ctx)).toEqual([{ ...none, kind: 'reminder', on: false }]);
   });
 
   it('caps at five, null-safe', () => {

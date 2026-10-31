@@ -14,6 +14,12 @@ struct CoachTask: Identifiable, Equatable {
         case move(sessionId: String, weekday: Int, title: String)
         case skip(sessionId: String, title: String)
         case swap(sessionId: String, uid: String, from: String, toId: String, to: String)
+        /// An earlier workout of this week logged as planned.
+        case done(sessionId: String, weekday: Int, title: String)
+        /// Morning reminder of a workout day: a time, or nil = off.
+        case reminder(Int?)
+        /// When Coach reads answers aloud (Ask Coach setting).
+        case voice(AskCoachPref.Speak)
     }
 
     enum Status: Equatable { case waiting, done, undone, failed }
@@ -25,6 +31,9 @@ struct CoachTask: Identifiable, Equatable {
         case moves([SessionMove]?)
         case skip(String)
         case swap(String, [Block]?)
+        case record(UUID)
+        case notify(NotificationPrefs)
+        case voice(AskCoachPref.Speak)
     }
 
     let id = UUID()
@@ -38,7 +47,7 @@ struct CoachTask: Identifiable, Equatable {
     var instant: Bool {
         switch kind {
         case .water, .food, .mood: true
-        case .move, .skip, .swap: false
+        case .move, .skip, .swap, .done, .reminder, .voice: false
         }
     }
 
@@ -53,6 +62,9 @@ struct CoachTask: Identifiable, Equatable {
         case .move: "calendar"
         case .skip: "forward.end.fill"
         case .swap: "arrow.left.arrow.right"
+        case .done: "checkmark.seal.fill"
+        case .reminder: "bell.fill"
+        case .voice: "speaker.wave.2.fill"
         }
     }
 
@@ -64,6 +76,9 @@ struct CoachTask: Identifiable, Equatable {
         case let .move(_, wd, t): "Move \(t) to \(Self.dayNames[max(0, min(6, wd - 1))])"
         case let .skip(_, t): "Skip \(t) today"
         case let .swap(_, _, from, _, to): "\(from) → \(to)"
+        case let .done(_, wd, t): "\(t) on \(Self.dayNames[max(0, min(6, wd - 1))]) done"
+        case let .reminder(m): m.map { "Workout reminder at \(NotificationPrefs.clock($0))" } ?? "Workout reminders off"
+        case let .voice(v): "Read answers aloud: \(v.title.lowercased())"
         }
     }
 
@@ -76,6 +91,9 @@ struct CoachTask: Identifiable, Equatable {
         case let .move(_, wd, _): String(Self.dayNames[max(0, min(6, wd - 1))].prefix(3))
         case .skip: "Off"
         case .swap: "1"
+        case .done: "✓"
+        case let .reminder(m): m.map { NotificationPrefs.clock($0) } ?? "Off"
+        case let .voice(v): v == .never ? "Off" : "On"
         }
     }
 
@@ -87,6 +105,9 @@ struct CoachTask: Identifiable, Equatable {
         case .move: "MOVED"
         case .skip: "SKIPPED"
         case .swap: "SWAPPED"
+        case .done: "LOGGED"
+        case .reminder: "REMINDER SET"
+        case .voice: "SETTING CHANGED"
         }
     }
 
@@ -95,6 +116,8 @@ struct CoachTask: Identifiable, Equatable {
         case .move: "Move it"
         case .skip: "Skip it"
         case .swap: "Swap it"
+        case .done: "Log it"
+        case .reminder, .voice: "Change it"
         default: "Do it"
         }
     }
@@ -126,6 +149,9 @@ extension AppModel {
         case "mood": "Couldn't log your mood."
         case "move": "Couldn't move today's workout to that day."
         case "skip": "There's no workout left to skip today."
+        case "done": "There's no missed workout on that day to log."
+        case "reminder": "Couldn't set that reminder time."
+        case "voice": "Couldn't change that setting."
         case "swap": "Couldn't swap \(d.from ?? "that exercise") for \(d.to ?? "that one") in today's workout."
         default: "Coach can't do that one."
         }
@@ -163,6 +189,15 @@ extension AppModel {
             guard let item = blocks.flatMap(\.items).first(where: { Exercise.find($0.exerciseId)?.name.lowercased() == key }),
                   item.exerciseId != target.id, let name = Exercise.find(item.exerciseId)?.name else { return nil }
             return .swap(sessionId: s.id, uid: item.uid, from: name, toId: target.id, to: target.name)
+        case "done":
+            guard let wd = d.weekday, wd < todayWeekday, let s = missedSessions.first(where: { $0.weekday == wd }) else { return nil }
+            return .done(sessionId: s.id, weekday: wd, title: s.displayTitle)
+        case "reminder":
+            if d.on == false { return .reminder(nil) }
+            guard let m = d.minutes, (0..<1440).contains(m) else { return nil }
+            return .reminder(m)
+        case "voice":
+            return d.value.flatMap(AskCoachPref.Speak.init(rawValue:)).map(CoachTask.Kind.voice)
         default:
             return nil
         }
@@ -200,6 +235,19 @@ extension AppModel {
             let before = isEdited(id) ? blocks : nil
             swapInSession(id, uid: uid, to: toId)
             t.undo = .swap(id, before)
+        case let .done(id, _, _):
+            guard let s = missedSessions.first(where: { $0.id == id }) else { t.status = .failed; return t }
+            t.undo = .record(markMissedDone(s).id)
+        case let .reminder(m):
+            let n = NotificationManager.shared, before = n.prefs
+            if let m { n.prefs.reminderMinutes = m }
+            n.prefs.sessionReminders = m != nil
+            t.undo = .notify(before)
+            Task { await n.reschedule(self) }
+        case let .voice(v):
+            let before = AskCoachPref.speak
+            UserDefaults.standard.set(v.rawValue, forKey: AskCoachPref.speakKey)
+            t.undo = .voice(before)
         }
         t.status = .done
         return t
@@ -226,6 +274,13 @@ extension AppModel {
             unskip(id)
         case let .swap(id, blocks):
             restoreSessionEdit(id, to: blocks)
+        case let .record(id):
+            _ = undoWorkout(id)
+        case let .notify(prefs):
+            NotificationManager.shared.prefs = prefs
+            Task { await NotificationManager.shared.reschedule(self) }
+        case let .voice(v):
+            UserDefaults.standard.set(v.rawValue, forKey: AskCoachPref.speakKey)
         }
         t.status = .undone
         return t

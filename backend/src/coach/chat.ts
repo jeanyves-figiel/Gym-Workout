@@ -24,7 +24,9 @@ export const GIRTH_SIDES = ['left', 'right', 'none'] as const;
  * plan changes (move, skip, swap) wait for the member's tap; two or more come as one checklist. Never account,
  * payment, deleting data, community posts, sharing or privacy settings: those have no kind here.
  */
-export const DO_KINDS = ['water', 'food', 'mood', 'move', 'skip', 'swap'] as const;
+export const DO_KINDS = ['water', 'food', 'mood', 'move', 'skip', 'swap', 'done', 'reminder', 'voice'] as const;
+/** voice: when Coach reads answers aloud, as the app's Ask Coach setting. */
+export const DO_VOICE = ['whenTalking', 'always', 'never'] as const;
 export const DO_MEALS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 /** Most actions in one answer (#999). */
 export const MAX_DO = 5;
@@ -112,6 +114,12 @@ export interface CoachDo {
   /** swap: exercise of today's workout to replace, and the one to put in (names). */
   from: string | null;
   to: string | null;
+  /** reminder: time of the morning workout reminder, minutes after midnight (0 to 1439). */
+  minutes: number | null;
+  /** reminder: false turns it off. */
+  on: boolean | null;
+  /** voice: whenTalking, always or never. */
+  value: (typeof DO_VOICE)[number] | null;
 }
 
 export interface CoachAnswer {
@@ -158,7 +166,10 @@ Answering questions (#412):
   - move: move today's workout to another day ("move it to Saturday", "do it tomorrow") → weekday 1 Monday to 7 Sunday, using "Today is" below. Never a day before today.
   - skip: skip today's workout ("skip today", "not training today").
   - swap: replace one exercise of today's workout ("swap squats for leg press") → from = exact name from "Today's exercises", to = the exercise they want.
-  Logs (water, food, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip and swap wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Fields a kind doesn't use are null.
+  - done: they did an earlier workout of this week but didn't log it ("I did Tuesday's workout") → weekday of that day, before today. It is logged as planned.
+  - reminder: the morning reminder of a workout day ("remind me at 6:30", "stop the workout reminders") → minutes after midnight (6:30 = 390) and on true, or on false to turn it off.
+  - voice: whether you read answers aloud ("talk to me", "stop talking", "only when I speak") → value always, never or whenTalking.
+  Logs (water, food, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip, swap, done, reminder and voice wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Fields a kind doesn't use are null.
   You can't do anything else (account, email, password, payment, subscription, deleting data, community posts, sharing, privacy or AI settings). For those say kindly where it is in the app and add the matching "action" button. Never pretend you did something you can't.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
@@ -283,8 +294,11 @@ const schema = {
           weekday: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
           from: { anyOf: [{ type: 'null' }, { type: 'string' }] },
           to: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+          minutes: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
+          on: { anyOf: [{ type: 'null' }, { type: 'boolean' }] },
+          value: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...DO_VOICE] }] },
         },
-        required: ['kind', 'glasses', 'foods', 'meal', 'mood', 'weekday', 'from', 'to'],
+        required: ['kind', 'glasses', 'foods', 'meal', 'mood', 'weekday', 'from', 'to', 'minutes', 'on', 'value'],
         additionalProperties: false,
       },
     },
@@ -375,7 +389,7 @@ const int = (v: number | null | undefined, lo: number, hi: number) =>
  * today or later; a swap's "from" must be one of today's exercises when the app sent them. One skip, one move at most.
  */
 export const cleanDo = (list: CoachDo[] | null | undefined, context: ChatContext): CoachDo[] => {
-  const none = { glasses: null, foods: null, meal: null, mood: null, weekday: null, from: null, to: null };
+  const none = { glasses: null, foods: null, meal: null, mood: null, weekday: null, from: null, to: null, minutes: null, on: null, value: null };
   const today = int(context.weekday, 1, 7);
   const todays = new Map((context.todayExercises ?? []).map((n) => [n.trim().toLowerCase(), n]));
   const out: CoachDo[] = [];
@@ -413,10 +427,28 @@ export const cleanDo = (list: CoachDo[] | null | undefined, context: ChatContext
         if (known && to && known.toLowerCase() !== to.toLowerCase()) c = { ...none, kind: 'swap', from: known, to };
         break;
       }
+      case 'done': {
+        const weekday = int(d.weekday, 1, 7);
+        if (weekday && (!today || weekday < today)) c = { ...none, kind: 'done', weekday };
+        break;
+      }
+      case 'reminder': {
+        if (d.on === false) c = { ...none, kind: 'reminder', on: false };
+        else {
+          const minutes = int(d.minutes, 0, 1439);
+          if (minutes !== null) c = { ...none, kind: 'reminder', on: true, minutes };
+        }
+        break;
+      }
+      case 'voice':
+        if (d.value && DO_VOICE.includes(d.value)) c = { ...none, kind: 'voice', value: d.value };
+        break;
     }
     if (!c) continue;
-    // Skip and move both change today's workout: only the first of them counts.
+    // Skip and move both change today's workout: only the first of them counts. One reminder, one voice, one per day logged.
     if ((c.kind === 'skip' || c.kind === 'move') && out.some((o) => o.kind === 'skip' || o.kind === 'move')) continue;
+    if ((c.kind === 'reminder' || c.kind === 'voice') && out.some((o) => o.kind === c!.kind)) continue;
+    if (c.kind === 'done' && out.some((o) => o.kind === 'done' && o.weekday === c!.weekday)) continue;
     out.push(c);
     if (out.length >= MAX_DO) break;
   }

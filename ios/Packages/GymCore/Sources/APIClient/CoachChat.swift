@@ -80,7 +80,7 @@ public struct CoachChatAnswer<W: Decodable & Sendable>: Decodable, Sendable {
     public var doActions: [CoachChatDo]?
 }
 
-/// One thing Coach does (#999). `kind` water / food / mood / move / skip / swap; only its own fields are set.
+/// One thing Coach does (#999). `kind` water / food / mood / move / skip / swap / done / reminder / voice; only its own fields are set.
 public struct CoachChatDo: Codable, Sendable, Equatable {
     public var kind: String
     public var glasses: Int?
@@ -93,9 +93,17 @@ public struct CoachChatDo: Codable, Sendable, Equatable {
     public var weekday: Int?
     public var from: String?
     public var to: String?
+    /// reminder: minutes after midnight; `on` false turns it off.
+    public var minutes: Int?
+    public var on: Bool?
+    /// voice: whenTalking / always / never.
+    public var value: String?
 
     public init(kind: String, glasses: Int? = nil, foods: String? = nil, meal: String? = nil, mood: Int? = nil,
-                weekday: Int? = nil, from: String? = nil, to: String? = nil) {
+                weekday: Int? = nil, from: String? = nil, to: String? = nil, minutes: Int? = nil, on: Bool? = nil, value: String? = nil) {
+        self.minutes = minutes
+        self.on = on
+        self.value = value
         self.kind = kind
         self.glasses = glasses
         self.foods = foods
