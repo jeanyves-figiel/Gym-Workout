@@ -266,7 +266,7 @@ struct WeekDayStrip: View {
     @State private var editingTrip: SportTrip?
     @State private var restRequest: SportOffRequest?
 
-    struct DayPick: Identifiable { let id: Int }
+    struct DayPick: Identifiable, Hashable { let id: Int }
     struct SessionPick: Identifiable { let id: String }
     struct LaterPick: Identifiable { let session: String; let week: PlanCalendar.Week; var id: String { session + week.days[0] } }
     struct LaterDay: Identifiable { let week: PlanCalendar.Week; let weekday: Int; var id: String { week.days[weekday - 1] } }
@@ -296,7 +296,7 @@ struct WeekDayStrip: View {
             .sheet(item: Binding(get: { planningSport.map { SessionPick(id: $0) } }, set: { planningSport = $0?.id })) {
                 PlanSportSheet(day: $0.id, sport: model.profile?.otherSports.first?.sport)
             }
-            .sheet(item: $addingDay) { AddWorkoutSheet(weekday: $0.id) }
+            .navigationDestination(item: $addingDay) { AddWorkoutView(weekday: $0.id) }
             .sheet(item: $movingLater) { MoveSessionSheet(sessionId: $0.session, later: $0.week) }
             .sheet(item: $movingHere) { MoveHereSheet(week: $0.week, weekday: $0.weekday) }
             .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
