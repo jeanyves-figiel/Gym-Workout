@@ -63,6 +63,7 @@ struct AccountView: View {
         static let security = "Security 2-step two factor passkeys mfa"
         static let devices = "Signed-in devices sessions"
         static let lock = "Lock face id touch id biometric"
+        static let ai = "AI & privacy Coach Claude Anthropic consent data"
         static let export = "Export my data json download"
         static let signOut = "Sign out everywhere session"
         static let delete = "Delete account"
@@ -76,7 +77,7 @@ struct AccountView: View {
         static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift, garmin, bike]
         static let look = [style, widgets, hd, monkeyGrade]
-        static let account = [password, email, security, devices, lock, export, signOut, delete]
+        static let account = [password, email, security, devices, lock, ai, export, signOut, delete]
         static let help = [whatsNew, report, privacy, terms, support]
         static let all = you + training + watch + look + account + help
     }
@@ -404,6 +405,15 @@ struct AccountView: View {
                             .labelsHidden()
                             .tint(Theme.lime)
                     }
+                }
+                // Coach's AI (#972 C): what may go to Anthropic, a switch per feature.
+                if search.matches(Find.ai) {
+                    NavigationLink { AIPrivacyView() } label: {
+                        let n = AIFeature.allCases.filter { AIConsentStore.shared.allows($0) }.count
+                        SettingsRow(symbol: "sparkles", title: "AI & privacy", value: n == 0 ? "Off" : "\(n) of \(AIFeature.allCases.count) on")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.aiPrivacy")
                 }
                 if search.matches(Find.export) {
                     Button { export() } label: {

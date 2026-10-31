@@ -43,6 +43,7 @@ extension APIClient {
     public func foodScan(jpeg: Data, catalog: [GymScanItem], mode: String) async throws -> FoodScanResult {
         struct Body: Encodable { var photo: String; var catalog: [GymScanItem]; var mode: String }
         let body = Body(photo: jpeg.base64EncodedString(), catalog: catalog, mode: mode)
+        try await requireAI(.scans)
         return try await scanRequest("/v1/me/food-scan", body, as: FoodScanResult.self)
     }
 }

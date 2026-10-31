@@ -44,9 +44,9 @@
     "• Weekly challenges, levels and badges",
     "",
     "PRIVACY",
-    "No ads, no tracking. Health data stays with you and is never sold or shared. Delete your account and all its data from the app at any time.",
+    "No ads, no tracking. Your data is never sold. Coach's AI features (Anthropic) get only what each one needs, never your name or email, and are not used to train models. Delete your account and all its data from the app at any time.",
     "",
-    "MonkeyWorkout Pro unlocks Ask Coach and Generate-and-do-today. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the period; manage them in your Apple Account settings.",
+    "MonkeyWorkout Pro unlocks Ask Coach, Generate-and-do-today, gym scan, fridge scan and saving workouts from videos. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the period; manage them in your Apple Account settings.",
     "",
     "Terms of Use: https://workout.monkeygrade.cloud/terms",
     "Privacy Policy: https://workout.monkeygrade.cloud/privacy"
@@ -85,6 +85,7 @@
       "Apple Watch: install the Watch app, then start from the Watch's Home or from iPhone (Start on Watch).",
       "Form check: exercise page (Explore) > Check my form. The camera image is processed on device only; nothing is recorded or uploaded.",
       "Account deletion: Me > Settings > Delete account.",
+      "AI: Ask Coach, the weekly Coach review, Talk to Coach mid-set, plan setup, meal ideas, gym / fridge scans and Save from a video send only the data each needs to Anthropic (Claude), without name, email or account id; listed in the privacy policy section AI features.",
       "Community content: report and block on every post and profile; posts are filtered and hidden after 3 reports."
     ]
   }

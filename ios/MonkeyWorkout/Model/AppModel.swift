@@ -218,6 +218,8 @@ final class AppModel {
         await api.setOnSignedOut { [weak self] in
             Task { @MainActor in self?.sessionExpired() }
         }
+        // Third-party AI consent (#972): every call to Coach's AI asks first.
+        await api.setAIConsent { f in await AIConsentStore.consent(f) }
         guard await api.hasSession else {
             phase = .signedOut
             return

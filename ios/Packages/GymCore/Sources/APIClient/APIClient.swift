@@ -12,6 +12,8 @@ public actor APIClient {
     let now: @Sendable () -> Date
     private var refreshTask: Task<StoredTokens, Error>?
     private var onSignedOut: (@Sendable () -> Void)?
+    /// Third-party AI consent (#972), see `AIConsent.swift`.
+    var aiConsent: (@Sendable (AIFeature) async -> Bool)?
     /// "Confirm it's you" grant (#257), sent as `X-Reauth-Token` on account calls until it expires.
     var reauthGrant: (token: String, expiresAt: Date)?
 

@@ -92,7 +92,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSFaceIDUsageDescription: Unlock MonkeyWorkout with Face ID.
-        NSCameraUsageDescription: Take photos of machines for your own exercises, scan your gym for its map, scan your food, fridge or receipts for Fuel, check your exercise form and film your workout (read on this iPhone, nothing is sent; the review clip of your last set is deleted when you move on).
+        NSCameraUsageDescription: Take photos of machines for your own exercises, scan your gym for its map, scan your food, fridge or receipts for Fuel, check your exercise form and film your workout. Form check and filming stay on this iPhone (the review clip is deleted when you move on); gym, fridge and receipt scans send that one photo to Coach's AI (Anthropic), which doesn't keep it.
         NSMicrophoneUsageDescription: Talk to Coach in the app and during workouts (say done, a weight, or ask a question).
         NSSpeechRecognitionUsageDescription: Turns what you say to Coach into text, on your iPhone when it can. Only the words are sent to Coach.
         NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, steps, floors climbed, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness, count daily walking and stairs toward your level, and track progress, and to compute your Mind score.
@@ -145,7 +145,10 @@ targets:
     platform: iOS
     sources:
       - path: MonkeyWorkoutWidgets
-        excludes: [MonkeyWorkoutWidgets.entitlements]
+        excludes: [MonkeyWorkoutWidgets.entitlements, PrivacyInfo.xcprivacy]
+      # Own privacy manifest: widgets read the App Group's UserDefaults (#975).
+      - path: MonkeyWorkoutWidgets/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: Shared
       # Home Screen widgets (#297); the Monkey coach look draws the Watch's monkey.
       - path: HomeWidgets

@@ -8,7 +8,7 @@
 | Support URL | https://workout.monkeygrade.cloud/support |
 | License Agreement (EULA) | Custom: paste or link https://workout.monkeygrade.cloud/terms (or keep Apple standard EULA and add the Terms link to the description) |
 | App description | Must end with links to Terms of Use and Privacy Policy once subscriptions ship (3.1.2) |
-| Age rating | 12+ suggested (user-generated content with moderation; no unrestricted web access) |
+| Age rating | Answers in `listing.json`. Terms require 16+: set **Age Rating Override → 16+** in App Store Connect so the store rating matches (#975) |
 | Sign-in required | Yes: give App Review a demo account (email + password) in App Review Information |
 
 Staging copies for checking: https://workout-staging.monkeygrade.cloud/privacy, `/terms`, `/support`.
@@ -38,12 +38,14 @@ Set for staging and prod: MonkeyWorkout by Figiel, Schlieren, contact@monkeygrad
 | 5.1.1(i) privacy policy in app + ASC | Account → Legal & support → Privacy policy; sign-up and Sign in with Apple link it |
 | 5.1.1(v) account deletion | Account → Delete account (server delete + Sign in with Apple revoke) |
 | 5.1.2 data use | No tracking, no ads, no third-party SDKs (`NSPrivacyTracking` false) |
-| 5.1.3 health | HealthKit data not used for ads, not shared, not in iCloud; disclosed in policy; usage strings in `ios/project.yml` |
-| 1.2 user-generated content | Terms (zero tolerance), guidelines accepted on join, text filter, report, block, auto-hide after 3 reports |
+| 5.1.2(i) third-party AI | Privacy policy § AI features names Anthropic and what each feature sends (#973); the app asks before the first AI call (sheet with a switch per feature) and Settings → Account → AI & privacy keeps the switches; refused calls never leave the device (`APIClient.requireAI`, #972) |
+| 5.1.1 purpose strings | Every `NS…UsageDescription` in `ios/project.yml` says what is sent where (camera: scans go to Anthropic, #974) |
+| 5.1.3 health | HealthKit data not used for ads, not sold, not in iCloud; sleep, HRV and mood go to Anthropic only for Coach's week review (health management, disclosed in policy); usage strings in `ios/project.yml` |
+| 1.2 user-generated content | Terms (zero tolerance), guidelines accepted on join, word filter + AI check refuse objectionable text and photos, report, block, auto-hide after 3 reports |
 | 1.4.1 physical harm | Terms § Health and safety (not medical advice) |
 | 1.5 developer contact | Support page |
 | 3.1.2 subscriptions | Terms § Subscriptions (auto-renew, trial, cancel); paywall must show price, period, Terms + Privacy links (In-app subscriptions work) |
-| Privacy manifest | `ios/MonkeyWorkout/Resources/PrivacyInfo.xcprivacy` |
+| Privacy manifest | App `ios/MonkeyWorkout/Resources/PrivacyInfo.xcprivacy`, Watch `ios/MonkeyWorkoutWatch/PrivacyInfo.xcprivacy`, widgets `ios/MonkeyWorkoutWidgets/PrivacyInfo.xcprivacy` (App Group UserDefaults: reason `1C8F.1`, #975) |
 
 ## App Privacy labels (ASC questionnaire)
 
@@ -52,9 +54,15 @@ Data used to track you: **none**. All below: linked to the user, purpose App Fun
 | Category | Type | Collected because |
 |---|---|---|
 | Contact Info | Email Address, Name | Account |
-| Health & Fitness | Health, Fitness | Body metrics, sessions incl. avg/max heart rate, logged sets |
+| Health & Fitness | Health, Fitness | Body metrics, sessions incl. avg/max heart rate, logged sets; sleep, HRV and mood sent for Coach's week review |
 | User Content | Photos or Videos, Other User Content | Exercise photos, profile photo; community captions, bio, shared workouts |
 | Identifiers | User ID | Account ID, community nickname |
-| Purchases | Purchase History | Add when subscriptions ship |
+| Purchases | Purchase History | Subscription status (already in the privacy manifest) |
 
 Not collected (device only): precise/coarse location (gym search via Apple Maps), biometrics, MonkeyGrade token.
+
+AI features send data to Anthropic as a service provider (processing for app functionality, not tracking); the labels above already cover those data types.
+
+## Audit 2026-10-30 (#971)
+
+Checked against the App Review Guidelines: privacy policy, labels and manifests, account creation and deletion, Sign in with Apple, HealthKit, camera and AI, subscriptions, UGC moderation and purpose strings. Gaps found: #972 (AI consent), #973 (policy AI section), #974 (camera string), #975 (listing text, widget manifest, age override, this doc). Still by hand: App Privacy labels, age rating override, review demo account (#882).

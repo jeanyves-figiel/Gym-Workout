@@ -25,6 +25,16 @@ describe('legal pages (#125)', () => {
     expect(res.body).toContain('MonkeyWorkout');
   });
 
+  it('privacy lists every AI feature that sends data to Anthropic (#973, guideline 5.1.2(i))', async () => {
+    const res = await make().inject({ method: 'GET', url: '/privacy' });
+    expect(res.body).toContain('AI features (Anthropic)');
+    for (const feature of ['Ask Coach', 'Talk to Coach mid-set', 'week review', 'Plan setup', 'What can I eat?', 'Save from a video', 'Gym scan', 'Community checks']) {
+      expect(res.body).toContain(feature);
+    }
+    expect(res.body).toContain('heart rate variability');
+    expect(res.body).toContain('Settings → AI &amp; privacy');
+  });
+
   it('shows placeholders until the operator is configured', async () => {
     const res = await make().inject({ method: 'GET', url: '/terms' });
     expect(res.body).toContain('[operator name to be completed]');

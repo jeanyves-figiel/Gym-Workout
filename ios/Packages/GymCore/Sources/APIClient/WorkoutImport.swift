@@ -41,6 +41,7 @@ extension APIClient {
             var catalog: [GymScanItem]
         }
         let body = Body(link: link, caption: caption, text: text, photos: photos.map { $0.base64EncodedString() }, catalog: catalog)
+        try await requireAI(.scans)
         return try await scanRequest("/v1/me/workout-import", body, as: WorkoutImportResult.self)
     }
 }

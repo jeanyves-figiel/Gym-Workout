@@ -126,7 +126,8 @@ extension APIClient {
     /// last message (#856).
     public func coachChat<W: Decodable & Sendable>(_ turns: [CoachChatTurn], context: CoachChatContext, photo: Data? = nil,
                                                   as _: W.Type) async throws -> CoachChatAnswer<W> {
-        try await authorized("POST", "/v1/me/coach-chat", CoachChatBody(turns: turns, context: context, photo: photo?.base64EncodedString()),
+        try await requireAI(.coach)
+        return try await authorized("POST", "/v1/me/coach-chat", CoachChatBody(turns: turns, context: context, photo: photo?.base64EncodedString()),
                              as: CoachChatAnswer<W>.self)
     }
 }
