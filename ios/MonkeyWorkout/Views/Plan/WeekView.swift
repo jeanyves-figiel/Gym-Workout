@@ -37,6 +37,7 @@ struct WeekView: View {
 
     var body: some View {
         ScrollView {
+          Group {
             if let plan = model.plan, let profile = model.profile {
                 // 14 pt between widgets (#337): Next up's Start workout stays above the tab bar.
                 VStack(alignment: .leading, spacing: 14) {
@@ -101,6 +102,9 @@ struct WeekView: View {
             } else {
                 ContentUnavailableView("No plan yet", systemImage: "calendar.badge.plus")
             }
+          }
+          // Pull to sync on Train only (#1005): `.refreshable` leaked into every sheet opened here.
+          .scopedRefreshable { await model.sync() }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height - $0.safeAreaInsets.top - $0.safeAreaInsets.bottom } action: { visibleHeight = $0 }
         .environment(\.trainCompact, visibleHeight < 670)
@@ -141,11 +145,11 @@ struct WeekView: View {
             start(s)
         }
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
-        .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
+        // Pushed, not a sheet (#1005): tab bar stays, swipe back closes.
+        .navigationDestination(isPresented: $adding) { AddWorkoutView(weekday: addingDay) }
         .navigationDestination(isPresented: $showingCalendar) { CalendarView() }
         .sheet(isPresented: $addingWidget) { TrainWidgetGallery() }
         .sheet(isPresented: $customising) { TrainCustomiseSheet() }
-        .refreshable { await model.sync() }
         .sheet(item: Bindable(model).finishedProgramme) { r in ProgrammeFinishedSheet(record: r).presentationDetents([.large]) }
         .task {
             // A new programme week (#255) builds its plan first.

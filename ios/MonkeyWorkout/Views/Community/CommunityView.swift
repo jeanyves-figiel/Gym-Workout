@@ -90,13 +90,14 @@ struct CommunityView: View {
                 posts(scope)
             }
             .padding(16)
+            // Not `.refreshable` (#1005): it leaks into sheets opened from the feed and blocks their swipe down.
+            .scopedRefreshable {
+                await community.refresh(api: model.api)
+                await LiveRoom.shared.load(api: model.api)
+                await SharedPlans.shared.load(api: model.api)
+            }
         }
         .readableWidth()
-        .refreshable {
-            await community.refresh(api: model.api)
-            await LiveRoom.shared.load(api: model.api)
-            await SharedPlans.shared.load(api: model.api)
-        }
         .task {
             await LiveRoom.shared.load(api: model.api)
             if !SharedPlans.shared.loaded { await SharedPlans.shared.load(api: model.api) }
