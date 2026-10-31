@@ -130,6 +130,15 @@ final class CastSession {
         case .ready:
             send(NS.connection, to: "receiver-0", ["type": "CONNECT"])
             send(NS.receiver, to: "receiver-0", ["type": "LAUNCH", "appId": appId, "requestId": nextId()])
+            if native {
+                // A TV that can't load our receiver (not published yet for it, no internet) says nothing for long.
+                let connection = connection
+                Task {
+                    try? await Task.sleep(for: .seconds(8))
+                    let me = CastSession.shared
+                    if me.connection === connection, me.native, me.transportId == nil { me.fallBackToVideo() }
+                }
+            }
             heartbeat = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
                 MainActor.assumeIsolated { CastSession.shared.send(NS.heartbeat, to: "receiver-0", ["type": "PING"]) }
             }
@@ -197,6 +206,8 @@ final class CastSession {
             }
         case "MEDIA_STATUS":
             state = .casting
+        case "LAUNCH_ERROR" where native:
+            fallBackToVideo()
         case "LOAD_FAILED", "LOAD_CANCELLED", "LAUNCH_ERROR":
             fail("The TV couldn't play it")
         case "CLOSE":
@@ -204,6 +215,15 @@ final class CastSession {
         default:
             break
         }
+    }
+
+    /// The TV refused our receiver (#1008, e.g. a TV not yet allowed while it is unpublished): cast the phone's video
+    /// in Google's own player instead, on the same connection.
+    private func fallBackToVideo() {
+        guard native else { return }
+        appId = Self.mediaApp
+        TVStreamer.shared.start(for: "chromecast")
+        send(NS.receiver, to: "receiver-0", ["type": "LAUNCH", "appId": appId, "requestId": nextId()])
     }
 
     /// The player changed what the TV shows (#1008): our receiver gets the new state; a new exercise or set replays the
@@ -341,6 +361,7 @@ final class AirPlayStream {
     @ObservationIgnored private var watch: NSKeyValueObservation?
     @ObservationIgnored private var status: NSKeyValueObservation?
     @ObservationIgnored private var routes: NSObjectProtocol?
+    @ObservationIgnored private var catchUp: Timer?
 
     /// Ready before the picker opens, so picking a TV sends the video.
     func prepare() {
@@ -355,7 +376,11 @@ final class AirPlayStream {
         Task {
             for _ in 0..<60 where TVStreamer.shared.segments < 2 { try? await Task.sleep(for: .milliseconds(250)) }
             guard let url = TVStreamer.shared.url, player == nil, holdsSession else { return }
-            let p = AVPlayer(url: url)
+            let item = AVPlayerItem(url: url)
+            // As close to live as the stream allows (#1008: about 5 s behind before).
+            item.configuredTimeOffsetFromLive = CMTime(seconds: 1, preferredTimescale: 600)
+            item.automaticallyPreservesTimeOffsetFromLive = true
+            let p = AVPlayer(playerItem: item)
             p.allowsExternalPlayback = true
             p.usesExternalPlaybackWhileExternalScreenIsActive = true
             p.automaticallyWaitsToMinimizeStalling = false
@@ -377,7 +402,18 @@ final class AirPlayStream {
             }
             try? session.setActive(true)
             p.play()
+            catchUp = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
+                MainActor.assumeIsolated { AirPlayStream.shared.keepLive() }
+            }
         }
+    }
+
+    /// A stall leaves the TV further behind each time: back to 1 s from live when it drifts past 2 s.
+    private func keepLive() {
+        guard let p = player, let item = p.currentItem, let range = item.seekableTimeRanges.last?.timeRangeValue else { return }
+        let edge = range.end
+        guard edge.isNumeric, (edge - p.currentTime()).seconds > 2 else { return }
+        p.seek(to: edge - CMTime(seconds: 1, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
     /// A TV picked: the picture should follow within a few seconds, or only its sound went there.
@@ -406,11 +442,18 @@ final class AirPlayStream {
         status = nil
         if let routes { NotificationCenter.default.removeObserver(routes) }
         routes = nil
+        catchUp?.invalidate()
+        catchUp = nil
         player?.pause()
+        // Empty player: the TV lets go of the video at once.
+        player?.replaceCurrentItem(with: nil)
         player = nil
         if holdsSession {
             holdsSession = false
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            let session = AVAudioSession.sharedInstance()
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            // Back to the app's everyday session: the coach's voice and sounds stay on the iPhone.
+            try? session.setCategory(.ambient, mode: .default, policy: .default, options: [.mixWithOthers])
         }
         TVStreamer.shared.stop(for: "airplay")
     }
