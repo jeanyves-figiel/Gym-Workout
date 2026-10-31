@@ -187,7 +187,10 @@ def dumbbells(props, J, held, grip):
 
 def hanging(J, held):
     """Hands on a bar above the shoulders, or on rings / straps hanging from overhead."""
-    return any(h is not None and h[0] == "rod" and (J["hand" + d][1] > J["shoulder"][1] + 10 or max(h[2][0][1], h[2][1][1]) > 300)
+    feet_down = min(J["ankleN"][1], J["ankleF"][1]) < 20     # standing under a bar on the back is not a hang
+    return any(h is not None and h[0] == "rod" and ((J["hand" + d][1] > J["shoulder"][1] + 10
+                                                     and not (feet_down and J["hand" + d][1] < J["head"][1] + 30))
+                                                   or max(h[2][0][1], h[2][1][1]) > 300)
                for d, h in held.items())
 
 
@@ -259,6 +262,117 @@ def nrm3(v):
 def _rot90(v):
     """Scene drawn lying across the screen but exported as a front/back view: turn it so the body lies along x."""
     return [round(float(v[2]), 1), round(float(v[1]), 1), round(-float(v[0]), 1)]
+
+
+def _butterfly_key(lean, knee_y):
+    """Seated butterfly: soles together close to the groin, knees dropped out to the sides, hands round the feet,
+    trunk leaning `lean` (0 upright .. 1 deep) from the hips (#1020: the 2D front view had no depth, so the knees
+    rose to chest height beside the body and the feet sat apart under them)."""
+    import math
+    a = math.radians(8 + 30 * lean)                    # trunk lean forward from vertical
+    hip = np.array([0.0, 16.0, 0.0])
+    up = np.array([math.sin(a), math.cos(a), 0.0])
+    sh = hip + 72 * up; nk = hip + 82 * up; hd = hip + 97 * up
+    J = {"hip": hip, "shoulder": sh, "neck": nk, "head": hd}
+    for d, sz in (("N", -1.0), ("F", 1.0)):
+        J["hip" + d] = hip + [0, 0, 9 * sz]
+        J["shoulder" + d] = sh + [0, 0, 15.3 * sz]
+        J["knee" + d] = np.array([22.0, knee_y, 52.0 * sz])
+        J["ankle" + d] = np.array([34.0, 7.0, 7.0 * sz])
+        J["toe" + d] = np.array([47.0, 5.0, 3.0 * sz])
+        J["hand" + d] = np.array([44.0, 11.0, 6.0 * sz])
+        J["wrist" + d] = np.array([36.0, 14.0, 10.0 * sz])
+        S = J["shoulder" + d]; W = J["wrist" + d]
+        J["elbow" + d] = (S + W) / 2 + np.array([0.0, -4.0, 14.0 * sz])     # elbows out over the knees
+    return {n: [round(float(c), 1) for c in v] for n, v in J.items()}
+
+
+def _trunk(J, hip, lean_deg, fwd=np.array([1.0, 0, 0])):
+    import math
+    a = math.radians(lean_deg)
+    up = math.sin(a) * fwd + np.array([0, math.cos(a), 0])
+    J.update({"hip": hip, "shoulder": hip + 72 * up, "neck": hip + 82 * up, "head": hip + 97 * up})
+    side = np.cross(fwd, [0, 1.0, 0])             # +z for fwd +x
+    for d, sz in (("N", -1.0), ("F", 1.0)):
+        J["hip" + d] = hip + 9 * sz * side
+        J["shoulder" + d] = J["shoulder"] + 15.3 * sz * side
+
+
+def _arm_to(J, d, hand, out=10.0):
+    """Wrist and elbow toward a hand target: the elbow bends out to the side."""
+    S = J["shoulder" + d]; hand = np.asarray(hand, float)
+    W = hand + (S - hand) / max(np.linalg.norm(S - hand), 1e-6) * 9.0
+    sz = -1.0 if d == "N" else 1.0
+    J["hand" + d] = hand; J["wrist" + d] = W
+    J["elbow" + d] = (S + W) / 2 + np.array([0.0, -3.0, out * sz])
+
+
+def _hip_90_90_key(lean):
+    """Hip 90/90: front (near) thigh straight ahead with its shin across in front, back (far) thigh out to the side
+    with its shin pointing back; tall trunk leaning over the front shin. The feet turn a little forward / out:
+    the rig takes the trunk's facing from where the toes point."""
+    J = {}
+    _trunk(J, np.array([0.0, 14.0, 0.0]), 5 + 35 * lean)
+    J["kneeN"] = np.array([54.0, 7.0, -14.0]); J["ankleN"] = np.array([52.0, 6.0, 38.0]); J["toeN"] = np.array([64.0, 4.0, 46.0])
+    J["kneeF"] = np.array([2.0, 7.0, 64.0]); J["ankleF"] = np.array([-52.0, 6.0, 66.0]); J["toeF"] = np.array([-57.0, 4.0, 76.0])
+    for d, sz in (("N", -1.0), ("F", 1.0)):
+        _arm_to(J, d, [28 + 34 * lean, 16 - 12 * lean, 14 * sz])
+    return {n: [round(float(c), 1) for c in v] for n, v in J.items()}
+
+
+def _wipers_key(tilt):
+    """Windshield wipers: lying on the back, arms out in a T on the floor, legs straight up together and lowered
+    `tilt` degrees to one side (the hips roll a little with them)."""
+    import math
+    J = {}
+    hip = np.array([0.0, 11.0, 0.0])
+    J["hip"] = hip; J["shoulder"] = hip + [-72.0, 0, 0]; J["neck"] = hip + [-82.0, 1.0, 0]; J["head"] = hip + [-96.0, 3.0, 0]
+    t = math.radians(tilt)
+    roll = np.array([[1, 0, 0], [0, math.cos(t), -math.sin(t)], [0, math.sin(t), math.cos(t)]])
+    rh = np.array([[1, 0, 0], [0, math.cos(t * 0.25), -math.sin(t * 0.25)], [0, math.sin(t * 0.25), math.cos(t * 0.25)]])
+    for d, sz in (("N", -1.0), ("F", 1.0)):
+        J["shoulder" + d] = J["shoulder"] + [0, 0, 15.3 * sz]
+        J["elbow" + d] = J["shoulder"] + [2.0, -4.0, 44.0 * sz]
+        J["wrist" + d] = J["shoulder"] + [4.0, -6.0, 70.0 * sz]
+        J["hand" + d] = J["shoulder"] + [4.0, -7.0, 79.0 * sz]
+        H = hip + rh @ np.array([0, 0, 9.0 * sz])
+        J["hip" + d] = H
+        J["knee" + d] = H + roll @ np.array([0, 56.0, -2.0 * sz])
+        J["ankle" + d] = H + roll @ np.array([0, 110.0, -3.0 * sz])
+        J["toe" + d] = H + roll @ np.array([-11.0, 115.0, -3.0 * sz])
+    for n in J:
+        J[n] = np.asarray(J[n], float)
+        J[n][1] = max(J[n][1], 4.0)
+    return {n: [round(float(c), 1) for c in v] for n, v in J.items()}
+
+
+SEATED = ("butterfly", "hip-90-90", "windshield-wipers")
+
+
+def seated_scenes(ex, e):
+    """Floor exercises drawn from the front with no depth, authored in 3D (#1020)."""
+    if ex not in SEATED:
+        return
+    if ex == "hip-90-90":
+        for k, lean in zip(e["k"], (0.0, 0.5, 1.0)):
+            k["j"].update(_hip_90_90_key(lean)); k.pop("dy", None)
+            for p in k["p"]:
+                if p["k"] == "mat":
+                    p["lo"] = [-75.0, 0.0, -40.0]; p["hi"] = [72.0, 1.5, 82.0]
+        return
+    if ex == "windshield-wipers":
+        for k, tilt in zip(e["k"], (0.0, -55.0, 55.0)):
+            k["j"].update(_wipers_key(tilt)); k.pop("dy", None)
+            for p in k["p"]:
+                if p["k"] == "mat":
+                    p["lo"] = [-115.0, 0.0, -45.0]; p["hi"] = [40.0, 1.5, 45.0]
+        return
+    for k, (lean, ky) in zip(e["k"], ((0.0, 30.0), (0.5, 24.0), (1.0, 19.0))):
+        k["j"].update(_butterfly_key(lean, ky))
+        k.pop("dy", None)
+        for p in k["p"]:
+            if p["k"] == "mat":                      # the mat runs front to back under the seat and feet
+                p["lo"] = [-60.0, 0.0, -38.0]; p["hi"] = [80.0, 1.5, 38.0]
 
 
 def lying_scenes(ex, e):
@@ -1473,6 +1587,7 @@ def run(ids=None):
         e = d[ex]
         keys = e["k"]
         lying_scenes(ex, e)
+        seated_scenes(ex, e)
         complete(ex, keys)
         shrugs(ex, keys, R)
         grip_axes(ex, keys)
