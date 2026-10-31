@@ -28,6 +28,12 @@ struct CoachChatMessage: Identifiable, Equatable {
     var photo: UIImage?
     /// History question (#868 C): the answer card with its mini chart.
     var history: HistoryAnswer?
+    /// Body measurements Coach logged (#1000): the card with Undo.
+    var logged: LoggedMeasurement?
+    /// What Coach does for the member (#999): done, asked or listed on one card.
+    var tasks: [CoachTask] = []
+    /// What Coach said it would do but the app couldn't (#999), shown under the reply.
+    var missed: [String] = []
 }
 
 /// Today's conversation, kept while the app runs; a new day starts a fresh chat.
@@ -66,7 +72,9 @@ extension AppModel {
                                 // What the coach remembers (#495), within the server's limits.
                                 memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) },
                                 // Building as they go (#856): the names Coach may hand back as exercises to add.
-                                exercises: focus?.wantsExercises == true ? Freestyle.coachNames(profile: p) : nil)
+                                exercises: focus?.wantsExercises == true ? Freestyle.coachNames(profile: p) : nil,
+                                // Coach can act (#999): today's exercises to swap by name, and the day for "move it to Saturday".
+                                todayExercises: coachTodayExercises, weekday: todayWeekday)
     }
 
     /// Throws when the server can't be reached, so the chat shows an error card with Retry (#539).
@@ -214,6 +222,7 @@ struct CoachChatView: View {
                     switch o {
                     case let .exercise(id): ExerciseDetailView(exerciseId: id)
                     case .calendar: CalendarView()
+                    case .measurements: MeasurementsView()
                     }
                 }
             }
@@ -304,6 +313,17 @@ struct CoachChatView: View {
                 if let a = m.action { actionButton(a) }
                 if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
                 if let p = m.protect { PainPlanCard(protect: p) }
+                if let l = m.logged { loggedCard(m.id, l) }
+                ForEach(m.missed, id: \.self) { line in
+                    Label(line, systemImage: "exclamationmark.circle.fill")
+                        .font(Theme.label(13)).foregroundStyle(.orange)
+                        .padding(.leading, 42)
+                        .accessibilityIdentifier("coach.do.missed")
+                }
+                if !m.tasks.isEmpty {
+                    CoachDoCard(tasks: m.tasks, toggle: { toggleTask(m.id, $0) }, run: { runTasks(m.id) },
+                                undo: { undoTasks(m.id) }, dismiss: { dropTasks(m.id) })
+                }
                 if let w = m.workout { workoutCard(w, message: m) }
             }
         }
@@ -324,6 +344,75 @@ struct CoachChatView: View {
         .padding(.trailing, 40)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Coach: \(text)")
+    }
+
+    /// Measurements Coach logged (#1000): tap opens Measurements, Undo puts today's entry back.
+    private func loggedCard(_ messageId: UUID, _ l: LoggedMeasurement) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: l.undone ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill")
+                .font(.title2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(l.undone ? "UNDONE" : "LOGGED TODAY").font(Theme.label(11)).tracking(1.2).opacity(0.7)
+                Text(l.summary.prefix(1).uppercased() + l.summary.dropFirst())
+                    .font(Theme.label(15))
+                    .strikethrough(l.undone)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            if !l.undone {
+                Button { undoLogged(messageId) } label: {
+                    Text("Undo").font(Theme.label(13)).foregroundStyle(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Capsule().fill(Theme.ink))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("coach.logged.undo")
+            }
+        }
+        .foregroundStyle(Theme.ink)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.lime))
+        .contentShape(Rectangle())
+        .onTapGesture { opening = .measurements }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Undo") { undoLogged(messageId) }
+        .padding(.leading, 42)
+    }
+
+    // MARK: Coach can act (#999)
+
+    private func toggleTask(_ messageId: UUID, _ taskId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }),
+              let j = store.messages[i].tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        store.messages[i].tasks[j].on.toggle()
+        Haptics.undo()
+    }
+
+    /// Does the ticked tasks that still wait (A: the one asked, C: the checklist).
+    private func runTasks(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }) else { return }
+        store.messages[i].tasks = store.messages[i].tasks.map { $0.status == .waiting && $0.on ? model.performCoach($0) : $0 }
+        Haptics.success()
+    }
+
+    private func undoTasks(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }) else { return }
+        // Newest first, so a food log undone after water puts the day back exactly.
+        store.messages[i].tasks = Array(store.messages[i].tasks.reversed().map { model.undoCoach($0) }.reversed())
+        Haptics.undo()
+    }
+
+    private func dropTasks(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }) else { return }
+        store.messages[i].tasks = []
+    }
+
+    private func undoLogged(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }), let l = store.messages[i].logged, !l.undone else { return }
+        model.undoLogged(l)
+        store.messages[i].logged?.undone = true
+        Haptics.undo()
     }
 
     /// Coach's "Open …" button (#412).
@@ -633,6 +722,15 @@ struct CoachChatView: View {
             return
         }
         guard !t.isEmpty, !sending else { return }
+        // "Weight is now 66" (#1000): logged on the iPhone at once, free, even offline or with Coach's AI off.
+        if photo == nil, let said = MeasurementSay.parse(t) {
+            store.messages.append(CoachChatMessage(role: .member, text: t))
+            draft = ""
+            self.spoken = spoken
+            store.messages.append(CoachChatMessage(role: .coach, text: "Done, it's on today's entry.", onDevice: true, logged: model.logSaid(said)))
+            speak("Logged \(said.summary).")
+            return
+        }
         // About the logged workouts (#868 C): answered on the iPhone with a chart card, free, even when chat is off.
         if photo == nil, HistoryAsk.answer(t, records: model.state.history) != nil {
             store.messages.append(CoachChatMessage(role: .member, text: t))
@@ -673,6 +771,11 @@ struct CoachChatView: View {
                 var seen = Set<String>()
                 reply.exercises = (a.exercises ?? []).compactMap { Exercise.named($0) }.filter { seen.insert($0.id).inserted }
                 reply.protect = a.protect.flatMap(PainProtect.init(chat:))
+                // Coach logs what the member told it (#1000), with Undo on the card.
+                if let m = a.measurement.map(MeasurementSay.init(chat:)), !m.isEmpty { reply.logged = model.logSaid(m) }
+                // Coach acts (#999): one log is done at once with Undo (B); a plan change or several wait for a tap (A, C).
+                (reply.tasks, reply.missed) = model.coachTasks(a.doActions ?? [])
+                if reply.tasks.count == 1, reply.tasks[0].instant { reply.tasks[0] = model.performCoach(reply.tasks[0]) }
                 if let s = a.workout, let profile = model.profile {
                     let w = s.workout(profile: profile, seed: UInt32.random(in: .min ... .max))
                         .withFlow(CoachWorkoutSettings.flowMinutes, profile: profile)
@@ -749,6 +852,17 @@ extension Demo {
             """#
             return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
         }
+        // Coach can act (#999): water is logged at once, a move asks first, several come as a checklist.
+        let said = text.lowercased()
+        if said.contains("water") || said.contains("move") || said.contains("oats") {
+            var acts: [String] = []
+            if said.contains("water") { acts.append(#"{"kind":"water","glasses":2}"#) }
+            if said.contains("oats") { acts.append(#"{"kind":"food","foods":"oats and a banana","meal":"breakfast"}"#) }
+            if said.contains("move") { acts.append(#"{"kind":"move","weekday":6}"#) }
+            let reply = acts.count > 1 ? "Here's what I'll do. Untick anything you don't want." : said.contains("move") ? "Want me to move it to Saturday?" : "Done, two glasses added."
+            let json = #"{"reply":"\#(reply)","workout":null,"doActions":[\#(acts.joined(separator: ","))],"remainingToday":17}"#
+            return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
+        }
         if focus?.screen == "exercise" || focus?.screen == "player" {
             let json = #"""
             {"reply":"Tuck your elbows to about 45 degrees and grip a little narrower. Still clicking? Swap to the neutral-grip dumbbell press.",
@@ -786,11 +900,13 @@ extension Demo {
 enum CoachOpen: Identifiable {
     case exercise(String)
     case calendar
+    case measurements
 
     var id: String {
         switch self {
         case let .exercise(e): "exercise-\(e)"
         case .calendar: "calendar"
+        case .measurements: "measurements"
         }
     }
 }
