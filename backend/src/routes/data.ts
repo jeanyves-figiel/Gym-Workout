@@ -33,6 +33,7 @@ import { bodyMeasurementTable } from './bodyMeasurements.ts';
 import { climbTable } from './climbs.ts';
 import { sportTable } from './sports.ts';
 import { machineNoteExport } from './machineNotes.ts';
+import { recipeReviewExport } from './recipeReviews.ts';
 import { reportExport } from './reports.ts';
 import { prAttemptTable } from './prAttempts.ts';
 import { accountExport } from './accountExport.ts';
@@ -210,6 +211,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     ['climbs', rows(() => timeOrderedRows(db, climbTable, userId))],
     ['sports', rows(() => timeOrderedRows(db, sportTable, userId))],
     ['machineNotes', rows(() => machineNoteExport(db, userId))],
+    ['recipeReviews', () => recipeReviewExport(db, userId)],
     ['problemReports', () => reportExport(db, userId)],
     ['bodyMeasurements', rows(() => timeOrderedRows(db, bodyMeasurementTable, userId))],
     ['gyms', () => gymExport(db, userId)],

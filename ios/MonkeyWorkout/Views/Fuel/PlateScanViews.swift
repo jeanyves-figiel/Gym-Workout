@@ -125,6 +125,7 @@ struct PlateScanSheet: View {
             }
             .padding(8)
             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.violet))
+            TrustBadge(estimate: true, detail: "GRAMS GUESSED FROM THE PHOTO")
         }
         Button { withAnimation(.snappy) { saveDish.toggle() } } label: {
             HStack {

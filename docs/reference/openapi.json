@@ -2100,6 +2100,101 @@
         }
       }
     },
+    "/v1/recipe-reviews": {
+      "get": {
+        "tags": [
+          "Sync: member content"
+        ],
+        "summary": "?ids=a,b (≤300 catalog recipe ids) → {summaries{id: {reviews, stars, rated, valuesRight, flagged}}, mine{id: {stars, numbers, cooking, updatedAt}}} anonymous counts (#1017)",
+        "description": "Errors / limits: 400 bad_request",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/recipe-reviews/{recipeId}": {
+      "put": {
+        "tags": [
+          "Sync: member content"
+        ],
+        "summary": "{stars?1–5, numbers?: right|portion-big|portion-small|kcal-off, cooking?: easy|steps-unclear|took-longer} (at least one) → {mine, summary}; one review per member and recipe",
+        "description": "Errors / limits: 400 validation",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sync: member content"
+        ],
+        "summary": "→ 204",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/push-device": {
       "put": {
         "tags": [

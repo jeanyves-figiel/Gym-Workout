@@ -48,6 +48,7 @@ import { climbRoutes } from './routes/climbs.ts';
 import { sportRoutes, watchSportRoutes } from './routes/sports.ts';
 import { garminRoutes, garminWatchRoutes } from './routes/garmin.ts';
 import { machineNoteRoutes } from './routes/machineNotes.ts';
+import { recipeReviewRoutes } from './routes/recipeReviews.ts';
 import { reportRoutes } from './routes/reports.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
@@ -359,6 +360,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       sportRoutes(r, deps.db, deps.now ?? (() => new Date()));
       garminRoutes(r, deps.db, deps.now ?? (() => new Date()));
       machineNoteRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      recipeReviewRoutes(r, deps.db, now);
       reportRoutes(r, { db: deps.db, now, mailer: deps.mailer, to: deps.config.legal.email, fetch: outbound, config: deps.config.reports, log: warn });
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);

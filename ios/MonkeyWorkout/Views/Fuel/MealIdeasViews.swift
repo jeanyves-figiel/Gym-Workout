@@ -207,6 +207,7 @@ struct MealIdeaSheet: View {
                         number("\(Int(m.fat.rounded()))", "fat g")
                         number("\(Int(m.kcal.rounded()))", "kcal")
                     }
+                    TrustBadge(estimate: true, detail: "AI PICKED THE GRAMS")
                     label("FROM YOUR PANTRY")
                     VStack(spacing: 0) {
                         ForEach(foods, id: \.food.id) { f in
