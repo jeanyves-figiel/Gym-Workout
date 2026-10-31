@@ -1186,11 +1186,43 @@ def on_floor(keys):
 
 
 def arms_clear(ex, keys, R, iters=5):
-    """A free forearm or hand sunk into the trunk or thighs (arms hanging beside the hips, hands on the waist):
-    the figure's wrist and hand move out along the skin normal, the elbow half as far (#1020)."""
+    """A forearm or hand sunk into the trunk or thighs (arms hanging beside the hips, hands on the waist, a
+    dumbbell or cable handle at the side): the figure's wrist and hand move out along the skin normal, the elbow
+    half as far, a held weight or cable / band end with the hand (#1020)."""
     from scipy.spatial import cKDTree
     names = R.names
+    import copy
+    fing = {s: np.isin(R.bi[:, 0], [R.ix[n] for n in names if n.startswith("finger") and n.endswith("." + s)]) for s in "LR"}
+
+    def grip_gaps(k):
+        V = R.pose(k["j"], k["p"])
+        out = []
+        fists = [V[fing[s]].mean(0) for s in "LR"]
+        for h in R.held.values():          # each held thing: its nearest fist
+            if h is None:
+                continue
+            gaps = []
+            for g in fists:
+                if h[0] == "rod":
+                    a, b = h[2]; ab = b - a
+                    t = np.clip(((g - a) @ ab) / max(ab @ ab, 1e-6), 0, 1)
+                    gaps.append(np.linalg.norm(g - (a + t * ab)))
+                else:
+                    gaps.append(np.linalg.norm(g - h[2]) - 9)
+            out.append(min(gaps))
+        return sorted(out)
     for k in keys:
+        before = copy.deepcopy(k)
+        g0 = grip_gaps(k)
+        _arms_clear_key(k, R, names, iters)
+        g1 = grip_gaps(k)
+        if len(g1) < len(g0) or any(b > max(a, 6.0) + 0.5 for a, b in zip(g0, g1)):     # lost the grip: keep as drawn
+            k.clear(); k.update(before)
+
+
+def _arms_clear_key(k, R, names, iters):
+    from scipy.spatial import cKDTree
+    if True:
         for _ in range(iters):
             V = R.pose(k["j"], k["p"])
             J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
@@ -1201,8 +1233,29 @@ def arms_clear(ex, keys, R, iters=5):
             moved = False
             for s in "LR":
                 d = S[s]
-                if R.held.get(d) is not None or J["hand" + d][1] < 12:      # held, or a hand on the floor
-                    continue
+                h = R.held.get(d)
+                carry = []                 # what the hand holds moves with it: a weight, a cable or band end
+                if h is not None:
+                    if h[0] in ("db", "kb"):
+                        carry = [(q, "c") for q in k["p"] if q["k"] == h[0] and np.allclose(q["c"], h[2])]
+                    elif h[0] == "rod":
+                        q = next((q for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0]) and np.allclose(q["b"], h[2][1])), None)
+                        if q is None or q.get("s") == "cable":     # a bare cable in the fist: the 2D chop's handle, left as drawn
+                            continue
+                        if q.get("s") == "band" or (q.get("s") == "handle" and np.linalg.norm(np.asarray(q["a"]) - np.asarray(q["b"])) < 40):
+                            carry = [(c, e) for c in k["p"] if c["k"] == "rod" and c.get("s") in ("cable", "band")
+                                     for e in ("a", "b") if np.linalg.norm(np.asarray(c[e], float) - J["hand" + d]) < 12]
+                            if q.get("s") == "handle":
+                                carry += [(q, "a"), (q, "b")]        # the held handle moves whole
+                            for c in k["p"]:      # a handle hooked on a carried cable end comes along whole
+                                if c["k"] == "rod" and c.get("s") == "handle" and not any(c is q2 for q2, _ in carry) and any(
+                                        np.linalg.norm(np.asarray(c[e], float) - np.asarray(q2[e2], float)) < 15
+                                        for q2, e2 in list(carry) for e in ("a", "b")):
+                                    carry += [(c, "a"), (c, "b")]
+                        else:
+                            carry = ("bar", q)      # a bar: the hand slides along it, the rest moves the bar
+                    else:
+                        continue
                 arm = np.isin(R.bi[:, 0], [R.ix[n] for n in names if n.endswith("." + s) and n.startswith(
                     ("upperarm", "lowerarm", "wrist", "finger", "metacarpal", "shoulder", "clavicle"))])
                 fore = np.isin(R.bi[:, 0], [R.ix[n] for n in names if n.endswith("." + s) and n.startswith(
@@ -1221,8 +1274,35 @@ def arms_clear(ex, keys, R, iters=5):
                     continue
                 v = n / np.linalg.norm(n) * (float(np.percentile(dep[inside], 90)) + 1.0)
                 v[1] = max(v[1], 2.0 - min(J["hand" + d][1], J["wrist" + d][1]))   # never into the floor
+                if isinstance(carry, tuple):
+                    q = carry[1]
+                    a, b = np.asarray(q["a"], float), np.asarray(q["b"], float); u = (b - a) / max(np.linalg.norm(b - a), 1e-6)
+                    along = (v @ u) * u
+                    for nm, f in (("hand", 1.0), ("wrist", 1.0), ("elbow", 0.5)):
+                        k["j"][nm + d] = [round(float(c + f * dv), 1) for c, dv in zip(k["j"][nm + d], along)]
+                    perp_v = v - along
+                    if np.linalg.norm(perp_v) > 0.5:
+                        group, ends = _rod_group(k["p"], q)
+                        _move_group(group, ends, perp_v)
+                        for dd2 in "NF":
+                            for nm in ("hand", "wrist"):
+                                k["j"][nm + dd2] = [round(float(c + dv), 1) for c, dv in zip(k["j"][nm + dd2], perp_v)] \
+                                    if R.held.get(dd2) is not None and R.held[dd2][0] == "rod" and np.allclose(R.held[dd2][2][0], a) else k["j"][nm + dd2]
+                    moved = True
+                    continue
                 for nm, f in (("hand", 1.0), ("wrist", 1.0), ("elbow", 0.5)):
                     k["j"][nm + d] = [round(float(c + f * dv), 1) for c, dv in zip(k["j"][nm + d], v)]
+                for q, e in carry:
+                    q[e] = [round(float(c + dv), 1) for c, dv in zip(q[e], v)]
+                o = "F" if d == "N" else "N"         # both hands on one weight / rope / handle: the other hand follows
+                ho = R.held.get(o)
+                if carry and ho is not None and any(
+                        (ho[0] == q["k"] == "rod" and (np.allclose(q[e], ho[2][0], atol=1.5) or np.allclose(q[e], ho[2][1], atol=1.5)))
+                        or (ho[0] == q["k"] and ho[0] in ("db", "kb") and np.linalg.norm(np.asarray(q["c"], float) - v - ho[2]) < 1.5)
+                        or (q["k"] == "rod" and ho[0] == "rod" and np.linalg.norm(np.asarray(q[e], float) - v - J["hand" + o]) < 12)
+                        for q, e in carry):
+                    for nm in ("hand", "wrist"):
+                        k["j"][nm + o] = [round(float(c + dv), 1) for c, dv in zip(k["j"][nm + o], v)]
                 moved = True
             if not moved:
                 break
