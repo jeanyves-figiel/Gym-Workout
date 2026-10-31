@@ -145,12 +145,16 @@ extension AppModel {
         store.setPlan(meals)
     }
 
-    /// The plan tops itself up when a day with meals in the coming week isn't planned yet.
+    /// The plan tops itself up when a day with meals in the coming week isn't planned yet; a plan that runs but has
+    /// nothing planned yet is filled (#1015).
     func topUpMealPlan(now: Date = Date()) {
         let store = FuelStore.shared
         let cal = planCalendar
         let book = store.book
-        guard !store.saved.plan.isEmpty else { return }
+        guard !store.saved.plan.isEmpty else {
+            if book.activeDays(from: now, cal) > 0 { planMeals(now: now) }
+            return
+        }
         let last = store.saved.plan.map(\.day).max() ?? ""
         let due = book.days(from: now, cal).prefix(8).contains { PlanCalendar.key($0, cal) > last && !book.kinds(on: $0, cal).isEmpty }
         if due { planMeals(now: now) }

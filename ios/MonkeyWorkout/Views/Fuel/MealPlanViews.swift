@@ -8,6 +8,8 @@ struct MealPlanView: View {
     @Environment(AppModel.self) private var model
     @State private var store = FuelStore.shared
     @State private var swapping: (key: String, slot: FuelSlot, plan: FuelPlan)?
+    /// "62 meals planned to 30 Nov" after a plan sheet closes (#1015).
+    @State private var planned: String?
 
     var body: some View {
         let cal = model.planCalendar
@@ -20,12 +22,26 @@ struct MealPlanView: View {
         let items = model.groceries()
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                MyPlansCard { if !store.saved.plan.isEmpty { withAnimation(.snappy) { model.planMeals() } } }
+                // Days are always planned (#1015): closing a plan sheet re-plans, keeping the member's picks.
+                MyPlansCard { replanned(announce: $0) }
+                if let planned {
+                    Label(planned, systemImage: "checkmark.circle.fill").font(Theme.label(13)).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(LinearGradient(colors: [Color(red: 0.2, green: 0.77, blue: 0.55), Color(red: 0.23, green: 0.53, blue: 0.94)],
+                                                 startPoint: .leading, endPoint: .trailing)))
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .accessibilityIdentifier("fuel.plan.planned")
+                }
                 if book.activeDays(from: Date(), cal) > 0 {
-                    Button { withAnimation(.snappy) { model.planMeals() } } label: {
-                        Label(store.saved.plan.isEmpty ? "PLAN MY DAYS" : "RE-PLAN (KEEPS YOUR PICKS)", systemImage: "wand.and.stars")
+                    if !store.saved.plan.isEmpty {
+                        Button { withAnimation(.snappy) { model.planMeals() } } label: {
+                            Label("New ideas (keeps your picks)", systemImage: "shuffle").font(Theme.label(13)).foregroundStyle(Theme.lime)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(LimeButtonStyle())
                 } else {
                     Text(book.plans.isEmpty ? "No meal plan yet. Tap New plan to pick which meals to plan and when."
                          : "No plan runs in the coming 31 days. Tap a plan to add dates.")
@@ -54,8 +70,24 @@ struct MealPlanView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Meal plan")
+        // A plan that runs but has no meals yet gets them straight away.
+        .onAppear { model.topUpMealPlan() }
         .sheet(isPresented: Binding(get: { swapping != nil }, set: { if !$0 { swapping = nil } })) {
             if let s = swapping { SwapMealSheet(key: s.key, slot: s.slot, plan: s.plan) }
+        }
+    }
+
+    private func replanned(announce: Bool) {
+        withAnimation(.snappy) { model.planMeals() }
+        guard announce else { return }
+        let today = store.key(Date())
+        let meals = store.saved.plan.filter { $0.day >= today }
+        guard let last = meals.map(\.day).max() else { return }
+        let text = "\(meals.count) meals planned to \(MealPlanFormat.day(last, model.planCalendar)) · picks kept"
+        withAnimation(.snappy) { planned = text }
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation(.snappy) { if planned == text { planned = nil } }
         }
     }
 
