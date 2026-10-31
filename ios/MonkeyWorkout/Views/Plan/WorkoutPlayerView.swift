@@ -1521,15 +1521,29 @@ struct WorkoutPlayerView: View {
 
     /// X (#538): closes at once and keeps the workout paused to resume; the Undo bar on Train reopens it.
     private func closeWorkout() {
-        // Build as I go with nothing logged: nothing to resume, so X discards it (Undo still brings it back).
-        if isFree, setsDone.values.reduce(0, +) == 0 { return discardWithUndo() }
+        let logged = setsDone.values.reduce(0, +)
+        if isFree {
+            // ✕ keeps it (#997 A): exercises lined up on the start screen are added so they come back on resume.
+            if steps.isEmpty, !freeLined.isEmpty {
+                for e in freeLined { model.addToFreestyle(sessionId, e) }
+                freeLined = []
+            }
+            // Build as I go with nothing added: nothing to resume, so X discards it (Undo still brings it back).
+            if model.freestyleSession(sessionId)?.blocks.allSatisfy(\.items.isEmpty) ?? true, logged == 0 {
+                return discardWithUndo()
+            }
+        }
         let id = sessionId
         let title = session?.displayTitle ?? ""
+        let kept = isFree
+            ? Freestyle.resumeLine(exercises: model.freestyleSession(sessionId)?.blocks.flatMap(\.items).count ?? 0, setsDone: logged)
+                + " · resume from Train"
+            : undoDetail(title, "saved · resume from Train")
         saveProgress()
         live.end()
         dismiss()
         UndoCloseCenter.shared.show(UndoOffer(
-            title: "Workout closed", detail: undoDetail(title, "saved · resume from Train"), symbol: "pause.fill",
+            title: isFree ? "Workout kept" : "Workout closed", detail: kept, symbol: "pause.fill",
             colors: [Color(hex: 0xFF2D55), Color(hex: 0xA64DFF)], fullScreen: true) {
             AnyView(WorkoutPlayerView(sessionId: id))
         })
