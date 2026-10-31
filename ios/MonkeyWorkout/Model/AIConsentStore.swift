@@ -121,8 +121,8 @@ extension AIFeature {
     /// What goes to Anthropic, in one line.
     var sends: String {
         switch self {
-        case .coach: "Your words, the screen you ask from, training settings, a machine photo you snap"
-        case .review: "Your week: workouts, sleep, HRV and mood (health data)"
+        case .coach: "Your words, the screen you ask from, your plan, workouts, Fuel and body weight, a machine photo you snap"
+        case .review: "Your week: workouts, sleep, HRV and mood (health data), also to Ask Coach"
         case .scans: "The photo or screenshots, a post's link and caption"
         case .ideas: "What you tell Coach, your pantry foods and what's left to eat"
         }
