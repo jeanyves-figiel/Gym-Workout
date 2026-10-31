@@ -355,7 +355,7 @@ def lying_scenes(ex, e):
             J["head"] = [round(J["neck"][0] - 8 - 6 * np.sin(ang), 1), round(J["neck"][1] + 3, 1), round(J["neck"][2] + 10 * np.sin(ang), 1)]
 
 
-NEUTRAL = ("hammer", "neutral", "farmer", "suitcase", "carry")
+NEUTRAL = ("hammer", "neutral", "farmer", "suitcase", "carry", "db-shrug")
 ACROSS = ("curl", "press", "bench", "row", "front-raise", "pullover", "skull", "french", "thruster", "snatch", "clean",
           "overhead", "upright", "shrug", "spider", "preacher", "drag", "zottman", "concentration", "jm", "tate")
 
@@ -801,6 +801,324 @@ def shift_any(p, dv):
             p[a] = [round(float(x + d), 1) for x, d in zip(p[a], dv)]
 
 
+# ---- shrugs (#1020) ----------------------------------------------------------------------------------
+SHRUG_ELEV = 5.0          # real shoulder elevation at the top of a shrug (the 2D figure shows ~11)
+SHRUGS = ("barbell-shrug", "db-shrug", "trap-bar-shrug")
+
+
+def _straight_hang(R, k, place, lat_goal, iters=7):
+    """Arms hang straight from the (raised) shoulders to the grip: `place(k, y, z)` puts the figure's hands (and
+    the held thing) at height y, sideways z; y and z are solved until the body's arms are straight (rig need
+    ~0.985) and the fist sits `lat_goal` from the midline."""
+    y, z = k["j"]["handN"][1], abs(k["j"]["handN"][2])
+    for _ in range(iters):
+        place(k, y, z)
+        R.pose(k["j"], k["p"])
+        need = (R.need["armN"] + R.need["armF"]) / 2
+        L = 67.7
+        y += (need - 0.985) * L
+        gz = (abs(R.grip["N"][2]) + abs(R.grip["F"][2])) / 2
+        goal = lat_goal(y) if callable(lat_goal) else lat_goal
+        z = max(2.0, z + (goal - gz) / 2.3)
+    place(k, y, z)
+
+
+def _arm_line(j, d, hand, up=10.0):
+    sh = np.asarray(j["shoulder" + d], float)
+    wr = hand + np.array([0, up, 0])
+    el = sh + (wr - sh) * (42.0 / 80.0)
+    j["hand" + d] = [round(float(x), 1) for x in hand]
+    j["wrist" + d] = [round(float(x), 1) for x in wr]
+    j["elbow" + d] = [round(float(x), 1) for x in el]
+
+
+def shrugs(ex, keys, R):
+    """Shrugs in 3D: the 2D back view put the bar at the body's depth (through the pelvis) and raised the trunk
+    top with the arms, which the body cannot do; the arms folded into the trunk. Here the trunk stays, the
+    shoulder girdle rises SHRUG_ELEV (`_elev`, rig.py), the arms hang straight: a barbell sits on the front of
+    the thighs with an overhand grip just outside them, dumbbells hang beside the thighs, the trap bar is a hex
+    frame around the body with neutral handles at the sides."""
+    if ex not in SHRUGS:
+        return
+    j0 = {n: list(v) for n, v in keys[0]["j"].items() if not n.startswith("_")}
+    base = j0["shoulderN"][1]
+    V0 = R.pose(j0, [])
+    legs = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("upperleg")])
+    Lg = V0[legs]
+
+    def thigh(y, what):
+        band = Lg[np.abs(Lg[:, 1] - y) < 4]
+        return float(band[:, 0].max()) if what == "front" else float(np.abs(band[:, 2]).max())
+    for k in keys:
+        j = k["j"]
+        v = float(np.clip((j["shoulderN"][1] - base) / 12.0, 0, 1))
+        elev = round(SHRUG_ELEV * v, 1)
+        for n in ("hip", "shoulder", "neck", "head"):
+            j[n] = list(j0[n])
+        for d in "NF":
+            j["shoulder" + d] = [j0["shoulder" + d][0], round(j0["shoulder" + d][1] + elev, 1), j0["shoulder" + d][2]]
+        if elev > 0:
+            j["_elev"] = [elev, elev, 0.0]
+        else:
+            j.pop("_elev", None)
+        sgn = {d: (1 if j0["shoulder" + d][2] > 0 else -1) for d in "NF"}
+        if ex == "barbell-shrug":
+            P0 = []
+            for p in k["p"]:        # the 2D plates (tall boxes) become round plates, the collars stay boxes
+                if p["k"] == "block" and p["hi"][1] - p["lo"][1] > 40:
+                    c = [(a + b) / 2 for a, b in zip(p["lo"], p["hi"])]
+                    P0.append(dict(k="disc", c=[round(x, 1) for x in c], r=22.0))
+                elif p["k"] == "block":
+                    c = [(a + b) / 2 for a, b in zip(p["lo"], p["hi"])]
+                    P0.append(dict(k="rod", a=[round(c[0], 1), round(c[1], 1), p["lo"][2]],
+                                   b=[round(c[0], 1), round(c[1], 1), p["hi"][2]], r=3.5))
+                else:
+                    P0.append(dict(p))
+            rod = next(p for p in P0 if p["k"] == "rod")
+            ry, rx = rod["a"][1], rod["a"][0]
+
+            def place(k, y, z, P0=P0, ry=ry, rx=rx):
+                x = thigh(y, "front") + 2.2 + 1.2
+                k["p"] = [dict(p) for p in P0]
+                for p in k["p"]:
+                    shift_any(p, np.array([x - rx, y - ry, 0.0]))
+                for d in "NF":
+                    _arm_line(k["j"], d, np.array([x, y, sgn[d] * z]))
+            _straight_hang(R, k, place, 24.0)
+        elif ex == "db-shrug":
+            def place(k, y, z):
+                for d in "NF":
+                    _arm_line(k["j"], d, np.array([0.0, y, sgn[d] * z]))
+                dbs = sorted((p for p in k["p"] if p["k"] == "db"), key=lambda p: p["c"][2])
+                for p, d in zip(dbs, sorted("NF", key=lambda d: sgn[d])):
+                    p["c"] = list(k["j"]["hand" + d]); p["ax"] = [1, 0, 0]
+                R.pose(k["j"], k["p"])
+                dumbbells(k["p"], {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")},
+                          R.held, R.grip)
+            # fist beside the thigh: the dumbbell's plates (r 7) clear its outside
+            _straight_hang(R, k, place, lambda y: thigh(y, "side") + 6.0)
+        else:
+            def place(k, y, z):
+                zg = None
+                for d in "NF":
+                    _arm_line(k["j"], d, np.array([0.0, y, sgn[d] * z]))
+                R.pose(k["j"], [])
+                zg = (abs(R.grip["N"][2]) + abs(R.grip["F"][2])) / 2 if R.grip else z
+                gy = (R.grip["N"][1] + R.grip["F"][1]) / 2 if R.grip else y
+                k["p"] = hex_bar(0.0, gy, zg)
+                for d in "NF":
+                    _arm_line(k["j"], d, np.array([0.0, gy, sgn[d] * zg]))
+            _straight_hang(R, k, place, lambda y: thigh(y, "side") + 6.0)
+
+
+def hex_bar(x, y, zg, half=11.0):
+    """Trap (hex) bar around a body standing at x: neutral handles at ±zg, side rails, hexagonal frame, sleeves
+    with one plate each."""
+    zs = zg + 6.0
+    P = [dict(k="rod", a=[x - half, y, s * zg], b=[x + half, y, s * zg], r=1.6) for s in (-1, 1)]
+    pts = [(x + 34, -13), (x + 34, 13), (x + 12, zs), (x - 12, zs), (x - 34, 13), (x - 34, -13), (x - 12, -zs), (x + 12, -zs)]
+    for (ax, az), (bx, bz) in zip(pts, pts[1:] + pts[:1]):
+        P.append(dict(k="rod", a=[ax, y, az], b=[bx, y, bz], r=1.8))
+    for s in (-1, 1):
+        for e in (-1, 1):
+            P.append(dict(k="rod", a=[x + e * half, y, s * zg], b=[x + e * 12, y, s * zs], r=1.6))
+        P.append(dict(k="rod", a=[x, y, s * zs], b=[x, y, s * (zs + 44)], r=2.4))
+        P.append(dict(k="disc", c=[x, y, s * (zs + 22)], r=22.0))
+    return [{kk: ([round(float(c), 1) for c in v] if isinstance(v, list) else v) for kk, v in p.items()} for p in P]
+
+
+# ---- reach and clearance (#1020) ---------------------------------------------------------------------
+REACH_SLACK = 0.995       # wrist target at most this share of the body's arm length from its shoulder
+BODY_ON_BARS = ("dip", "l-sit", "muscle-up", "static-hold", "iron-cross", "back-lever", "front-lever", "planche",
+                "leg-raise", "knee-raise", "toes-to-bar", "human-flag", "support")
+
+
+def _rod_group(P, p):
+    """Props that travel with rod p: plates and collars on its line, cable ends at its ends or middle."""
+    a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+    ab = b - a; L2 = max(ab @ ab, 1e-6)
+
+    def on_line(x, tol):
+        t = ((x - a) @ ab) / L2
+        return -0.6 < t < 1.6 and np.linalg.norm(a + t * ab - x) < tol
+    group, ends = [p], []
+    for q in P:
+        if q is p:
+            continue
+        if q["k"] == "disc" and on_line(np.asarray(q["c"], float), 4):
+            group.append(q)
+        elif q["k"] == "rod" and q.get("s") not in ("cable", "band") and on_line(np.asarray(q["a"], float), 3) \
+                and on_line(np.asarray(q["b"], float), 3) and np.linalg.norm(np.asarray(q["a"]) - np.asarray(q["b"])) < 80:
+            group.append(q)
+        elif q["k"] == "rod" and q.get("s") in ("cable", "band"):
+            for e in ("a", "b"):
+                x = np.asarray(q[e], float)
+                t = np.clip(((x - a) @ ab) / L2, 0, 1)
+                if np.linalg.norm(a + t * ab - x) < 4:
+                    ends.append((q, e))
+    return group, ends
+
+
+def _move_group(group, ends, v):
+    for q in group:
+        shift_any(q, v)
+    for q, e in ends:
+        q[e] = [round(float(x + dv), 1) for x, dv in zip(q[e], v)]
+
+
+def _body_moves(ex, J, held):
+    return hangs(ex) or any(w in ex for w in BODY_ON_BARS) or hanging(J, held)
+
+
+def reach(ex, keys, R, iters=4):
+    """The body's arms are shorter than the 2D figure's (and the rig no longer stretches them): a held bar or
+    handle out of reach comes to the hands' reach (the bar, its plates and cable ends move toward the shoulders),
+    or, when the body hangs or rests on the bars (pull-ups, dips, L-sits), the body moves to the bar. A held bar
+    inside the body (a curl bar in the thighs) is pushed out to the body's surface."""
+    fingers = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("finger")])
+    for k in keys:
+        parallel_bars_width(k, R)
+        for _ in range(iters):
+            moved = False
+            V = R.pose(k["j"], k["p"]); J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+            held = dict(R.held); rch = dict(R.reach)
+            rods = {}
+            for d in "NF":
+                h = held[d]
+                if h is None or h[0] != "rod" or d not in rch:
+                    continue
+                p = next((q for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0]) and np.allclose(q["b"], h[2][1])), None)
+                if p is None or p.get("s") in ("cable", "band"):
+                    continue
+                S, Wt, L = rch[d]
+                dist = np.linalg.norm(Wt - S)
+                if dist > L * REACH_SLACK + 0.3:
+                    rods.setdefault(id(p), [p, []])[1].append((S - Wt) / dist * (dist - L * REACH_SLACK))
+            for p, vs in rods.values():
+                v = max(vs, key=np.linalg.norm)
+                if _body_moves(ex, J, held):
+                    hold = {"hand" + d for d in "NF" if held[d] is not None} | {"wrist" + d for d in "NF" if held[d] is not None}
+                    for n, x in k["j"].items():
+                        if not n.startswith("_") and n not in hold:
+                            k["j"][n] = [round(float(c - dv), 1) for c, dv in zip(x, v)]
+                else:
+                    group, ends = _rod_group(k["p"], p)
+                    _move_group(group, ends, v)
+                    for d in "NF":           # the figure's hands go with the bar so the rig still finds it in them
+                        if held[d] is not None and held[d][0] == "rod" and np.allclose(held[d][2][0], p["a"]):
+                            for n in ("hand", "wrist"):
+                                k["j"][n + d] = [round(float(c + dv), 1) for c, dv in zip(k["j"][n + d], v)]
+                moved = True
+            # a held free bar inside the body: out along the skin normal
+            for d in "NF":
+                h = held[d]
+                if h is None or h[0] != "rod" or _body_moves(ex, J, held):
+                    continue
+                p = next((q for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0]) and np.allclose(q["b"], h[2][1])), None)
+                if p is None or p.get("s") in ("cable", "band"):
+                    continue
+                v = _push_out(R, V, p, fingers)
+                if v is not None:
+                    group, ends = _rod_group(k["p"], p)
+                    _move_group(group, ends, v)
+                    for dd in "NF":
+                        if held[dd] is not None and held[dd][0] == "rod" and np.allclose(held[dd][2][0], h[2][0]):
+                            for n in ("hand", "wrist"):
+                                k["j"][n + dd] = [round(float(c + dv), 1) for c, dv in zip(k["j"][n + dd], v)]
+                    moved = True
+                break
+            if not moved:
+                break
+
+
+def parallel_bars_width(k, R):
+    """Dip / parallel bars run front to back, one under each hand at the 2D figure's (narrow) shoulder width: the
+    body's shoulders are wider, so the hands were pulled into the hips. Each bar (with the uprights touching it)
+    moves out under its shoulder."""
+    R.pose(k["j"], k["p"])
+    rods = []
+    for d in "NF":
+        h = R.held[d]
+        if h is None or h[0] != "rod" or d not in R.reach:
+            continue
+        a, b = h[2]
+        u = (b - a) / max(np.linalg.norm(b - a), 1e-6)
+        if abs(u[0]) < 0.8:
+            return
+        rods.append((d, a, b))
+    if len(rods) != 2 or abs(rods[0][1][2] - rods[1][1][2]) < 10:
+        return
+    for d, a, b in rods:
+        S = R.reach[d][0]
+        dz = float(S[2] - a[2])
+        if abs(S[2]) <= abs(a[2]) or abs(dz) < 1:
+            continue
+        v = np.array([0.0, 0.0, dz])
+        for q in k["p"]:
+            if q["k"] != "rod":
+                continue
+            qa, qb = np.asarray(q["a"], float), np.asarray(q["b"], float)
+            if (np.allclose(qa, a) and np.allclose(qb, b)) or min(np.linalg.norm(x - y) for x in (qa, qb) for y in (a, b)) < 4 \
+                    or (abs(qa[2] - a[2]) < 3 and abs(qb[2] - a[2]) < 3):
+                shift_any(q, v)
+        for q in k["p"]:
+            if q["k"] in ("block",) and q["lo"][2] - 2 < a[2] < q["hi"][2] + 2 and q["hi"][2] - q["lo"][2] < 20:
+                shift_any(q, v)
+        for n in ("hand", "wrist"):
+            k["j"][n + d] = [k["j"][n + d][0], k["j"][n + d][1], round(k["j"][n + d][2] + dz, 1)]
+
+
+def _push_out(R, V, p, fingers, clear=1.0):
+    """Shift that takes rod p out of the skin (None when it is outside): along the mean skin normal of the
+    vertices it passes through, perpendicular to the rod."""
+    from scipy.spatial import cKDTree
+    a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+    ab = b - a; L = np.linalg.norm(ab); u = ab / max(L, 1e-6)
+    P = a + np.linspace(0, 1, max(2, int(L / 1.2)))[:, None] * ab
+    hands = V[np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith(("finger", "metacarpal", "wrist"))])]
+    th = cKDTree(hands)
+    P = P[th.query(P)[0] > 9]
+    if not len(P):
+        return None
+    N = _normals(R, V)
+    body = ~np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith(("finger", "metacarpal", "wrist", "lowerarm"))])
+    idx = np.where(body)[0]
+    t = cKDTree(V[idx])
+    dd, ii = t.query(P)
+    vi = idx[ii]
+    depth = -np.einsum("ij,ij->i", P - V[vi], N[vi])
+    inside = (depth > 0.5) & (dd < 14)
+    if inside.sum() < 2:
+        return None
+    n = N[vi[inside]].mean(0); n = n - (n @ u) * u
+    if np.linalg.norm(n) < 1e-3:
+        return None
+    n /= np.linalg.norm(n)
+    return n * (float(depth[inside].max()) + float(p.get("r", 2)) + clear)
+
+
+def _normals(R, V):
+    F = R.F
+    fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    N = np.zeros_like(V)
+    for c in range(3):
+        np.add.at(N, F[:, c], fn)
+    return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9)
+
+
+def on_floor(keys):
+    """Equipment drawn standing on the 2D floor line came out a few units into the floor: boxes start on it,
+    plates touch it (#1020)."""
+    for k in keys:
+        for p in k["p"]:
+            if p["k"] in ("block", "mat") and -8 < p["lo"][1] < 0:
+                p["lo"][1] = 0.0
+                if p["hi"][1] < 1.5:
+                    p["hi"][1] = 1.5
+            elif p["k"] == "disc" and -8 < p["c"][1] - p.get("r", 10) < 0:
+                p["r"] = round(float(p["c"][1]), 1)
+
+
 def run(ids=None):
     if not RAW.exists():
         RAW.write_bytes(DATA.read_bytes())
@@ -816,6 +1134,7 @@ def run(ids=None):
         keys = e["k"]
         lying_scenes(ex, e)
         complete(ex, keys)
+        shrugs(ex, keys, R)
         grip_axes(ex, keys)
         cable_bar(ex, keys)
         bar_clear(ex, keys)
@@ -824,6 +1143,8 @@ def run(ids=None):
         machine_parts(ex, keys)
         straps(ex, keys)
         lift_hang(ex, keys)
+        reach(ex, keys, R)
+        on_floor(keys)
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:
@@ -873,7 +1194,9 @@ def run(ids=None):
                 dy = -min_y
             elif supported and resid and min(resid) > 1.0 and min_y > 2.0:
                 dy = -min(resid)
-            elif not supported and min_y > 2.5 and not hanging(J, held) and not hangs(ex):    # over the bar (muscle-up) is still on it
+            elif not supported and min_y > 2.5 and not hanging(J, held) and not hangs(ex) \
+                    and not any(h is not None and h[0] == "rod" for h in held.values()):
+                # over the bar (muscle-up) is still on it; hands on bars or a held bar (dips, L-sit, a jump) carry it
                 dy = -min_y
             if abs(dy) > 0.5:
                 k["dy"] = round(dy, 1)
