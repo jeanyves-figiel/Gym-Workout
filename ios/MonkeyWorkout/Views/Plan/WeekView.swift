@@ -48,7 +48,7 @@ struct WeekView: View {
                         TrainEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
                     }
                     // The member's widgets (#260); the default layout is the Train screen as it always was.
-                    let layout = model.trainLayout
+                    let layout = model.visibleTrainLayout
                     if !layout.contains(.nextUp), !arranging {
                         // Cards that only show for a while (#538) sit under Next up; on top when it was removed.
                         TrainNoticeSlot()

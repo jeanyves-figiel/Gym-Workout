@@ -102,6 +102,9 @@ struct FuelView: View {
                 }
                 if Calendar.current.isDateInToday(day) { MealIdeasCard(plan: plan, log: log, day: day) }
                 FuelNextCard(plan: plan, log: log, day: day, open: { slot = $0 })
+                // Fuel with a partner (#1014): invites to answer and copies friends sent.
+                PartnerCard(invitesOnly: true)
+                FuelCopiesInbox()
                 FuelKitchen(plan: plan, day: day, settings: { setup = true })
                 Text(FuelLearn.disclaimer)
                     .font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted)
@@ -113,6 +116,7 @@ struct FuelView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .statusBarScrim()
+        .task { await HouseholdStore.shared.refresh() }
         .navigationTitle("Fuel")
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
@@ -181,7 +185,7 @@ struct FuelView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Text("Fuel").font(Theme.display(34)).lineLimit(1)
+            TabTitleMenu(tab: .fuel)
             Spacer()
             CoachHeaderTile()
             MePill()

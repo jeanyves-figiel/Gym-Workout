@@ -168,7 +168,11 @@ struct ProgressTabView: View {
     /// Title with Edit (#444); while editing, "Edit Progress" and Done.
     private var header: some View {
         HStack(spacing: 10) {
-            Text(arranging ? "Edit Insights" : "Insights").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            if arranging {
+                Text("Edit Insights").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            } else {
+                TabTitleMenu(tab: .progress)
+            }
             Spacer()
             if arranging {
                 Button { withAnimation(.snappy) { arranging = false } } label: {

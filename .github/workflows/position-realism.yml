@@ -1,0 +1,26 @@
+# 3D position guide realism check (#1020): every exercise's key poses on the skinned body (hands on the grip,
+# nothing through the body, limbs clear, nothing in the floor). Fails on a finding not in realism-baseline.json.
+name: Position realism
+on:
+  pull_request:
+    paths:
+      - 'ios/Packages/GymCore/Sources/WorkoutEngine/Resources/ExercisePositions.json.z'
+      - 'ios/Tools/illustrations/rig.py'
+      - 'ios/Tools/illustrations/contact.py'
+      - 'ios/Tools/illustrations/body_r*.npz'
+      - 'ios/Tools/illustrations/preview3d/realism*'
+      - '.github/workflows/position-realism.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  realism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet numpy==2.5.3 scipy==1.18.1
+      - run: python3 ios/Tools/illustrations/preview3d/realism.py --ratchet

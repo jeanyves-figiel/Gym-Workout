@@ -272,6 +272,18 @@
     "path": "/v1/community/reports"
   },
   {
+    "method": "GET",
+    "path": "/v1/fuel-shares"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/fuel-shares"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/fuel-shares/:id"
+  },
+  {
     "method": "POST",
     "path": "/v1/garmin/events"
   },
@@ -310,6 +322,34 @@
   {
     "method": "PUT",
     "path": "/v1/gyms/reports"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/household"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/household/bought"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/household/invites"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/household/invites/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/household/invites/:id/accept"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/household/me"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/household/state"
   },
   {
     "method": "GET",
@@ -628,6 +668,14 @@
     "path": "/v1/me/reauth/passkey-options"
   },
   {
+    "method": "DELETE",
+    "path": "/v1/me/recipe-reviews/:recipeId"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/recipe-reviews/:recipeId"
+  },
+  {
     "method": "POST",
     "path": "/v1/me/reports"
   },
@@ -690,6 +738,10 @@
   {
     "method": "GET",
     "path": "/v1/packs/:name/:sha"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/recipe-reviews"
   },
   {
     "method": "GET",

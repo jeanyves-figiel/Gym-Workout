@@ -11,6 +11,12 @@ extension AppModel {
 
     /// What Train shows: the member's layout, else the default (today's screen).
     var trainLayout: TrainLayout { state.synced?.trainLayout ?? classicTrainLayout }
+    /// What Train shows: the layout without widgets of hidden tabs (#1004). Kept in the layout, back when the tab is.
+    var visibleTrainLayout: TrainLayout {
+        var l = trainLayout
+        if !TabsPref.shared.shows(.fuel) { l.widgets.removeAll { $0.kind == .fuel } }
+        return l
+    }
 
     var trainLayoutCustomised: Bool { state.synced?.trainLayout != nil }
 

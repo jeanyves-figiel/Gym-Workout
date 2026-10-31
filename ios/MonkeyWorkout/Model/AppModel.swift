@@ -402,6 +402,7 @@ final class AppModel {
         WodStore.shared.signOut()
         SwimStore.shared.signOut()
         FuelStore.shared.signOut()
+        HouseholdStore.shared.signOut()
         WaterQueue.wipe()
         NotificationManager.shared.resetPrefs()
         // Saved HIITs (#716) are the member's too.

@@ -23,6 +23,7 @@ import { pushExport } from '../push/schema.ts';
 import { refreshMemberGym } from '../community/schema.ts';
 import { communityExport } from './community.ts';
 import { referralExport } from './referrals.ts';
+import { householdExport } from './household.ts';
 import { programExport } from './programs.ts';
 import { liveExport } from './live.ts';
 import { gymExport, gymMapExport } from './gyms.ts';
@@ -32,6 +33,7 @@ import { bodyMeasurementTable } from './bodyMeasurements.ts';
 import { climbTable } from './climbs.ts';
 import { sportTable } from './sports.ts';
 import { machineNoteExport } from './machineNotes.ts';
+import { recipeReviewExport } from './recipeReviews.ts';
 import { reportExport } from './reports.ts';
 import { prAttemptTable } from './prAttempts.ts';
 import { accountExport } from './accountExport.ts';
@@ -202,12 +204,14 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     ['community', () => communityExport(db, userId)],
     ['live', () => liveExport(db, userId)],
     ['referrals', () => referralExport(db, userId)],
+    ['fuelSharing', () => householdExport(db, userId)],
     ['programs', () => programExport(db, userId)],
     ['customExercises', rows(() => timeOrderedRows(db, customExerciseTable, userId))],
     ['prAttempts', rows(() => timeOrderedRows(db, prAttemptTable, userId))],
     ['climbs', rows(() => timeOrderedRows(db, climbTable, userId))],
     ['sports', rows(() => timeOrderedRows(db, sportTable, userId))],
     ['machineNotes', rows(() => machineNoteExport(db, userId))],
+    ['recipeReviews', () => recipeReviewExport(db, userId)],
     ['problemReports', () => reportExport(db, userId)],
     ['bodyMeasurements', rows(() => timeOrderedRows(db, bodyMeasurementTable, userId))],
     ['gyms', () => gymExport(db, userId)],
