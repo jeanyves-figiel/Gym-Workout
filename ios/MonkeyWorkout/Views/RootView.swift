@@ -636,8 +636,9 @@ private struct DemoScreen: View {
         // Over-the-air prompts (#583): remote-banner and remote-required are Train with the banner / update screen.
         case "remote-paused": PausedCard(message: "Food scan is paused while we fix it. Search and barcode still work.")
         case "whats-new-history": NavigationStack { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) }
-        case "add-workout": AddWorkoutSheet()
-        case "add-workout-quick": AddWorkoutSheet(quick: .upper)
+        // Pushed from Train (#1005), with its Back button.
+        case "add-workout": DemoPushed { AddWorkoutView() }
+        case "add-workout-quick": DemoPushed { AddWorkoutView(quick: .upper) }
         case "day":
             if let w = model.calendarWeeks(count: 1).first, let wd = w.plan.sessions.first(where: { $0.id == second })?.weekday {
                 DaySheet(selection: DaySelection(week: w, weekday: wd, current: true)) { _, _ in } onEdit: { _ in }

@@ -122,8 +122,10 @@ struct CustomExerciseBuilderView: View {
                         set: { draft.drawing = $0 }),
                     category: draft.category, primary: draft.primary)
             }
-            .fullScreenCover(isPresented: $pickingMuscles) {
+            // A sheet, not full screen (#1005): swipe down closes it, picks are already applied.
+            .sheet(isPresented: $pickingMuscles) {
                 MusclePickerScreen(primary: draft.primary, secondary: draft.secondary, heat: heat) { cycle($0) }
+                    .presentationDetents([.large])
             }
             .sensoryFeedback(.selection, trigger: draft.primary + draft.secondary)
             .fullScreenCover(isPresented: $showCamera) {

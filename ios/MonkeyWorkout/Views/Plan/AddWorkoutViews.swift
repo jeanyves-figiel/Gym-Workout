@@ -7,11 +7,13 @@ private let addDayFormat: Date.FormatStyle = .dateTime.weekday(.abbreviated).day
 
 /// "What will you do?" (#851, design A): the Coach's pick, this week's workouts to move here, then Explore-style
 /// squares for my workouts, the library, Generate (any length, design B), Build my own, HIIT and a climb. The day's
-/// sport stays; whatever is picked is added next to it.
-struct AddWorkoutSheet: View {
+/// sport stays; whatever is picked is added next to it. Pushed in Train so the tab bar stays and swipe back closes it
+/// (#1005); `AddWorkoutSheet` wraps it for sheets.
+struct AddWorkoutView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var weekday: Int
+    /// The day tapped on Train (#1005: no day chips here, the tap picked it); today from *Add workout*.
+    private let weekday: Int
     @State private var logging: ClimbLog?
     @State private var climbsBefore = 0
     /// Generate step (design B) open on this focus.
@@ -29,119 +31,114 @@ struct AddWorkoutSheet: View {
     init(weekday: Int? = nil, quick: Focus? = nil) {
         let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
         // Never an earlier day: a workout added there could only be logged (#537).
-        _weekday = State(initialValue: max(weekday ?? today, today))
+        self.weekday = max(weekday ?? today, today)
         _generating = State(initialValue: quick)
     }
 
     var body: some View {
         let coach = Generator.coachExtraFocus(heat: model.weekHeat)
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(weekday == model.todayWeekday ? "Add to today · \(dayDate.formatted(addDayFormat))" : "Add to \(dayDate.formatted(addDayFormat))")
-                        .font(Theme.label(12)).tracking(1.4).textCase(.uppercase).opacity(0.75)
-                    Text("What will you do?").font(Theme.display(30))
-                    dayPicker
-                    if let sport = daySport { sportStays(sport) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(weekday == model.todayWeekday ? "Add to today · \(dayDate.formatted(addDayFormat))" : "Add to \(dayDate.formatted(addDayFormat))")
+                    .font(Theme.label(12)).tracking(1.4).textCase(.uppercase).opacity(0.75)
+                Text("What will you do?").font(Theme.display(30))
+                if let sport = daySport { sportStays(sport) }
 
-                    heading("Coach pick · fits your week")
-                    Button { addQuick(coach, minutes: defaultMinutes) } label: { coachRow(coach) }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button("Length and focus…", systemImage: "slider.horizontal.3") { generating = coach }
-                        }
-
-                    let moves = movable
-                    if !moves.isEmpty {
-                        heading("This week's plan · move here")
-                        ForEach(moves) { s in
-                            Button { move(s) } label: { moveRow(s) }.buttonStyle(.plain)
-                        }
+                heading("Coach pick · fits your week")
+                Button { addQuick(coach, minutes: defaultMinutes) } label: { coachRow(coach) }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Length and focus…", systemImage: "slider.horizontal.3") { generating = coach }
                     }
 
-                    heading("Any other workout")
-                    LazyVGrid(columns: Self.columns, spacing: 10) {
-                        Button { library = .mine } label: {
-                            AddCategoryCard(title: "My workouts", detail: "your own", symbol: "star.fill",
-                                            value: "\(model.myLibrary.count)", colors: [Color(hex: 0xA43DFF), Color(hex: 0xFF4FD8)])
-                        }
-                        Button { library = .all } label: {
-                            AddCategoryCard(title: "Library", detail: "examples · members", symbol: "books.vertical.fill",
-                                            value: "\(model.builtInLibrary.count + model.memberLibrary.count)",
-                                            colors: [Color(hex: 0xFF5F8F), Color(hex: 0xFF9A5C)])
-                        }
-                        Button { generating = coach } label: {
-                            AddCategoryCard(title: "Generate", detail: "focus · any length", symbol: "wand.and.stars",
-                                            value: "2h", colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)])
-                        }
-                        .accessibilityIdentifier("addWorkout.generate")
-                        Button { building = CustomWorkout(name: "") } label: {
-                            AddCategoryCard(title: "Build my own", detail: "pick exercises", symbol: "square.and.pencil",
-                                            value: "+", colors: [Color(hex: 0x7A5CFF), Color(hex: 0x3DC7FF)])
-                        }
-                        Menu {
-                            ForEach(HiitFormat.allCases) { f in
-                                Menu(f.label, systemImage: f.symbol) {
-                                    ForEach(HiitSpec.lengths, id: \.self) { m in
-                                        Button("\(m) min") { addHiit(f, minutes: m) }
-                                    }
+                let moves = movable
+                if !moves.isEmpty {
+                    heading("This week's plan · move here")
+                    ForEach(moves) { s in
+                        Button { move(s) } label: { moveRow(s) }.buttonStyle(.plain)
+                    }
+                }
+
+                heading("Any other workout")
+                LazyVGrid(columns: Self.columns, spacing: 10) {
+                    Button { library = .mine } label: {
+                        AddCategoryCard(title: "My workouts", detail: "your own", symbol: "star.fill",
+                                        value: "\(model.myLibrary.count)", colors: [Color(hex: 0xA43DFF), Color(hex: 0xFF4FD8)])
+                    }
+                    Button { library = .all } label: {
+                        AddCategoryCard(title: "Library", detail: "examples · members", symbol: "books.vertical.fill",
+                                        value: "\(model.builtInLibrary.count + model.memberLibrary.count)",
+                                        colors: [Color(hex: 0xFF5F8F), Color(hex: 0xFF9A5C)])
+                    }
+                    Button { generating = coach } label: {
+                        AddCategoryCard(title: "Generate", detail: "focus · any length", symbol: "wand.and.stars",
+                                        value: "2h", colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)])
+                    }
+                    .accessibilityIdentifier("addWorkout.generate")
+                    Button { building = CustomWorkout(name: "") } label: {
+                        AddCategoryCard(title: "Build my own", detail: "pick exercises", symbol: "square.and.pencil",
+                                        value: "+", colors: [Color(hex: 0x7A5CFF), Color(hex: 0x3DC7FF)])
+                    }
+                    Menu {
+                        ForEach(HiitFormat.allCases) { f in
+                            Menu(f.label, systemImage: f.symbol) {
+                                ForEach(HiitSpec.lengths, id: \.self) { m in
+                                    Button("\(m) min") { addHiit(f, minutes: m) }
                                 }
                             }
-                        } label: {
-                            AddCategoryCard(title: "HIIT", detail: "format · timer", symbol: "bolt.fill",
-                                            value: "\(HiitFormat.allCases.count)", colors: [Color(hex: 0xFF3D6B), Color(hex: 0xFFB03D)])
                         }
-                        Button {
-                            climbsBefore = model.climbLogs.count
-                            logging = ClimbLog(start: climbStart)
-                        } label: {
-                            AddCategoryCard(title: "Log a climb", detail: "boulder, lead, outdoor", symbol: "figure.climbing",
-                                            value: "🧗", colors: [Color(hex: 0x1FC8A0), Color(hex: 0x3AA0F0)])
-                        }
-                        Button { fromVideo = true } label: {
-                            AddCategoryCard(title: "From a video", detail: "TikTok · Instagram", symbol: "play.rectangle.on.rectangle.fill",
-                                            value: "▶", colors: [Color(hex: 0x7B4DFF), Color(hex: 0x3D7BFF)])
-                        }
-                        .accessibilityIdentifier("addWorkout.fromVideo")
+                    } label: {
+                        AddCategoryCard(title: "HIIT", detail: "format · timer", symbol: "bolt.fill",
+                                        value: "\(HiitFormat.allCases.count)", colors: [Color(hex: 0xFF3D6B), Color(hex: 0xFFB03D)])
                     }
-                    .buttonStyle(.plain)
-                }
-                .padding(16)
-            }
-            .readableWidth()
-            .background(Theme.bg.ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { CloseToolbarItem { dismiss() } }
-            .navigationDestination(item: $generating) { f in
-                GenerateWorkoutView(focus: f, minutes: defaultMinutes, day: dayDate.formatted(addDayFormat)) { focus, minutes, groups, tweaks in
-                    addQuick(focus, minutes: minutes, groups: groups, tweaks: tweaks)
-                }
-            }
-            .sheet(isPresented: $fromVideo) {
-                VideoImportSheet(weekday: weekday) { built = true }
-            }
-            .onChange(of: fromVideo) { if !fromVideo && built { dismiss() } }
-            .sheet(item: $logging, onDismiss: { if model.climbLogs.count > climbsBefore { dismiss() } }) {
-                LogClimbView(initial: $0)
-            }
-            .sheet(item: $building, onDismiss: { if built { dismiss() } }) { w in
-                CustomWorkoutEditor(initial: w) { saved in
-                    model.addExtra(saved, weekday: weekday)
-                    built = true
-                }
-            }
-            .sheet(item: $library, onDismiss: { if let e = picked { addLibrary(e) } }) { f in
-                NavigationStack {
-                    WorkoutLibraryView(filter: f) { e in
-                        picked = e
-                        library = nil
+                    Button {
+                        climbsBefore = model.climbLogs.count
+                        logging = ClimbLog(start: climbStart)
+                    } label: {
+                        AddCategoryCard(title: "Log a climb", detail: "boulder, lead, outdoor", symbol: "figure.climbing",
+                                        value: "🧗", colors: [Color(hex: 0x1FC8A0), Color(hex: 0x3AA0F0)])
                     }
-                    .toolbar { CloseToolbarItem { library = nil } }
+                    Button { fromVideo = true } label: {
+                        AddCategoryCard(title: "From a video", detail: "TikTok · Instagram", symbol: "play.rectangle.on.rectangle.fill",
+                                        value: "▶", colors: [Color(hex: 0x7B4DFF), Color(hex: 0x3D7BFF)])
+                    }
+                    .accessibilityIdentifier("addWorkout.fromVideo")
                 }
-                .preferredColorScheme(.dark)
+                .buttonStyle(.plain)
+            }
+            .padding(16)
+        }
+        .readableWidth()
+        .background(Theme.bg.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $generating) { f in
+            GenerateWorkoutView(focus: f, minutes: defaultMinutes, day: dayDate.formatted(addDayFormat)) { focus, minutes, groups, tweaks in
+                addQuick(focus, minutes: minutes, groups: groups, tweaks: tweaks)
             }
         }
-        .presentationDetents([.large])
+        .sheet(isPresented: $fromVideo) {
+            VideoImportSheet(weekday: weekday) { built = true }
+        }
+        .onChange(of: fromVideo) { if !fromVideo && built { dismiss() } }
+        .sheet(item: $logging, onDismiss: { if model.climbLogs.count > climbsBefore { dismiss() } }) {
+            LogClimbView(initial: $0)
+        }
+        .sheet(item: $building, onDismiss: { if built { dismiss() } }) { w in
+            CustomWorkoutEditor(initial: w) { saved in
+                model.addExtra(saved, weekday: weekday)
+                built = true
+            }
+        }
+        .sheet(item: $library, onDismiss: { if let e = picked { addLibrary(e) } }) { f in
+            NavigationStack {
+                WorkoutLibraryView(filter: f) { e in
+                    picked = e
+                    library = nil
+                }
+                .toolbar { CloseToolbarItem { library = nil } }
+            }
+            .preferredColorScheme(.dark)
+        }
         .preferredColorScheme(.dark)
     }
 
@@ -176,35 +173,6 @@ struct AddWorkoutSheet: View {
 
     private func heading(_ text: String) -> some View {
         Text(text).font(Theme.label(12)).tracking(1.4).textCase(.uppercase).opacity(0.75).padding(.top, 8)
-    }
-
-    private var dayPicker: some View {
-        let cal = model.planCalendar
-        let week = model.calendarWeeks(count: 1).first
-        return HStack(spacing: 4) {
-            ForEach(WeekSchedule.weekdays, id: \.self) { wd in
-                // An earlier day can't take a new workout (#537): log it from Train instead.
-                let off = week?.off[wd] != nil || wd < model.todayWeekday
-                let past = wd < model.todayWeekday
-                let busy = week?.plan.sessions.contains { $0.weekday == wd && !model.skippedOff($0) } ?? false
-                Button { weekday = wd } label: {
-                    VStack(spacing: 1) {
-                        Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9))
-                        Text(week?.date(wd, cal).map { "\(cal.component(.day, from: $0))" } ?? "").font(Theme.display(17)).monospacedDigit()
-                        Circle().fill(busy ? Color.white : .clear).frame(width: 5, height: 5)
-                    }
-                    .foregroundStyle(weekday == wd ? Theme.ink : .white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(weekday == wd ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(off ? 0.03 : 0.08))))
-                    .opacity(off ? 0.45 : 1)
-                }
-                .buttonStyle(.plain)
-                .disabled(off)
-                .accessibilityLabel(WeekSchedule.name(wd) + (past ? ", past day, log it from Train" : off ? ", can't train" : busy ? ", has a session" : ""))
-            }
-        }
     }
 
     /// "Climbing stays on Wed" (#851): adding a workout never takes the day's sport away.
@@ -566,5 +534,21 @@ private extension Date {
     func rounded(minutes: Int) -> Date {
         let step = Double(minutes * 60)
         return Date(timeIntervalSinceReferenceDate: (timeIntervalSinceReferenceDate / step).rounded(.down) * step)
+    }
+}
+
+/// Add workout from a sheet (Calendar day sheet, demo screens): own stack, X top right, swipe down closes (#1005).
+struct AddWorkoutSheet: View {
+    var weekday: Int?
+    var quick: Focus?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            AddWorkoutView(weekday: weekday, quick: quick)
+                .toolbar { CloseToolbarItem { dismiss() } }
+        }
+        .presentationDetents([.large])
+        .preferredColorScheme(.dark)
     }
 }

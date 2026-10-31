@@ -38,12 +38,12 @@ struct BuddiesScreen: View {
     var body: some View {
         ScrollView {
             BuddiesCard().padding(16)
+                .scopedRefreshable { await LiveRoom.shared.load(api: model.api) }
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Gym buddies")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await LiveRoom.shared.load(api: model.api) }
     }
 }
 
