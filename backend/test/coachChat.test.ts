@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { type ChatContext, type ChatTurn, type CoachAnswer, type CoachModel, clean, describeMember } from '../src/coach/chat.ts';
+import { type ChatContext, type ChatTurn, type CoachAnswer, type CoachModel, clean, cleanDo, describeMember } from '../src/coach/chat.ts';
 import { loadConfig } from '../src/config.ts';
 import { openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -200,6 +200,7 @@ describe('clean', () => {
       suggestions: [],
       protect: null,
       measurement: null,
+      doActions: [],
       workout: { name: 'Coach workout', minutes: 120, groups: ['legs'], rest: 'standard', grouping: 'straight', avoidGroups: ['shoulders'], avoidEquipment: ['rack'], avoidKeywords: ['lunge'] },
     });
     expect(clean({ reply: 'Which muscles?', workout: { ...a.workout!, groups: [] } }, {}).workout).toBeNull();
@@ -316,5 +317,43 @@ describe('freestyle: Coach adds exercises (#856)', () => {
     expect(calls[0]!.context.exercises).toEqual(list);
     const bad = await chat(t, { turns: [{ role: 'member', text: 'This?' }], photo: Buffer.alloc(200, 1).toString('base64') });
     expect(bad.statusCode).toBe(400);
+  });
+});
+
+describe('Coach can act (#999)', () => {
+  const none = { glasses: null, foods: null, meal: null, mood: null, weekday: null, from: null, to: null };
+  const ctx: ChatContext = { weekday: 5, todayExercises: ['Back squat', 'Leg press'] };
+
+  it('keeps allowlisted actions in range, drops the rest', () => {
+    const out = cleanDo([
+      { ...none, kind: 'water', glasses: 2 },
+      { ...none, kind: 'water', glasses: 40 },
+      { ...none, kind: 'food', foods: '  oats and a banana ', meal: 'breakfast' },
+      { ...none, kind: 'mood', mood: 9 },
+      { ...none, kind: 'move', weekday: 3 },
+      { ...none, kind: 'move', weekday: 6 },
+      { ...none, kind: 'skip' },
+      { ...none, kind: 'swap', from: 'back SQUAT', to: 'Hack squat' },
+      { ...none, kind: 'swap', from: 'Deadlift', to: 'Hack squat' },
+      { ...none, kind: 'delete-account' as never },
+    ], ctx);
+    expect(out).toEqual([
+      { ...none, kind: 'water', glasses: 2 },
+      { ...none, kind: 'food', foods: 'oats and a banana', meal: 'breakfast' },
+      { ...none, kind: 'move', weekday: 6 },
+      { ...none, kind: 'swap', from: 'Back squat', to: 'Hack squat' },
+    ]);
+  });
+
+  it('caps at five, null-safe', () => {
+    expect(cleanDo(Array(9).fill({ ...none, kind: 'water', glasses: 1 }), {})).toHaveLength(5);
+    expect(cleanDo(undefined, {})).toEqual([]);
+    expect(clean({ reply: 'a', workout: null }, {}).doActions).toEqual([]);
+  });
+
+  it('tells Coach the day and today\'s exercises', () => {
+    const d = describeMember(ctx);
+    expect(d).toContain('Today is: Friday (5)');
+    expect(d).toContain("Today's exercises (for swap \"from\"): Back squat; Leg press");
   });
 });

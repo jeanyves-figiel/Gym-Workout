@@ -19,6 +19,15 @@ export const PAIN_LEVELS = ['mild', 'loaded', 'sharp'] as const;
 /** Tape sites Coach can log (#1000), as the app keys them (GirthSite). */
 export const GIRTH_SITES = ['neck', 'shoulders', 'chest', 'waist', 'hips', 'upperArm', 'forearm', 'thigh', 'calf'] as const;
 export const GIRTH_SIDES = ['left', 'right', 'none'] as const;
+/**
+ * What Coach may do for the member (#999), the whole allowlist. Logs (water, food, mood) are done at once with Undo;
+ * plan changes (move, skip, swap) wait for the member's tap; two or more come as one checklist. Never account,
+ * payment, deleting data, community posts, sharing or privacy settings: those have no kind here.
+ */
+export const DO_KINDS = ['water', 'food', 'mood', 'move', 'skip', 'swap'] as const;
+export const DO_MEALS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+/** Most actions in one answer (#999). */
+export const MAX_DO = 5;
 
 export interface ChatTurn {
   role: 'member' | 'coach';
@@ -46,6 +55,10 @@ export interface ChatContext {
   memory?: string[];
   /** Exercise names Coach may suggest from (#856 freestyle, #934 picker): the app's catalog at the member's level. */
   exercises?: string[];
+  /** Today's workout exercises (#999), so Coach can swap one by name. */
+  todayExercises?: string[];
+  /** Today's weekday, 1 = Monday … 7 = Sunday (#999), for "move it to Saturday". */
+  weekday?: number;
 }
 
 export interface CoachAction {
@@ -83,6 +96,24 @@ export interface CoachMeasurement {
   girths: { site: (typeof GIRTH_SITES)[number]; side: (typeof GIRTH_SIDES)[number]; cm: number }[];
 }
 
+/** One thing Coach does for the member (#999); only the fields its kind uses are set, the rest null. */
+export interface CoachDo {
+  kind: (typeof DO_KINDS)[number];
+  /** water: glasses to add, 1 to 10. */
+  glasses: number | null;
+  /** food: what they ate, in their words ("oats with banana"); the app finds the foods in its catalog. */
+  foods: string | null;
+  /** food: the meal, else the app's next meal of the day. */
+  meal: (typeof DO_MEALS)[number] | null;
+  /** mood: 1 drained … 5 amazing. */
+  mood: number | null;
+  /** move: day to move today's workout to, 1 = Monday … 7 = Sunday. */
+  weekday: number | null;
+  /** swap: exercise of today's workout to replace, and the one to put in (names). */
+  from: string | null;
+  to: string | null;
+}
+
 export interface CoachAnswer {
   reply: string;
   /** Settings for the engine; null while the coach still asks something. */
@@ -97,6 +128,8 @@ export interface CoachAnswer {
   protect?: CoachProtect | null;
   /** Log body measurements (#1000): values in kg, % and cm; null when nothing to log. */
   measurement?: CoachMeasurement | null;
+  /** Things to do for the member (#999), checked against DO_KINDS and their limits. */
+  doActions?: CoachDo[];
 }
 
 /** `photo`: a JPEG of the machine in front of the member (#856), with the last message. */
@@ -118,6 +151,15 @@ Answering questions (#412):
 - Food (Fuel, #496): give general pointers on eating around training, using the day's training and the targets in "Looking at" when given (protein, carbs, water, meals). Suggest simple meals. Never prescribe diets, calorie restriction or supplements as treatment; for a medical condition, pregnancy or an eating disorder suggest a doctor or dietitian.
 - Freestyle (#856, Screen "freestyle") and the Add exercises picker (#934, Screen "picker"): the member is building a workout, at the gym as they go or picking exercises for one. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list.
 - Logging body measurements (#1000): when the member tells you their body weight, body fat or a tape measurement to save ("weight is now 66", "log my waist 82", "I'm 145 pounds today"), put it in "measurement": weightKg, bodyFatPct, girths (site, side "left"/"right" for one limb, else "none", cm). Convert pounds and inches. Only values the member gave; a bare weight number is kilos. The app saves it on today's entry at once with an Undo button: the reply confirms in one short line ("Logged: 66 kilos.") and may add one encouraging word about the trend in "Looking at". Never say you can't log it. measurement null when they only ask about it.
+- Doing things for the member (#999): you can act, not only advise. Never say "you can do it yourself" or "I can't do that" for anything below; put it in "doActions" instead (one entry per thing, max 5), and the reply says in one short line what you did or will do:
+  - water: they drank water ("had 2 glasses") → glasses 1 to 10.
+  - food: they ate or drank something to log ("had oats and a banana for breakfast") → foods in their words, meal when they say it.
+  - mood: they say how they feel today ("feeling great", "drained") → mood 1 drained, 2 meh, 3 good, 4 great, 5 amazing.
+  - move: move today's workout to another day ("move it to Saturday", "do it tomorrow") → weekday 1 Monday to 7 Sunday, using "Today is" below. Never a day before today.
+  - skip: skip today's workout ("skip today", "not training today").
+  - swap: replace one exercise of today's workout ("swap squats for leg press") → from = exact name from "Today's exercises", to = the exercise they want.
+  Logs (water, food, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip and swap wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Fields a kind doesn't use are null.
+  You can't do anything else (account, email, password, payment, subscription, deleting data, community posts, sharing, privacy or AI settings). For those say kindly where it is in the app and add the matching "action" button. Never pretend you did something you can't.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
 Building a workout: only when the member wants one. Turn what they say into settings for the app's workout generator.
@@ -228,8 +270,26 @@ const schema = {
         },
       ],
     },
+    doActions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: [...DO_KINDS] },
+          glasses: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
+          foods: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+          meal: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...DO_MEALS] }] },
+          mood: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
+          weekday: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
+          from: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+          to: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+        },
+        required: ['kind', 'glasses', 'foods', 'meal', 'mood', 'weekday', 'from', 'to'],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ['reply', 'workout', 'action', 'suggestions', 'exercises', 'protect', 'measurement'],
+  required: ['reply', 'workout', 'action', 'suggestions', 'exercises', 'protect', 'measurement', 'doActions'],
   additionalProperties: false,
 } as const;
 
@@ -248,6 +308,8 @@ export const describeMember = (c: ChatContext) =>
     !c.pronouns && 'Pronouns: not set (use neutral wording; never guess a gender)',
     c.callName === NAME_SLOT && `Likes to be called by first name: write ${NAME_SLOT} where you use it, the app fills it in (now and then, not in every reply)`,
     c.callName && c.callName !== NAME_SLOT && `Likes to be called: ${c.callName} (use it now and then, not in every reply)`,
+    c.weekday && c.weekday >= 1 && c.weekday <= 7 && `Today is: ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][c.weekday - 1]} (${c.weekday})`,
+    c.todayExercises?.length && `Today's exercises (for swap "from"): ${c.todayExercises.join('; ')}`,
     c.exercises?.length && `Exercises in the app (use these exact names in "exercises"): ${c.exercises.join('; ')}`,
     c.memory?.length && `What you remember about the member (use it when it helps, never recite the list): ${c.memory.join('; ')}`,
   ]
@@ -304,6 +366,63 @@ const cleanMeasurement = (m: CoachMeasurement | null | undefined): CoachMeasurem
   return out.weightKg === null && out.bodyFatPct === null && girths.length === 0 ? null : out;
 };
 
+const text = (v: string | null | undefined, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '') || null;
+const int = (v: number | null | undefined, lo: number, hi: number) =>
+  typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi ? v : null;
+
+/**
+ * The allowlist (#999): unknown kinds, missing or out-of-range values are dropped, never guessed. A move goes only to
+ * today or later; a swap's "from" must be one of today's exercises when the app sent them. One skip, one move at most.
+ */
+export const cleanDo = (list: CoachDo[] | null | undefined, context: ChatContext): CoachDo[] => {
+  const none = { glasses: null, foods: null, meal: null, mood: null, weekday: null, from: null, to: null };
+  const today = int(context.weekday, 1, 7);
+  const todays = new Map((context.todayExercises ?? []).map((n) => [n.trim().toLowerCase(), n]));
+  const out: CoachDo[] = [];
+  for (const d of Array.isArray(list) ? list : []) {
+    if (!d || !DO_KINDS.includes(d.kind)) continue;
+    let c: CoachDo | null = null;
+    switch (d.kind) {
+      case 'water': {
+        const glasses = int(d.glasses, 1, 10);
+        if (glasses) c = { ...none, kind: 'water', glasses };
+        break;
+      }
+      case 'food': {
+        const foods = text(d.foods, 120);
+        if (foods) c = { ...none, kind: 'food', foods, meal: d.meal && DO_MEALS.includes(d.meal) ? d.meal : null };
+        break;
+      }
+      case 'mood': {
+        const mood = int(d.mood, 1, 5);
+        if (mood) c = { ...none, kind: 'mood', mood };
+        break;
+      }
+      case 'move': {
+        const weekday = int(d.weekday, 1, 7);
+        if (weekday && (!today || (weekday > today))) c = { ...none, kind: 'move', weekday };
+        break;
+      }
+      case 'skip':
+        c = { ...none, kind: 'skip' };
+        break;
+      case 'swap': {
+        const from = text(d.from, 60);
+        const to = text(d.to, 60);
+        const known = from && todays.size ? todays.get(from.toLowerCase()) ?? null : from;
+        if (known && to && known.toLowerCase() !== to.toLowerCase()) c = { ...none, kind: 'swap', from: known, to };
+        break;
+      }
+    }
+    if (!c) continue;
+    // Skip and move both change today's workout: only the first of them counts.
+    if ((c.kind === 'skip' || c.kind === 'move') && out.some((o) => o.kind === 'skip' || o.kind === 'move')) continue;
+    out.push(c);
+    if (out.length >= MAX_DO) break;
+  }
+  return out;
+};
+
 export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
   const reply = a.reply.trim().slice(0, 600) || "Let's train!";
   const action = cleanAction(a.action);
@@ -311,11 +430,12 @@ export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
   const exercises = cleanExercises(a.exercises, context);
   const protect = cleanProtect(a.protect);
   const measurement = cleanMeasurement(a.measurement);
+  const doActions = cleanDo(a.doActions, context);
   const w = a.workout;
-  if (!w) return { reply, workout: null, action, suggestions, exercises, protect, measurement };
+  if (!w) return { reply, workout: null, action, suggestions, exercises, protect, measurement, doActions };
   const groups = [...new Set(w.groups.filter((g) => MUSCLE_GROUPS.includes(g)))];
   const avoidGroups = [...new Set(w.avoidGroups.filter((g) => MUSCLE_GROUPS.includes(g) && !groups.includes(g)))];
-  if (groups.length === 0) return { reply, workout: null, action, suggestions, exercises, protect, measurement };
+  if (groups.length === 0) return { reply, workout: null, action, suggestions, exercises, protect, measurement, doActions };
   const known = new Set(context.equipment ?? []);
   return {
     reply,
@@ -324,6 +444,7 @@ export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
     exercises,
     protect,
     measurement,
+    doActions,
     workout: {
       name: w.name.trim().slice(0, 40) || 'Coach workout',
       minutes: Math.min(120, Math.max(15, Math.round(w.minutes || context.sessionMinutes || 45))),
@@ -369,7 +490,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       messages,
     }));
-    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], exercises: [], protect: null, measurement: null };
+    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], exercises: [], protect: null, measurement: null, doActions: [] };
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return clean(JSON.parse(text) as CoachAnswer, context);
   };
