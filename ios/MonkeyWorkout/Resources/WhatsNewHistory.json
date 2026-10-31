@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026-10-31.4",
+      "build": 94,
+      "date": "2026-10-31",
+      "items": [
+        {
+          "symbol": "xmark.circle.fill",
+          "tint": "power",
+          "title": "One ✕ to leave",
+          "body": "Pause, finish or discard a workout from the same place: tap ✕ in the player."
+        },
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "strength",
+          "title": "Cleaner 3D moves",
+          "body": "Arms no longer clip through the body when holding weights, bars sit off the neck, and floor stretches like the butterfly look right."
+        },
+        {
+          "symbol": "tv.fill",
+          "tint": "cardio",
+          "title": "TV closer to live",
+          "body": "AirPlay now trails the phone by about 2 s, and casting stops when you close the workout."
+        }
+      ]
+    },
+    {
       "id": "2026-10-31.3",
       "build": 93,
       "date": "2026-10-31",

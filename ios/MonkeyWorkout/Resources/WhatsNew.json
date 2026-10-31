@@ -1,23 +1,11 @@
 {
-  "id": "2026-10-31.4",
+  "id": "2026-10-31.5",
   "items": [
-    {
-      "symbol": "xmark.circle.fill",
-      "tint": "power",
-      "title": "One ✕ to leave",
-      "body": "Pause, finish or discard a workout from the same place: tap ✕ in the player."
-    },
     {
       "symbol": "figure.strengthtraining.traditional",
       "tint": "strength",
-      "title": "Cleaner 3D moves",
-      "body": "Arms no longer clip through the body when holding weights, bars sit off the neck, and floor stretches like the butterfly look right."
-    },
-    {
-      "symbol": "tv.fill",
-      "tint": "cardio",
-      "title": "TV closer to live",
-      "body": "AirPlay now trails the phone by about 2 s, and casting stops when you close the workout."
+      "title": "Cleaner moves, checked",
+      "body": "Cable exercises hold the handle, fewer arms clip the body in 3D, and every exercise animation is now checked for hands on the grip and feet on the kit."
     }
   ]
 }
