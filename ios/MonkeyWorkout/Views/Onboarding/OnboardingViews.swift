@@ -43,6 +43,7 @@ struct OnboardingFlowView: View {
     @State private var programme: Programme?
     @State private var keepPlan: Bool
     @State private var building = false
+    @State private var tabsPref = TabsPref.shared
     /// Say it once to Coach (#873).
     @State private var talking = false
     @State private var equipmentOpen = false
@@ -282,21 +283,11 @@ struct OnboardingFlowView: View {
             Text("🐵").font(.system(size: 88)).padding(.top, 20)
             Text("Want me to show you round?").font(Theme.display(26)).multilineTextAlignment(.center)
             // The names the tabs and the tour bubbles use (#822).
-            Text("Six stops: Train, Explore, Insights, Fuel, Social and Coach Monkey. Run it again any time in Settings → Onboarding.")
+            // Pick your tabs (#1004 C): tap a tab you won't use to hide it; Settings → My tabs brings it back.
+            Text("Tap a tab you won't use to hide it. Run the tour again any time in Settings → Onboarding.")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             VStack(spacing: 8) {
-                ForEach(AppTour.steps) { s in
-                    HStack(spacing: 12) {
-                        Image(systemName: s.symbol).font(.system(size: 16, weight: .bold))
-                            .frame(width: 36, height: 36)
-                            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.22)))
-                        Text(s.title).font(Theme.display(17))
-                        Spacer()
-                    }
-                    .foregroundStyle(s.category.ink)
-                    .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(s.category.gradient))
-                }
+                ForEach(AppTour.all) { s in tourRow(s) }
             }
             Button { startTour() } label: { Text("SHOW ME ROUND") }
                 .buttonStyle(LimeButtonStyle())
@@ -307,6 +298,37 @@ struct OnboardingFlowView: View {
     }
 
     // MARK: Pieces
+
+    /// A tour stop; hideable tabs toggle on tap (#1004 C), Train and Coach stay.
+    private func tourRow(_ s: AppTourStep) -> some View {
+        let tab = s.tab.flatMap { TabsPref.hideable.contains($0) ? $0 : nil }
+        let on = tab.map(tabsPref.shows) ?? true
+        return Button {
+            guard let tab else { return }
+            withAnimation(.snappy) { tabsPref.set(tab, shown: !on) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: s.symbol).font(.system(size: 16, weight: .bold))
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.22)))
+                Text(s.title).font(Theme.display(17)).strikethrough(!on)
+                Spacer()
+                if tab != nil {
+                    Image(systemName: on ? "eye.fill" : "eye.slash.fill").font(.subheadline.weight(.bold))
+                }
+            }
+            .foregroundStyle(on ? s.category.ink : Theme.muted)
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(on ? AnyShapeStyle(s.category.gradient) : AnyShapeStyle(Color.white.opacity(0.08))))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(tab == nil)
+        .accessibilityLabel(tab == nil ? s.title : "\(s.title), \(on ? "shown" : "hidden")")
+        .accessibilityHint(tab == nil ? "" : "Shows or hides this tab")
+        .accessibilityIdentifier("onboarding.tab.\(s.id)")
+    }
 
     /// Explore-style card: icon tile left, title and line, big number right.
     private func bigCard(symbol: String, title: String, line: String, number: String?, unit: String?,

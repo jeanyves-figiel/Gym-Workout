@@ -181,7 +181,7 @@ struct FuelView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Text("Fuel").font(Theme.display(34)).lineLimit(1)
+            TabTitleMenu(tab: .fuel)
             Spacer()
             CoachHeaderTile()
             MePill()

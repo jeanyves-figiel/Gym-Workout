@@ -181,7 +181,8 @@ struct TrainWidgetGallery: View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(TrainWidgetKind.allCases) { kind in
+                    // No Fuel widget while Fuel is hidden (#1004).
+                    ForEach(TrainWidgetKind.allCases.filter { $0 != .fuel || TabsPref.shared.shows(.fuel) }) { kind in
                         let on = layout.contains(kind)
                         Button {
                             withAnimation(.snappy) { model.editTrainLayout { $0.add(kind) } }
