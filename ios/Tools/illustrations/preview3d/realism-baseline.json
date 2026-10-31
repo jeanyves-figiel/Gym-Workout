@@ -13,13 +13,6 @@
 "grip",
 "through"
 ],
-"back-extension": [
-"through"
-],
-"back-lever": [
-"limb",
-"through"
-],
 "ball-crunch": [
 "floor"
 ],
@@ -71,9 +64,6 @@
 "bayesian-curl": [
 "grip"
 ],
-"belt-squat": [
-"through"
-],
 "box-squat": [
 "through"
 ],
@@ -107,8 +97,7 @@
 "through"
 ],
 "cable-upright-row": [
-"limb",
-"through"
+"limb"
 ],
 "cable-woodchop": [
 "grip",
@@ -131,15 +120,11 @@
 "cross-body-hammer-curl": [
 "limb"
 ],
-"crunch-machine": [
-"through"
-],
 "curtsy-lunge": [
 "limb"
 ],
 "db-fly": [
-"grip",
-"through"
+"grip"
 ],
 "db-lateral-raise": [
 "grip"
@@ -155,9 +140,6 @@
 ],
 "figure-4": [
 "limb"
-],
-"front-squat": [
-"through"
 ],
 "goblet-squat": [
 "grip",
@@ -179,10 +161,6 @@
 "hip-90-90": [
 "limb"
 ],
-"hip-thrust-machine": [
-"grip",
-"through"
-],
 "incline-chest-press-machine": [
 "floor",
 "grip",
@@ -193,9 +171,6 @@
 ],
 "incline-db-fly": [
 "grip"
-],
-"incline-reverse-fly": [
-"through"
 ],
 "iron-cross": [
 "limb",
@@ -216,15 +191,6 @@
 "kb-thruster": [
 "grip"
 ],
-"landmine-press": [
-"through"
-],
-"landmine-rotation": [
-"through"
-],
-"landmine-t-bar-row": [
-"through"
-],
 "lat-pulldown": [
 "floor",
 "grip",
@@ -236,22 +202,10 @@
 "lean-away-lateral-raise": [
 "grip"
 ],
-"leg-curl": [
-"through"
-],
-"leg-extension": [
-"through"
-],
 "leg-press-calf-raise": [
 "limb"
 ],
 "machine-lateral-raise": [
-"through"
-],
-"machine-pullover": [
-"through"
-],
-"machine-row-single": [
 "through"
 ],
 "machine-squat": [
@@ -267,8 +221,7 @@
 "floor"
 ],
 "meadows-row": [
-"limb",
-"through"
+"limb"
 ],
 "med-ball-scoop-toss": [
 "limb"
@@ -277,15 +230,12 @@
 "grip"
 ],
 "multi-hip-abduction": [
-"through"
+"grip"
 ],
 "muscle-up": [
 "through"
 ],
 "neutral-grip-pull-up": [
-"through"
-],
-"one-arm-db-row": [
 "through"
 ],
 "overhead-squat": [
@@ -299,9 +249,6 @@
 "grip",
 "limb"
 ],
-"pec-deck-fly": [
-"through"
-],
 "pendulum-squat": [
 "limb",
 "through"
@@ -312,25 +259,10 @@
 "prone-pulldown": [
 "limb"
 ],
-"prone-ytw": [
-"through"
-],
-"rack-pull": [
-"through"
-],
 "reverse-grip-pulldown": [
 "floor",
 "grip",
 "limb",
-"through"
-],
-"reverse-hyper": [
-"grip"
-],
-"reverse-pec-deck": [
-"through"
-],
-"ring-push-up": [
 "through"
 ],
 "rope-hammer-curl": [
@@ -358,14 +290,12 @@
 "grip"
 ],
 "seated-leg-curl": [
-"grip",
-"through"
+"grip"
 ],
 "side-delt-stretch": [
 "limb"
 ],
 "side-lying-external-rotation": [
-"grip",
 "through"
 ],
 "single-arm-pulldown": [
@@ -374,15 +304,8 @@
 "single-arm-pushdown": [
 "limb"
 ],
-"single-leg-back-extension": [
-"through"
-],
-"single-leg-curl": [
-"through"
-],
 "single-leg-extension": [
-"limb",
-"through"
+"limb"
 ],
 "ski-erg": [
 "through"
@@ -396,30 +319,11 @@
 "slider-reverse-lunge": [
 "floor"
 ],
-"smith-bench-press": [
-"through"
-],
-"smith-incline-press": [
-"through"
-],
-"smith-inverted-row": [
-"limb",
-"through"
-],
 "smith-split-squat": [
-"limb",
+"grip",
 "through"
 ],
 "smith-squat": [
-"limb",
-"through"
-],
-"standing-calf-raise": [
-"grip",
-"limb",
-"through"
-],
-"standing-leg-curl": [
 "through"
 ],
 "sumo-db-squat": [
@@ -430,34 +334,36 @@
 "through"
 ],
 "sumo-high-pull": [
-"limb"
+"limb",
+"through"
 ],
 "supine-twist": [
 "limb"
+],
+"t-bar-row": [
+"through"
 ],
 "toes-to-bar": [
 "grip",
 "through"
 ],
 "torso-rotation": [
-"limb",
-"through"
+"limb"
 ],
 "trap-bar-carry": [
-"limb",
-"through"
-],
-"trap-bar-deadlift": [
-"limb",
-"through"
+"limb"
 ],
 "trap-bar-jump": [
 "limb"
+],
+"weighted-dip": [
+"through"
 ],
 "weighted-muscle-up": [
 "through"
 ],
 "wide-grip-cable-row": [
+"grip",
 "limb"
 ],
 "windshield-wipers": [

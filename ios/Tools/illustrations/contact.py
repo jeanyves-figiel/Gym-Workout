@@ -1029,6 +1029,34 @@ def reach(ex, keys, R, iters=4):
                 break
             if not moved:
                 break
+        bar_out(ex, k, R, fingers)
+
+def bar_out(ex, k, R, fingers=None):
+    """The skin wins over the reach: a held bar left inside the body (hands too short to hold it on the traps)
+    comes out along the skin normal, the hands with it."""
+    if fingers is None:
+        fingers = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("finger")])
+    for _ in range(4):
+        V = R.pose(k["j"], k["p"])
+        held = dict(R.held)
+        J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+        if _body_moves(ex, J, held):
+            break
+        h = next((h for h in held.values() if h is not None and h[0] == "rod"), None)
+        if h is None:
+            break
+        p = next((q for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0]) and np.allclose(q["b"], h[2][1])), None)
+        if p is None or p.get("s") in ("cable", "band"):
+            break
+        v = _push_out(R, V, p, fingers)
+        if v is None:
+            break
+        group, ends = _rod_group(k["p"], p)
+        _move_group(group, ends, v)
+        for dd in "NF":
+            if held[dd] is not None and held[dd][0] == "rod" and np.allclose(held[dd][2][0], h[2][0]):
+                for n in ("hand", "wrist"):
+                    k["j"][n + dd] = [round(float(c + dv), 1) for c, dv in zip(k["j"][n + dd], v)]
 
 
 def parallel_bars_width(k, R):
@@ -1161,6 +1189,131 @@ def arms_clear(ex, keys, R, iters=5):
                 break
 
 
+def widen_frames(ex, keys, R):
+    """Frame posts (racks, towers, smith and pulldown frames) stand at the 2D figure's width; the body is
+    wider, so its shoulders and arms ran through them. The whole frame widens: everything at or outside the
+    posts' sideways distance moves out by what the deepest post needs (crossbars stretch, plates follow) (#1020)."""
+    from scipy.spatial import cKDTree
+    need, zpost = 0.0, None
+    for k in keys:
+        V = R.pose(k["j"], k["p"])
+        N = _normals(R, V)
+        tree = cKDTree(V)
+        held = [h[2] for h in R.held.values() if h is not None and h[0] == "rod"]
+        for p in k["p"]:
+            if p["k"] != "rod" or p.get("s") in ("cable", "band", "handle"):
+                continue
+            a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+            if np.linalg.norm(b - a) < 30 or abs(a[2] - b[2]) > 3 or abs(a[2]) < 6 or abs(b[0] - a[0]) + abs(b[1] - a[1]) < 30:
+                continue
+            if any(np.allclose(a, h[0]) for h in held):
+                continue
+            P = a + np.linspace(0, 1, int(np.linalg.norm(b - a) / 1.5))[:, None] * (b - a)
+            dd, ii = tree.query(P)
+            dep = -np.einsum("ij,ij->i", P - V[ii], N[ii])
+            inside = (dep > 0.5) & (dd < 14)
+            if inside.sum() < 2:
+                continue
+            # how far out the post must go: past the widest body point near its depth and height range
+            # body points within the rod's reach in the side plane (x, y), whatever its slant
+            ab = (b - a)[:2]; t = np.clip(((V[:, :2] - a[:2]) @ ab) / max(ab @ ab, 1e-6), 0, 1)
+            near = V[np.linalg.norm(V[:, :2] - (a[:2] + t[:, None] * ab), axis=1) < p.get("r", 2) + 1.5]
+            if not len(near):
+                continue
+            want = float(np.abs(near[:, 2]).max()) + p.get("r", 2) + 2.0
+            if want > abs(a[2]):
+                need = max(need, want - abs(a[2]))
+                zpost = abs(a[2]) if zpost is None else min(zpost, abs(a[2]))
+    if not need or zpost is None:
+        return 0.0
+    def out(z):
+        return z + np.sign(z) * need if abs(z) >= zpost - 3 else z
+    for k in keys:
+        for p in k["p"]:
+            for e in ("a", "b", "c"):
+                if e in p:
+                    p[e] = [p[e][0], p[e][1], round(float(out(p[e][2])), 1)]
+            if "lo" in p:
+                lo, hi = p["lo"][2], p["hi"][2]
+                if lo >= zpost - 3 or hi <= -(zpost - 3):          # wholly on one side: moves out
+                    d = need * (1 if lo > 0 else -1)
+                    p["lo"][2] = round(lo + d, 1); p["hi"][2] = round(hi + d, 1)
+                elif lo <= -(zpost - 3) and hi >= zpost - 3:      # spans the frame: stretches
+                    p["lo"][2] = round(lo - need, 1); p["hi"][2] = round(hi + need, 1)
+    return need
+
+
+def _component(P, seed, skip):
+    """Rods joined to `seed` end to segment (a machine frame), plus plates centred on them."""
+    def touch(p, q):
+        for e in ("a", "b"):
+            x = np.asarray(p[e], float)
+            a, b = np.asarray(q["a"], float), np.asarray(q["b"], float); ab = b - a
+            t = np.clip(((x - a) @ ab) / max(ab @ ab, 1e-6), 0, 1)
+            if np.linalg.norm(a + t * ab - x) < 3:
+                return True
+        return False
+    rods = [q for q in P if q["k"] == "rod" and q.get("s") not in ("cable", "band") and id(q) not in skip]
+    comp, todo = [seed], [seed]
+    while todo:
+        p = todo.pop()
+        if p["k"] != "rod":
+            continue
+        for q in rods:
+            if all(q is not c for c in comp) and (touch(p, q) or touch(q, p)):
+                comp.append(q); todo.append(q)
+    for q in P:
+        if q["k"] == "disc" and all(q is not c for c in comp):
+            c = np.asarray(q["c"], float)
+            for p in comp:
+                if p["k"] == "rod":
+                    a, b = np.asarray(p["a"], float), np.asarray(p["b"], float); ab = b - a
+                    t = np.clip(((c - a) @ ab) / max(ab @ ab, 1e-6), 0, 1)
+                    if np.linalg.norm(a + t * ab - c) < 4:
+                        comp.append(q); break
+    return comp
+
+
+def clear_kit(ex, keys, R, rounds=6):
+    """Machine parts, bars resting on the body and plates that pass through the skin move out along the skin
+    normal, with the frame they are joined to; the same shift in every key so the machine stays put (#1020)."""
+    fingers = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("finger")])
+    for _ in range(rounds):
+        best = {}
+        for ki, k in enumerate(keys):
+            V = R.pose(k["j"], k["p"])
+            held = [h[2] for h in R.held.values() if h is not None and h[0] == "rod"]
+            for i, p in enumerate(k["p"]):
+                if p["k"] == "rod":
+                    if p.get("s") in ("cable", "band", "handle") or any(np.allclose(p["a"], h[0]) and np.allclose(p["b"], h[1]) for h in held):
+                        continue
+                    q = p
+                elif p["k"] == "disc":
+                    ax = np.array([1.0, 0, 0]) if p.get("ax") == "x" else np.array([0, 0, 1.0])
+                    c = np.asarray(p["c"], float)
+                    q = dict(k="rod", a=list(c - ax), b=list(c + ax), r=p.get("r", 10))
+                else:
+                    continue
+                v = _push_out(R, V, q, fingers)
+                if v is not None and np.linalg.norm(v) > np.linalg.norm(best.get(i, np.zeros(3))):
+                    best[i] = v
+        if not best:
+            return
+        for i, v in sorted(best.items(), key=lambda kv: -np.linalg.norm(kv[1])):
+            for k in keys:
+                held = set()
+                Jk = {n: np.asarray(x, float) for n, x in k["j"].items() if not n.startswith("_")}
+                for d in "NF":
+                    h = rigmod.held_object(Jk, d, k["p"])
+                    if h is not None and h[0] == "rod":
+                        held |= {id(q) for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0])}
+                if i >= len(k["p"]):
+                    continue
+                for q in _component(k["p"], k["p"][i], held):
+                    shift_any(q, v)
+            break                     # one part per round: the frame it moved may have cleared others
+
+
 def run(ids=None):
     if not RAW.exists():
         RAW.write_bytes(DATA.read_bytes())
@@ -1188,6 +1341,10 @@ def run(ids=None):
         reach(ex, keys, R)
         on_floor(keys)
         arms_clear(ex, keys, R)
+        widen_frames(ex, keys, R)
+        clear_kit(ex, keys, R)
+        for k in keys:
+            bar_out(ex, k, R)
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:
