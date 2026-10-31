@@ -1201,7 +1201,7 @@ def arms_clear(ex, keys, R, iters=5):
             moved = False
             for s in "LR":
                 d = S[s]
-                if R.held.get(d) is not None:
+                if R.held.get(d) is not None or J["hand" + d][1] < 12:      # held, or a hand on the floor
                     continue
                 arm = np.isin(R.bi[:, 0], [R.ix[n] for n in names if n.endswith("." + s) and n.startswith(
                     ("upperarm", "lowerarm", "wrist", "finger", "metacarpal", "shoulder", "clavicle"))])
@@ -1220,6 +1220,7 @@ def arms_clear(ex, keys, R, iters=5):
                 if np.linalg.norm(n) < 1e-3:
                     continue
                 v = n / np.linalg.norm(n) * (float(np.percentile(dep[inside], 90)) + 1.0)
+                v[1] = max(v[1], 2.0 - min(J["hand" + d][1], J["wrist" + d][1]))   # never into the floor
                 for nm, f in (("hand", 1.0), ("wrist", 1.0), ("elbow", 0.5)):
                     k["j"][nm + d] = [round(float(c + f * dv), 1) for c, dv in zip(k["j"][nm + d], v)]
                 moved = True
