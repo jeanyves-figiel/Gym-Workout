@@ -18,19 +18,7 @@
 "ball-hamstring-curl": [
 "floor"
 ],
-"barbell-glute-bridge": [
-"through"
-],
-"barbell-reverse-lunge": [
-"through"
-],
-"barbell-split-squat": [
-"through"
-],
 "barbell-thruster": [
-"through"
-],
-"box-squat": [
 "through"
 ],
 "breathing": [
@@ -71,12 +59,6 @@
 "limb"
 ],
 "figure-4": [
-"limb"
-],
-"good-morning": [
-"through"
-],
-"hip-90-90": [
 "limb"
 ],
 "incline-chest-press-machine": [
@@ -155,10 +137,7 @@
 "slider-reverse-lunge": [
 "floor"
 ],
-"smith-split-squat": [
-"through"
-],
-"smith-squat": [
+"straight-arm-pulldown": [
 "through"
 ],
 "sumo-high-pull": [
@@ -184,9 +163,6 @@
 ],
 "wide-grip-cable-row": [
 "grip",
-"limb"
-],
-"windshield-wipers": [
 "limb"
 ],
 "wrist-curl": [
