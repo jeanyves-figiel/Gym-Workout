@@ -172,7 +172,7 @@ extension AppModel {
         case "food":
             guard let text = d.foods?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
             let own = FuelStore.shared.saved.foods
-            let foods = Food.find(in: text, own: own).prefix(6)
+            let foods = Array(FoodBook.find(in: text, own: own).prefix(6))
             guard !foods.isEmpty else { return nil }
             let plan = fuelPlan(on: Date())
             let cal = Calendar.current
