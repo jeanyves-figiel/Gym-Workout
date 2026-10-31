@@ -10,7 +10,7 @@ import { AI_MODELS, CACHED, tracked } from './models.ts';
 export const MUSCLE_GROUPS = ['shoulders', 'chest', 'arms', 'back', 'core', 'hips', 'legs'] as const;
 export const REST_STYLES = ['long', 'standard', 'short'] as const;
 export const GROUPINGS = ['straight', 'supersets', 'circuits'] as const;
-/** Screens Coach can send the member to (#412); 'exercise' also needs the exercise name. */
+/** Screens Coach can send the member to (#412); 'exercise' also needs the exercise name. 'progress' is the Insights tab (#894). */
 export const OPEN_TARGETS = ['progress', 'calendar', 'explore', 'fuel', 'settings', 'exercise'] as const;
 /** Train around pain (#870): where it hurts, which side, how bad. The app's engine picks the swaps. */
 export const PAIN_AREAS = ['neck', 'shoulder', 'elbow', 'wrist', 'lower-back', 'hip', 'knee', 'ankle'] as const;
@@ -61,6 +61,9 @@ export interface ChatContext {
   todayExercises?: string[];
   /** Today's weekday, 1 = Monday … 7 = Sunday (#999), for "move it to Saturday". */
   weekday?: number;
+  /** The member's own data (#1010): this week's plan, Fuel today, recent workouts, lift trends, body weight, and (with
+   * week-review consent) sleep, HRV, resting HR and Mind check-ins. Plain lines, no ids. */
+  training?: string[];
 }
 
 export interface CoachAction {
@@ -154,7 +157,9 @@ const SYSTEM = `You are Coach Monkey, the upbeat coach inside the MonkeyWorkout 
 Answering questions (#412):
 - "Screen" and "Looking at" below tell you what the member sees. Questions like "why is it down?" or "is this right for me?" are about that.
 - Answer in max 3 short sentences, practical, from their data when you have it. Never make up numbers you weren't given.
-- action: a button to open a screen when it truly helps ("progress", "calendar", "explore", "fuel", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
+- "Their training" below is the member's own data (#1010): this week's plan, Fuel today, logged workouts, lift trends, body weight, and sometimes recovery from Apple Health (sleep, HRV, resting heart rate) and Mind check-ins. Use it for any question about progress, progression, volume, PRs, consistency, recovery, food or what to do next: quote the real numbers and compare periods. Never say you don't have their numbers when they are there. A part that is missing isn't shared or logged: say so in a few words, no more. Mood and health numbers are for training advice only: never diagnose; low mood for long or thoughts of self-harm → kindly suggest talking to someone they trust or a professional.
+- The app's tabs are Train, Explore, Fuel, Insights and Social. Insights holds the charts, trends, history and Mind. Never call it "Progress".
+- action: a button to open a screen when it truly helps ("progress" opens Insights, label it "Open Insights"; "calendar", "explore", "fuel", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
 - suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
 - Food (Fuel, #496): give general pointers on eating around training, using the day's training and the targets in "Looking at" when given (protein, carbs, water, meals). Suggest simple meals. Never prescribe diets, calorie restriction or supplements as treatment; for a medical condition, pregnancy or an eating disorder suggest a doctor or dietitian.
 - Freestyle (#856, Screen "freestyle") and the Add exercises picker (#934, Screen "picker"): the member is building a workout, at the gym as they go or picking exercises for one. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list.
@@ -326,6 +331,7 @@ export const describeMember = (c: ChatContext) =>
     c.weekday && c.weekday >= 1 && c.weekday <= 7 && `Today is: ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][c.weekday - 1]} (${c.weekday})`,
     c.todayExercises?.length && `Today's exercises (for swap "from"): ${c.todayExercises.join('; ')}`,
     c.exercises?.length && `Exercises in the app (use these exact names in "exercises"): ${c.exercises.join('; ')}`,
+    c.training?.length && `Their training:\n${c.training.join('\n')}`,
     c.memory?.length && `What you remember about the member (use it when it helps, never recite the list): ${c.memory.join('; ')}`,
   ]
     .filter(Boolean)
@@ -336,7 +342,9 @@ const cleanAction = (a: CoachAction | null | undefined): CoachAction | null => {
   if (!a || !OPEN_TARGETS.includes(a.target)) return null;
   const exercise = a.exercise?.trim().slice(0, 60) || null;
   if (a.target === 'exercise' && !exercise) return null;
-  const label = a.label?.trim().slice(0, 30) || (exercise ? `Open ${exercise}`.slice(0, 30) : 'Open');
+  let label = a.label?.trim().slice(0, 30) || (exercise ? `Open ${exercise}`.slice(0, 30) : 'Open');
+  // The Progress tab is Insights now (#894, #1010): the model sometimes still says Progress.
+  if (a.target === 'progress') label = /progress/i.test(label) || label === 'Open' ? 'Open Insights' : label;
   return { target: a.target, exercise: a.target === 'exercise' ? exercise : null, label };
 };
 
