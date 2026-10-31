@@ -52,6 +52,8 @@ final class FuelStore {
         var water: WaterPrefs?
         /// Plates of plain foods saved from Just ate (#710).
         var usuals: [FoodUsual]?
+        /// How often planned meals come back (#1015, `MealVariety`); nil = some variety.
+        var variety: MealVariety?
     }
 
     private(set) var saved = Saved() {
@@ -373,6 +375,12 @@ final class FuelStore {
         save(s)
     }
 
+    func setVariety(_ v: MealVariety) {
+        var s = saved
+        s.variety = v
+        save(s)
+    }
+
     func setMarket(_ id: String?) {
         var s = saved
         s.market = id
@@ -387,7 +395,7 @@ final class FuelStore {
     }
 
     var shopping: MealPlanner.Shopping {
-        MealPlanner.Shopping(budget: saved.budget, lessWaste: saved.lessWaste, prices: saved.prices)
+        MealPlanner.Shopping(budget: saved.budget, lessWaste: saved.lessWaste, prices: saved.prices, variety: saved.variety ?? .varied)
     }
 
     func pin(_ meal: PlannedMeal) {
@@ -436,6 +444,54 @@ final class FuelStore {
             }
         }
         s.bought = []
+        save(s)
+    }
+
+    // MARK: Shared with a partner (#1014)
+
+    /// Told after a change made on this phone to the shared plan (`plan` true) or to the ticks; never for one that came
+    /// from the household, so a partner's change doesn't bounce back.
+    @ObservationIgnored var onShareChange: ((_ plan: Bool, _ ticked: Set<String>, _ unticked: Set<String>) -> Void)?
+    @ObservationIgnored private var applyingShared = false
+
+    private static func reportShareChange(_ a: Saved, _ b: Saved, _ tell: (Bool, Set<String>, Set<String>) -> Void) {
+        let plan = a.plan != b.plan || a.book != b.book || a.people != b.people || a.budget != b.budget || a.lessWaste != b.lessWaste
+            || a.recipes != b.recipes
+        let ticked = b.bought.subtracting(a.bought), unticked = a.bought.subtracting(b.bought)
+        if plan || !ticked.isEmpty || !unticked.isEmpty { tell(plan, ticked, unticked) }
+    }
+
+    /// What a household shares: the plan, own recipes it uses and the plan settings. Logs, pantry, prices stay here.
+    var sharedPlan: SharedFuelPlan {
+        let used = Set(saved.plan.map(\.recipeId))
+        return SharedFuelPlan(plan: saved.plan, recipes: saved.recipes.filter { used.contains($0.id) }, book: saved.book,
+                              people: saved.people, budget: saved.budget, lessWaste: saved.lessWaste)
+    }
+
+    /// A plan from the household (or a copy picked with "Use as my plan" when `local`): replaces this phone's plan; own
+    /// recipes it uses are added or updated, none removed.
+    func applyShared(_ p: SharedFuelPlan, local: Bool = false) {
+        applyingShared = !local
+        defer { applyingShared = false }
+        var s = saved
+        s.plan = p.plan
+        for r in p.recipes {
+            if let i = s.recipes.firstIndex(where: { $0.id == r.id }) { s.recipes[i] = r } else { s.recipes.append(r) }
+        }
+        if let book = p.book { s.book = book }
+        if let people = p.people { s.people = max(1, min(8, people)) }
+        s.budget = p.budget
+        if let lessWaste = p.lessWaste { s.lessWaste = lessWaste }
+        save(s)
+    }
+
+    /// Lines ticked in the household's shop.
+    func applySharedBought(_ ids: Set<String>) {
+        guard ids != saved.bought else { return }
+        applyingShared = true
+        defer { applyingShared = false }
+        var s = saved
+        s.bought = ids
         save(s)
     }
 
@@ -523,7 +579,9 @@ final class FuelStore {
     @ObservationIgnored private var writeQueued = false
 
     private func save(_ s: Saved) {
+        let old = saved
         saved = s
+        if !applyingShared, let onShareChange { Self.reportShareChange(old, s, onShareChange) }
         // Today's water and meals on the Watch and the Home Screen widgets (coalesced: a burst of taps sends once).
         WatchSync.shared.schedulePush()
         // The file too (#720): one encode and write for a burst of taps, written as of the last one.

@@ -34,7 +34,15 @@ struct TVLive: Equatable {
 final class TVCast {
     static let shared = TVCast()
     /// nil when no workout is open.
-    var live: TVLive?
+    private(set) var live: TVLive?
+
+    /// The player's new state; our Chromecast receiver gets it too (#1008).
+    func publish(_ next: TVLive?) {
+        guard next != live else { return }
+        let old = live
+        live = next
+        CastSession.shared.liveChanged(from: old)
+    }
     /// An AirPlay / HDMI screen shows the workout.
     var connected = false
 }

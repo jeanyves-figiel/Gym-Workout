@@ -24,6 +24,8 @@ public final class BodyRig: Sendable {
     public static let mushPasses = 12
     /// Stick figure limb lengths (figure.py): the body's limbs stretch by the ratio the figure's exceed them.
     static let figureArm = 42.0 + 38.0, figureLeg = 56.0 + 54.0
+    /// Arms keep the body's own length (at most 3 % stretch, #1020): held things sit within its reach (contact.py).
+    static let armStretch = 1.03
 
     // MARK: Rest data
 
@@ -253,7 +255,8 @@ public final class BodyRig: Sendable {
                 R = f
             } else if armBones.contains(base) {
                 if limb[s] == nil {
-                    limb[s] = arm(s, side[s]!, J, Rc, Ph[i], held[side[s]!]!)
+                    limb[s] = arm(s, side[s]!, J, Rc, Ph[i], held[side[s]!]!,
+                                  elev: side[s]! == "N" ? (key.joints["_elev"]?.x ?? 0) : (key.joints["_elev"]?.y ?? 0))
                 }
                 if let v = limb[s]![base] { R = v.0; k = v.1 }
             } else if legBones.contains(base) {
@@ -354,14 +357,20 @@ public final class BodyRig: Sendable {
 
     /// Rotations (and stretch) for clavicle … wrist on mesh side `s` / figure side `d`; `clav` = posed clavicle head.
     private func arm(_ s: String, _ d: String, _ J: [String: SIMD3<Double>], _ Rc: simd_double3x3, _ clav: SIMD3<Double>,
-                     _ held: Held?) -> [String: (simd_double3x3, Double)] {
+                     _ held: Held?, elev: Double = 0) -> [String: (simd_double3x3, Double)] {
         let sh0 = h("upperarm01." + s), el0 = h("lowerarm01." + s), wr0 = h("wrist." + s), hd0 = h("finger3-1." + s)
         let a0 = length(el0 - sh0), b0 = length(wr0 - el0)
         // the figure's arm direction relative to the chest decides how far the girdle follows
         let G = between(nrm(Rc * (el0 - sh0)), nrm(J["elbow" + d]! - J["shoulder" + d]!))
-        let Rcl = slerp(Rc, G * Rc, 0.18), Rsh = slerp(Rc, G * Rc, 0.35)
+        var Rcl = slerp(Rc, G * Rc, 0.18), Rsh = slerp(Rc, G * Rc, 0.35)
         var S = clav + Rcl * (h("shoulder01." + s) - h("clavicle." + s))
         S += Rsh * (sh0 - h("shoulder01." + s))
+        if elev > 0 {           // shrug: the clavicle swings up about its head until the shoulder sits `elev` higher
+            let v = S - clav
+            let E = between(nrm(v), nrm(v + (Rc * SIMD3(0, 1, 0)) * elev))
+            Rcl = E * Rcl; Rsh = E * Rsh
+            S = clav + E * v
+        }
         // the figure is narrower than the body: carry the shoulder's sideways offset to the elbow and to hands that
         // hang outside the shoulder line (hands that grip or meet in front stay put)
         let lat = nrm(J["shoulder" + d]! - J["shoulder"]!)
@@ -383,7 +392,7 @@ public final class BodyRig: Sendable {
             Wt.y = max(Wt.y, 4)                              // a flat hand on the floor: wrist a palm's thickness up
         }
         let reach = length(J["wrist" + d]! - J["shoulder" + d]!)
-        let k = min(1.4, max(0.95, Self.figureArm * length(Wt - S) / max(reach, 1e-6) / (a0 + b0)))
+        let k = min(Self.armStretch, max(0.95, Self.figureArm * length(Wt - S) / max(reach, 1e-6) / (a0 + b0)))
         let (E, Wp) = twoBone(S, Wt, a0 * k, b0 * k, Jel + (Jel - (S + Wt) / 2) * 2)
         let ua = E - S, fa = Wp - E
         let bend = length(perp(nrm(fa), nrm(ua)))
@@ -393,7 +402,8 @@ public final class BodyRig: Sendable {
         let aFa0 = -perp(nrm(ua0), nrm(fa0))
         let aFa = bend > 0.2 ? -perp(nrm(ua), nrm(fa)) : Rua * aFa0
         let Rfa = rot(basis(fa0, aFa0), basis(fa, aFa))
-        let Rhd = rot(basis(hd0 - wr0, palm[s]!), basis(hd, Self.palmDir(J, d, hd, fa, held, aFa)))
+        // a gripping hand keeps the palm the grip was placed with (the posed forearm can flip the sign, #1020)
+        let Rhd = rot(basis(hd0 - wr0, palm[s]!), basis(hd, held != nil ? pd : Self.palmDir(J, d, hd, fa, held, aFa)))
         return ["clavicle": (Rcl, 1), "shoulder01": (Rsh, 1), "upperarm01": (Rua, k), "upperarm02": (Rua, k),
                 "lowerarm01": (Rfa, k), "lowerarm02": (Rfa, k), "wrist": (Rhd, 1)]
     }

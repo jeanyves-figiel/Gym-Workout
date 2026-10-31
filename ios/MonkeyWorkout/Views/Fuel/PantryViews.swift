@@ -31,9 +31,9 @@ struct PantryView: View {
                 input
                 matches
                 HStack(spacing: 10) {
-                    if LiveFoodScanner.available {
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
                         Button { liveScan = true } label: {
-                            scanTile("barcode.viewfinder", "Scan live", "Labels, receipts, barcodes", FuelPalette.water)
+                            scanTile("barcode.viewfinder", "Scan live", "Food, labels, barcodes", FuelPalette.water)
                         }
                         .buttonStyle(.plain)
                     }
@@ -382,10 +382,14 @@ struct LiveFoodScanner: UIViewControllerRepresentable {
     }
 }
 
+/// Scan live (#496, food in view #1012): labels, receipts and barcodes as before, plus plain food the iPhone's image
+/// classifier names (a croissant in its bag, a banana). Ask Monkey sends the current frame to the photo scan (Pro).
 struct LiveScanSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
+    @State private var camera = FoodCamera()
+    @State private var allowed: Bool?
     @State private var found: [ScanPick] = []
     @State private var codes: Set<String> = []
     @State private var looking = 0
@@ -393,59 +397,150 @@ struct LiveScanSheet: View {
     /// them, so the label of a scanned bottle can't add a second, wrong food.
     @State private var fromText: [String: Date] = [:]
     @State private var lastProduct = Date.distantPast
+    @State private var tracker = SeenFood.Tracker()
+    /// The food in view now: its box on the frame and its name.
+    @State private var seen: (box: CGRect, title: String)?
+    @State private var gate: ProGate?
+    @State private var askImage: UIImage?
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                LiveFoodScanner(onText: { text in
-                    guard Date().timeIntervalSince(lastProduct) > 4 else { return }
-                    for f in FoodBook.find(in: text, own: store.saved.foods) where !found.contains(where: { $0.id == f.id }) {
-                        found.append(ScanPick(f, sure: false, source: "Label", on: true))
-                        fromText[f.id] = Date()
+                if allowed == false {
+                    VStack(spacing: 10) {
+                        Image(systemName: "camera.fill").font(.system(size: 40, weight: .bold))
+                        Text("Camera is off for MonkeyWorkout").font(Theme.display(17))
+                        Text("Turn it on in Settings to scan food, labels and barcodes.").font(.footnote.weight(.semibold)).opacity(0.75)
                     }
-                }, onBarcode: { code in
-                    guard codes.insert(code).inserted else { return }
-                    looking += 1
-                    let seen = Date()
-                    Task {
-                        defer { looking -= 1 }
-                        guard let f = await model.lookUpBarcode(code) else { return }
-                        lastProduct = Date()
-                        found.removeAll { fromText[$0.id].map { seen.timeIntervalSince($0) < 4 } ?? false }
-                        if !found.contains(where: { $0.id == f.id }) { found.append(ScanPick(f, sure: true, source: "Barcode")) }
-                    }
-                })
-                .ignoresSafeArea()
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(found.isEmpty ? "Point at labels, a receipt or barcodes" : "Found \(found.count)").font(Theme.display(17))
-                        if looking > 0 { ProgressView().tint(.white) }
-                    }
-                    if !found.isEmpty {
-                        ScrollView { ScanCheckList(picks: $found) }
-                            .frame(maxHeight: 250)
-                            .scrollBounceBehavior(.basedOnSize)
-                        let on = found.filter(\.on).map(\.food)
-                        Button {
-                            store.add(on)
-                            UINotificationFeedbackGenerator().notificationOccurred(.success)
-                            dismiss()
-                        } label: { Text("ADD \(on.count) TO WHAT I HAVE") }
-                            .buttonStyle(LimeButtonStyle())
-                            .disabled(on.isEmpty)
-                    }
-                    Text("Read on your iPhone. Barcodes are looked up on Open Food Facts (only the code is sent).")
-                        .font(.caption2.weight(.semibold)).opacity(0.75)
+                    .foregroundStyle(.white).multilineTextAlignment(.center).padding(30)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.ignoresSafeArea())
+                } else {
+                    FormCameraPreview(session: camera.session).ignoresSafeArea()
+                    if let seen { SeenFoodBox(box: seen.box, title: seen.title).ignoresSafeArea() }
                 }
-                .foregroundStyle(.white)
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.black.opacity(0.7)))
-                .padding(12)
+                panel
             }
             .navigationTitle("Scan live")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
+            .proPaywall($gate)
+            .sheet(item: Binding(get: { askImage.map(AskPhoto.init) }, set: { if $0 == nil { askImage = nil } })) { photo in
+                FoodPhotoScanSheet(autoScan: photo.image, onAdded: { dismiss() }).remotePaused(.foodScan)
+            }
+            .onChange(of: askImage == nil) { _, closed in if closed, allowed == true { camera.start() } }
+            .task { await begin() }
+            .onDisappear { camera.stop() }
         }
+    }
+
+    private var panel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(found.isEmpty ? "Point at food, labels or barcodes" : "Found \(found.count)").font(Theme.display(17))
+                if looking > 0 { ProgressView().tint(.white) }
+            }
+            if !found.isEmpty {
+                ScrollView { ScanCheckList(picks: $found) }
+                    .frame(maxHeight: 250)
+                    .scrollBounceBehavior(.basedOnSize)
+                let on = found.filter(\.on).map(\.food)
+                Button {
+                    store.add(on)
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    dismiss()
+                } label: { Text("ADD \(on.count) TO WHAT I HAVE") }
+                    .buttonStyle(LimeButtonStyle())
+                    .disabled(on.isEmpty)
+            }
+            if allowed == true {
+                Button(action: ask) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                        Text(found.isEmpty ? "Not found? Ask Monkey" : "Not right? Ask Monkey")
+                        if ProStore.shared.locked {
+                            Text("PRO").font(.caption2.weight(.black)).foregroundStyle(Color(hex: 0x7A3DFF))
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(RoundedRectangle(cornerRadius: 5).fill(.white))
+                        }
+                    }
+                    .font(Theme.label(14)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(FuelPalette.violet))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("scanLive.askMonkey")
+            }
+            Text("Food, labels and barcodes are read on your iPhone. Barcodes are looked up on Open Food Facts (only the code is sent). Ask Monkey sends that one photo.")
+                .font(.caption2.weight(.semibold)).opacity(0.75)
+        }
+        .foregroundStyle(.white)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.black.opacity(0.7)))
+        .padding(12)
+    }
+
+    private func begin() async {
+        guard allowed == nil else { return }
+        allowed = await FormCamera.allowed()
+        guard allowed == true else { return }
+        camera.onText = { text in
+            guard Date().timeIntervalSince(lastProduct) > 4 else { return }
+            for f in FoodBook.find(in: text, own: store.saved.foods) where !found.contains(where: { $0.id == f.id }) {
+                found.append(ScanPick(f, sure: false, source: "Label", on: true))
+                fromText[f.id] = Date()
+            }
+        }
+        camera.onBarcode = { code in
+            guard codes.insert(code).inserted else { return }
+            looking += 1
+            let at = Date()
+            Task {
+                defer { looking -= 1 }
+                guard let f = await model.lookUpBarcode(code) else { return }
+                lastProduct = Date()
+                found.removeAll { fromText[$0.id].map { at.timeIntervalSince($0) < 4 } ?? false }
+                if !found.contains(where: { $0.id == f.id }) { found.append(ScanPick(f, sure: true, source: "Barcode")) }
+            }
+        }
+        camera.onLook = { regions in look(regions) }
+        camera.start()
+    }
+
+    /// One look of the classifier: new steady foods go on the list (ticked, worth a check), and the box follows the
+    /// food in view now.
+    private func look(_ regions: [FoodCamera.Region]) {
+        let own = store.saved.foods
+        for f in tracker.look(regions.flatMap(\.guesses), own: own) where !found.contains(where: { $0.id == f.id }) {
+            found.append(ScanPick(f, sure: false, source: "Seen on camera", on: true))
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        func food(_ r: FoodCamera.Region) -> Food? {
+            r.guesses.sorted { $0.confidence > $1.confidence }.lazy.compactMap { SeenFood.food(label: $0.label, own: own) }.first
+        }
+        let boxed = regions.filter { $0.box != nil }
+        if let r = boxed.first(where: { food($0) != nil }), let box = r.box, let f = food(r) {
+            seen = (box, "\(f.emoji) \(f.name)")
+        } else if let f = regions.first.flatMap(food), let box = boxed.first?.box {
+            seen = (box, "\(f.emoji) \(f.name)")
+        } else {
+            seen = nil
+        }
+    }
+
+    private func ask() {
+        ProStore.shared.run(.foodScan, $gate) {
+            camera.snapshot { image in
+                guard let image else { return }
+                camera.stop()
+                askImage = image
+            }
+        }
+    }
+
+    private struct AskPhoto: Identifiable {
+        let image: UIImage
+        var id: ObjectIdentifier { ObjectIdentifier(image) }
     }
 }
 
@@ -455,6 +550,9 @@ struct FoodPhotoScanSheet: View {
     /// Magic Snap (#733): the photo and the foods Monkey saw on it, already read.
     var preset: [ScanPick] = []
     var presetImage: UIImage?
+    /// Scan live's Ask Monkey (#1012): a frame to send at once, and what to do once its foods are added.
+    var autoScan: UIImage?
+    var onAdded: (() -> Void)?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
@@ -510,7 +608,7 @@ struct FoodPhotoScanSheet: View {
                         Button {
                             store.add(on)
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
-                            dismiss()
+                            if let onAdded { onAdded() } else { dismiss() }
                         } label: { Text("ADD \(on.count) TO WHAT I HAVE") }
                             .buttonStyle(LimeButtonStyle())
                             .disabled(on.isEmpty)
@@ -531,6 +629,7 @@ struct FoodPhotoScanSheet: View {
                 }
             }
             .task {
+                if let autoScan, image == nil, picks.isEmpty { scan(autoScan) }
                 if !preset.isEmpty, picks.isEmpty, image == nil {
                     var seen: Set<String> = []
                     picks = preset.filter { seen.insert($0.food.id).inserted }

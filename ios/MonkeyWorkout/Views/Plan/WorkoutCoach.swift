@@ -153,6 +153,11 @@ final class CoachVoice: NSObject {
     /// Ring/Silent switch. Never at zero volume.
     private func duck() -> Bool {
         let session = AVAudioSession.sharedInstance()
+        // Casting by AirPlay (#1008): the session already plays long-form video to the TV; changing it would drop the
+        // picture. The voice plays on the TV's speakers then.
+        if AirPlayStream.shared.holdsSession {
+            return true
+        }
         if session.isOtherAudioPlaying {
             try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
         } else {
@@ -238,6 +243,7 @@ final class CoachVoice: NSObject {
     fileprivate func done() {
         guard !synth.isSpeaking, player?.isPlaying != true else { return }
         speaking = false
+        guard !AirPlayStream.shared.holdsSession else { return }
         // Music back to full volume.
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }

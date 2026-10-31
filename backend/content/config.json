@@ -6,6 +6,6 @@
     "gymScan": { "on": true, "message": "Gym scan is paused while we fix it. Add machines by hand meanwhile." },
     "askCoach": { "on": true, "message": "Ask Coach is paused while we fix it. Back soon." }
   },
-  "values": {},
+  "values": { "castReceiverAppId": "E195DE34" },
   "packs": {}
 }

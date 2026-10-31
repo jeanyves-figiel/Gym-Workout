@@ -81,6 +81,13 @@ struct NotificationsHost: ViewModifier {
                         MemberView(author: CommunityAuthor(userId: userId, nickname: nickname))
                             .toolbar { CloseToolbarItem { notify.route = nil } }
                     }
+                case .fuelPartner:
+                    NavigationStack {
+                        MealPlanView()
+                            .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
+                            .fuelDestinations()
+                            .toolbar { CloseToolbarItem { notify.route = nil } }
+                    }
                 case let .badge(id):
                     if let b = Achievements.evaluate(records: model.state.history, weights: model.weightEntries,
                                                      targetPerWeek: model.profile?.sessionsPerWeek ?? 3).first(where: { $0.id == id }) {

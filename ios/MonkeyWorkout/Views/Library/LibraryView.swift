@@ -31,7 +31,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 20) {
                 // In-content title with the Me pill, like the other tabs (#560).
                 HStack(spacing: 10) {
-                    Text("Explore").font(Theme.display(34)).lineLimit(1)
+                    TabTitleMenu(tab: .explore)
                     Spacer()
                     CoachHeaderTile()
                     MePill()

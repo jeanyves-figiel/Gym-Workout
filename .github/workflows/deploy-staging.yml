@@ -32,6 +32,9 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Chromecast receiver clips (#1008): the app's light movement clips, served by /cast/motion.
+      - name: Copy movement clips into the image
+        run: mkdir -p backend/content/motion && cp ios/MonkeyWorkout/Resources/Motion/motion-*.mp4 backend/content/motion/
       - uses: docker/build-push-action@v7
         with:
           context: backend

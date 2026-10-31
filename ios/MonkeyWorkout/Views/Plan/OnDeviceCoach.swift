@@ -109,7 +109,8 @@ import FoundationModels
 
     private static let instructions = """
     You are Coach Monkey, the upbeat gym coach in the MonkeyWorkout app. Answer in at most three short sentences of plain text: \
-    no lists, no markdown, no emoji. Use kg and minutes. Be concrete with numbers. You can't build or change workouts here: \
+    no lists, no markdown, no emoji. Use kg and minutes. Be concrete with numbers from their training when given. \
+    The screen with charts is called Insights. You can't build or change workouts here: \
     for a new workout, tell the member to ask for one. For pain, injury or medical questions, keep it safe and suggest seeing \
     a professional.
     """
@@ -144,6 +145,8 @@ extension AppModel {
         }
         if let p = body.pronounsText { lines.append("Pronouns: \(p).") }
         if let focus { lines.append("Looking at: \(focus.title)\(focus.detail.map { ", \($0)" } ?? "").") }
+        // Their own recent training (#1010), shorter for the small on-device model.
+        if let t = coachTraining { lines.append("Their training:\n" + t.prefix(12).joined(separator: "\n")) }
         return lines.joined(separator: "\n")
     }
 }

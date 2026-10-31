@@ -366,6 +366,19 @@ CREATE TABLE food_scan_usage (
       PRIMARY KEY (user_id, day)
     );
 
+CREATE TABLE fuel_shares (
+      id TEXT PRIMARY KEY,
+      from_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('plan', 'groceries', 'both')),
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+CREATE INDEX fuel_shares_from ON fuel_shares(from_id);
+
+CREATE INDEX fuel_shares_to ON fuel_shares(to_id, created_at);
+
 CREATE TABLE garmin_devices (
       id TEXT PRIMARY KEY,
       token_hash TEXT NOT NULL UNIQUE,
@@ -444,6 +457,45 @@ CREATE TABLE gym_scan_usage (
       day TEXT NOT NULL,
       count INTEGER NOT NULL,
       PRIMARY KEY (user_id, day)
+    );
+
+CREATE TABLE household_bought (
+      household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      at TEXT NOT NULL,
+      PRIMARY KEY (household_id, item_id)
+    );
+
+CREATE TABLE household_invites (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      from_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      UNIQUE (household_id, to_id)
+    );
+
+CREATE INDEX household_invites_to ON household_invites(to_id);
+
+CREATE TRIGGER household_last_out AFTER DELETE ON household_members
+    WHEN NOT EXISTS (SELECT 1 FROM household_members WHERE household_id = OLD.household_id)
+    BEGIN DELETE FROM households WHERE id = OLD.household_id; END;
+
+CREATE TABLE household_members (
+      household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      joined_at TEXT NOT NULL,
+      PRIMARY KEY (household_id, user_id)
+    );
+
+CREATE TABLE households (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      rev INTEGER NOT NULL DEFAULT 0,
+      state TEXT,
+      updated_at TEXT,
+      updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
     );
 
 CREATE TABLE library_saves (
@@ -578,6 +630,18 @@ CREATE TABLE reauth_grants (
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+CREATE TABLE recipe_reviews (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipe_id TEXT NOT NULL,
+      stars INTEGER,
+      numbers TEXT,
+      cooking TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, recipe_id)
+    );
+
+CREATE INDEX recipe_reviews_recipe ON recipe_reviews(recipe_id);
 
 CREATE TABLE recovery_codes (
       id TEXT PRIMARY KEY,

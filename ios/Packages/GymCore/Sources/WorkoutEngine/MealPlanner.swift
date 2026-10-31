@@ -60,6 +60,21 @@ public struct GroceryItem: Hashable, Sendable, Identifiable {
     }
 }
 
+/// How often the plan brings meals back (#1015): a few favourites on repeat, no meal twice in 3 days, or new every
+/// day for 2 weeks.
+public enum MealVariety: String, Codable, CaseIterable, Sendable {
+    case same, varied, new
+
+    /// Days before a recipe may come back without a penalty.
+    public var gap: Int {
+        switch self {
+        case .same: 4
+        case .varied: 3
+        case .new: 14
+        }
+    }
+}
+
 public enum MealPlanner {
     public static let aisles: [(id: String, label: String, emoji: String)] = [
         ("fruit-veg", "Fruit & veg", "🥦"), ("meat-fish", "Meat & fish", "🥩"), ("dairy-eggs", "Dairy & eggs", "🥚"),
@@ -77,11 +92,14 @@ public enum MealPlanner {
         public var budget: Double?
         public var lessWaste: Bool
         public var prices: [String: Double]
+        /// How often meals come back (#1015).
+        public var variety: MealVariety
 
-        public init(budget: Double? = nil, lessWaste: Bool = false, prices: [String: Double] = [:]) {
+        public init(budget: Double? = nil, lessWaste: Bool = false, prices: [String: Double] = [:], variety: MealVariety = .varied) {
             self.budget = budget
             self.lessWaste = lessWaste
             self.prices = prices
+            self.variety = variety
         }
     }
 
@@ -130,11 +148,17 @@ public enum MealPlanner {
                     out.append(PlannedMeal(day: d.key, slot: slot.id, kind: slot.kind, recipeId: id, servings: servings, leftover: true))
                     continue
                 }
-                let ideas = RecipeBook.ideas(for: slot, load: d.plan.load, prefs: prefs, favourites: favourites, own: own,
+                var ideas = RecipeBook.ideas(for: slot, load: d.plan.load, prefs: prefs, favourites: favourites, own: own,
                                              day: d.key, count: perMeal != nil || shopping.lessWaste ? 20 : 12)
+                // Same meals: the ones already planned for this kind of meal stay in the running every day.
+                if shopping.variety == .same {
+                    let seen = Set(ideas.map(\.id))
+                    let again = Set(out.filter { $0.kind == slot.kind && !$0.leftover }.map(\.recipeId)).subtracting(seen)
+                    ideas += again.sorted().compactMap { RecipeBook.recipe($0, own: own) }
+                }
                 let cap = perMeal.map { slot.kind == .snack || slot.kind == .bedtime || slot.kind == .pre ? $0 / 2 : $0 }
                 func total(_ r: Recipe) -> Double {
-                    score(r, i, recent, have)
+                    score(r, i, recent, have, variety: shopping.variety)
                         + thrift(r, servings: servings, cap: cap, prices: shopping.prices)
                         + (shopping.lessWaste ? waste(r, servings: servings, open: open) : 0)
                 }
@@ -187,9 +211,11 @@ public enum MealPlanner {
     }
 
     /// Ideas come ranked; this adds variety and pantry use. Earlier idea rank is kept by the small index penalty.
-    static func score(_ r: Recipe, _ day: Int, _ recent: [String: Int], _ have: Set<String>) -> Double {
+    static func score(_ r: Recipe, _ day: Int, _ recent: [String: Int], _ have: Set<String>, variety: MealVariety = .varied) -> Double {
         var s = 0.0
-        if let last = recent[r.id], day - last < 3 { s -= 5 }
+        if let last = recent[r.id] {
+            if day - last < variety.gap { s -= 5 } else if variety == .same { s += 3 }
+        }
         let keys = r.keys ?? []
         if !keys.isEmpty { s += 3 * Double(keys.filter { have.contains($0) }.count) / Double(keys.count) }
         s += Double(RecipeBook.fnv(r.id) % 100) / 1000
