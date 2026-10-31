@@ -1119,6 +1119,48 @@ def on_floor(keys):
                 p["r"] = round(float(p["c"][1]), 1)
 
 
+def arms_clear(ex, keys, R, iters=5):
+    """A free forearm or hand sunk into the trunk or thighs (arms hanging beside the hips, hands on the waist):
+    the figure's wrist and hand move out along the skin normal, the elbow half as far (#1020)."""
+    from scipy.spatial import cKDTree
+    names = R.names
+    for k in keys:
+        for _ in range(iters):
+            V = R.pose(k["j"], k["p"])
+            J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+            S = {"L": "N", "R": "F"} if np.linalg.det(np.stack([
+                rigmod.perp((J["toeN"] + J["toeF"]) / 2 - (J["ankleN"] + J["ankleF"]) / 2, rigmod.nrm(J["shoulder"] - J["hip"])),
+                J["shoulder"] - J["hip"], J["shoulderF"] - J["shoulderN"]])) > 0 else {"L": "F", "R": "N"}
+            N = None
+            moved = False
+            for s in "LR":
+                d = S[s]
+                if R.held.get(d) is not None:
+                    continue
+                arm = np.isin(R.bi[:, 0], [R.ix[n] for n in names if n.endswith("." + s) and n.startswith(
+                    ("upperarm", "lowerarm", "wrist", "finger", "metacarpal", "shoulder", "clavicle"))])
+                fore = np.isin(R.bi[:, 0], [R.ix[n] for n in names if n.endswith("." + s) and n.startswith(
+                    ("lowerarm", "wrist", "finger", "metacarpal"))])
+                other = np.where(~arm)[0]
+                if N is None:
+                    N = _normals(R, V)
+                dd, ii = cKDTree(V[other]).query(V[fore])
+                vi = other[ii]
+                dep = -np.einsum("ij,ij->i", V[fore] - V[vi], N[vi])
+                inside = (dep > 1.5) & (dd < 14)
+                if inside.sum() < 25:
+                    continue
+                n = N[vi[inside]].mean(0)
+                if np.linalg.norm(n) < 1e-3:
+                    continue
+                v = n / np.linalg.norm(n) * (float(np.percentile(dep[inside], 90)) + 1.0)
+                for nm, f in (("hand", 1.0), ("wrist", 1.0), ("elbow", 0.5)):
+                    k["j"][nm + d] = [round(float(c + f * dv), 1) for c, dv in zip(k["j"][nm + d], v)]
+                moved = True
+            if not moved:
+                break
+
+
 def run(ids=None):
     if not RAW.exists():
         RAW.write_bytes(DATA.read_bytes())
@@ -1145,6 +1187,7 @@ def run(ids=None):
         lift_hang(ex, keys)
         reach(ex, keys, R)
         on_floor(keys)
+        arms_clear(ex, keys, R)
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:

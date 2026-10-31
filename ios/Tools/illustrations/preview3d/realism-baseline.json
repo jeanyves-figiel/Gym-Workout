@@ -1,0 +1,469 @@
+{
+"ab-wheel": [
+"floor"
+],
+"archer-pull-up": [
+"through"
+],
+"assisted-dip": [
+"limb",
+"through"
+],
+"assisted-pull-up": [
+"grip",
+"through"
+],
+"back-extension": [
+"through"
+],
+"back-lever": [
+"limb",
+"through"
+],
+"ball-crunch": [
+"floor"
+],
+"ball-hamstring-curl": [
+"floor"
+],
+"band-curl": [
+"grip",
+"limb"
+],
+"band-external-rotation": [
+"limb"
+],
+"band-iron-cross": [
+"limb",
+"through"
+],
+"band-lateral-raise": [
+"limb"
+],
+"band-pulldown": [
+"grip",
+"limb"
+],
+"band-pushdown": [
+"limb"
+],
+"band-row": [
+"grip",
+"limb"
+],
+"bar-static-hold": [
+"grip"
+],
+"barbell-glute-bridge": [
+"grip",
+"through"
+],
+"barbell-reverse-lunge": [
+"grip",
+"through"
+],
+"barbell-split-squat": [
+"grip"
+],
+"barbell-upright-row": [
+"grip"
+],
+"bayesian-curl": [
+"grip"
+],
+"belt-squat": [
+"through"
+],
+"box-squat": [
+"through"
+],
+"breathing": [
+"floor"
+],
+"cable-external-rotation": [
+"limb"
+],
+"cable-front-raise": [
+"through"
+],
+"cable-hip-adduction": [
+"limb",
+"through"
+],
+"cable-kickback": [
+"limb"
+],
+"cable-lateral-raise": [
+"limb"
+],
+"cable-low-high-chop": [
+"limb"
+],
+"cable-pull-through": [
+"limb"
+],
+"cable-shrug": [
+"limb",
+"through"
+],
+"cable-upright-row": [
+"limb",
+"through"
+],
+"cable-woodchop": [
+"grip",
+"limb"
+],
+"cable-y-raise": [
+"limb"
+],
+"chest-press-machine": [
+"limb"
+],
+"close-grip-pulldown": [
+"floor",
+"grip",
+"through"
+],
+"cross-body": [
+"limb"
+],
+"cross-body-hammer-curl": [
+"limb"
+],
+"crunch-machine": [
+"through"
+],
+"curtsy-lunge": [
+"limb"
+],
+"db-fly": [
+"grip",
+"through"
+],
+"db-lateral-raise": [
+"grip"
+],
+"db-reverse-fly": [
+"grip"
+],
+"db-side-bend": [
+"limb"
+],
+"db-thruster": [
+"limb"
+],
+"figure-4": [
+"limb"
+],
+"front-squat": [
+"through"
+],
+"goblet-squat": [
+"grip",
+"limb"
+],
+"good-morning": [
+"through"
+],
+"hanging-knee-raise": [
+"grip"
+],
+"hanging-leg-raise": [
+"grip"
+],
+"heel-elevated-goblet-squat": [
+"grip",
+"limb"
+],
+"hip-90-90": [
+"limb"
+],
+"hip-thrust-machine": [
+"grip",
+"through"
+],
+"incline-chest-press-machine": [
+"floor",
+"grip",
+"through"
+],
+"incline-db-curl": [
+"limb"
+],
+"incline-db-fly": [
+"grip"
+],
+"incline-reverse-fly": [
+"through"
+],
+"iron-cross": [
+"limb",
+"through"
+],
+"kb-deadlift": [
+"limb"
+],
+"kb-front-squat": [
+"grip"
+],
+"kb-halo": [
+"through"
+],
+"kb-high-pull": [
+"limb"
+],
+"kb-thruster": [
+"grip"
+],
+"landmine-press": [
+"through"
+],
+"landmine-rotation": [
+"through"
+],
+"landmine-t-bar-row": [
+"through"
+],
+"lat-pulldown": [
+"floor",
+"grip",
+"through"
+],
+"lateral-lunge": [
+"limb"
+],
+"lean-away-lateral-raise": [
+"grip"
+],
+"leg-curl": [
+"through"
+],
+"leg-extension": [
+"through"
+],
+"leg-press-calf-raise": [
+"limb"
+],
+"machine-lateral-raise": [
+"through"
+],
+"machine-pullover": [
+"through"
+],
+"machine-row-single": [
+"through"
+],
+"machine-squat": [
+"floor"
+],
+"man-maker": [
+"floor"
+],
+"massage-ball-foot": [
+"floor"
+],
+"massage-ball-glute": [
+"floor"
+],
+"meadows-row": [
+"limb",
+"through"
+],
+"med-ball-scoop-toss": [
+"limb"
+],
+"monkey-bar-traverse": [
+"grip"
+],
+"multi-hip-abduction": [
+"through"
+],
+"muscle-up": [
+"through"
+],
+"neutral-grip-pull-up": [
+"through"
+],
+"one-arm-db-row": [
+"through"
+],
+"overhead-squat": [
+"grip"
+],
+"overhead-triceps": [
+"grip",
+"through"
+],
+"pallof-press": [
+"grip",
+"limb"
+],
+"pec-deck-fly": [
+"through"
+],
+"pendulum-squat": [
+"limb",
+"through"
+],
+"pinch-block-lift": [
+"limb"
+],
+"prone-pulldown": [
+"limb"
+],
+"prone-ytw": [
+"through"
+],
+"rack-pull": [
+"through"
+],
+"reverse-grip-pulldown": [
+"floor",
+"grip",
+"limb",
+"through"
+],
+"reverse-hyper": [
+"grip"
+],
+"reverse-pec-deck": [
+"through"
+],
+"ring-push-up": [
+"through"
+],
+"rope-hammer-curl": [
+"limb"
+],
+"rope-pushdown": [
+"limb"
+],
+"rotational-throw": [
+"limb"
+],
+"rower": [
+"grip"
+],
+"seated-cable-row": [
+"grip"
+],
+"seated-db-calf-raise": [
+"grip"
+],
+"seated-dip-machine": [
+"limb"
+],
+"seated-lateral-raise": [
+"grip"
+],
+"seated-leg-curl": [
+"grip",
+"through"
+],
+"side-delt-stretch": [
+"limb"
+],
+"side-lying-external-rotation": [
+"grip",
+"through"
+],
+"single-arm-pulldown": [
+"limb"
+],
+"single-arm-pushdown": [
+"limb"
+],
+"single-leg-back-extension": [
+"through"
+],
+"single-leg-curl": [
+"through"
+],
+"single-leg-extension": [
+"limb",
+"through"
+],
+"ski-erg": [
+"through"
+],
+"sled-sprint": [
+"grip"
+],
+"sleeper-stretch": [
+"floor"
+],
+"slider-reverse-lunge": [
+"floor"
+],
+"smith-bench-press": [
+"through"
+],
+"smith-incline-press": [
+"through"
+],
+"smith-inverted-row": [
+"limb",
+"through"
+],
+"smith-split-squat": [
+"limb",
+"through"
+],
+"smith-squat": [
+"limb",
+"through"
+],
+"standing-calf-raise": [
+"grip",
+"limb",
+"through"
+],
+"standing-leg-curl": [
+"through"
+],
+"sumo-db-squat": [
+"limb"
+],
+"sumo-deadlift": [
+"limb",
+"through"
+],
+"sumo-high-pull": [
+"limb"
+],
+"supine-twist": [
+"limb"
+],
+"toes-to-bar": [
+"grip",
+"through"
+],
+"torso-rotation": [
+"limb",
+"through"
+],
+"trap-bar-carry": [
+"limb",
+"through"
+],
+"trap-bar-deadlift": [
+"limb",
+"through"
+],
+"trap-bar-jump": [
+"limb"
+],
+"weighted-muscle-up": [
+"through"
+],
+"wide-grip-cable-row": [
+"limb"
+],
+"windshield-wipers": [
+"limb"
+],
+"wrist-curl": [
+"grip"
+]
+}
