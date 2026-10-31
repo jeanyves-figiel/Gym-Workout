@@ -38,6 +38,29 @@ private func record(_ s: Session, daysAgo: Double, kg: Double) -> WorkoutRecord 
         #expect(lines.count <= CoachDigest.maxLines)
     }
 
+    @Test func weekPlanStates() {
+        let days = [CoachDigest.Day(weekday: 6, title: "Legs", done: false), CoachDigest.Day(weekday: 1, title: "Push", done: true),
+                    CoachDigest.Day(weekday: 3, title: "Pull", done: false), CoachDigest.Day(weekday: 7, title: "Climb", done: false)]
+        #expect(CoachDigest.week(days, today: 6) == "This week (today Sat): Mon Push done, Wed Pull not done, Sat Legs today, Sun Climb planned.")
+        #expect(CoachDigest.week([], today: 6) == nil)
+    }
+
+    @Test func recoveryLine() {
+        #expect(CoachDigest.recovery(sleepHours: 6.83, hrv: 44, hrvUsual: 50, restingHR: 58.4, restingUsual: 55, vo2Max: 44)
+            == "Recovery (Apple Health): slept 6.8 h last night; HRV -12 % vs usual; resting HR 58 (usual 55); VO2 max 44.")
+        #expect(CoachDigest.recovery(sleepHours: nil, hrv: nil, hrvUsual: nil, restingHR: nil, restingUsual: nil, vo2Max: nil) == nil)
+    }
+
+    @Test func mindLine() {
+        let ins = [MindCheckIn(date: now.addingTimeInterval(-10 * 86_400), mood: 1),
+                   MindCheckIn(date: now.addingTimeInterval(-2 * 86_400), mood: 2),
+                   MindCheckIn(date: now.addingTimeInterval(-3600), mood: 4)]
+        let line = CoachDigest.mind(ins, now: now)
+        #expect(line?.hasPrefix("Mind: 2 check-ins in 7 days, mood 3 of 5 on average") == true)
+        #expect(line?.hasSuffix("last check-in 4 of 5.") == true)
+        #expect(CoachDigest.mind([], now: now) == nil)
+    }
+
     @Test func roundsNumbers() {
         #expect(CoachDigest.num(66) == "66")
         #expect(CoachDigest.num(32.25) == "32.3")

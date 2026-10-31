@@ -5,7 +5,7 @@ import Foundation
 /// capped so the chat request stays small.
 public enum CoachDigest {
     /// Most lines sent; each line at most `lineLimit` characters (the server checks the same caps).
-    public static let maxLines = 24
+    public static let maxLines = 32
     public static let lineLimit = 160
 
     /// All lines, most useful first: totals, recent workouts, lift trends, body weight.
@@ -101,6 +101,56 @@ public enum CoachDigest {
             line += "; \(num(then.value)) kg \(days) days before (\(diff >= 0 ? "+" : "")\(num(diff)) kg)"
         }
         return line + "."
+    }
+
+    /// One planned day this week (#1010): weekday 1 = Monday.
+    public struct Day: Sendable, Equatable {
+        public var weekday: Int
+        public var title: String
+        public var done: Bool
+        public init(weekday: Int, title: String, done: Bool) {
+            self.weekday = weekday
+            self.title = title
+            self.done = done
+        }
+    }
+
+    /// "This week (today Sat): Mon Push done, Wed Pull not done, Sat Legs today, Sun Climb planned." Nil with no days.
+    public static func week(_ days: [Day], today: Int) -> String? {
+        guard !days.isEmpty else { return nil }
+        let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        func name(_ d: Int) -> String { (1...7).contains(d) ? names[d - 1] : "?" }
+        let parts = days.sorted { $0.weekday < $1.weekday }.map { d in
+            let state = d.done ? "done" : d.weekday == today ? "today" : d.weekday < today ? "not done" : "planned"
+            return "\(name(d.weekday)) \(d.title) \(state)"
+        }
+        return "This week (today \(name(today))): " + parts.joined(separator: ", ") + "."
+    }
+
+    /// "Recovery: slept 6.8 h last night; HRV -12 % vs usual; resting HR 58 (usual 55); VO2 max 44." Nil with nothing.
+    public static func recovery(sleepHours: Double?, hrv: Double?, hrvUsual: Double?, restingHR: Double?, restingUsual: Double?,
+                                vo2Max: Double?) -> String? {
+        var parts: [String] = []
+        if let s = sleepHours, s > 0 { parts.append("slept \(num(s)) h last night") }
+        if let h = hrv, let b = hrvUsual, b > 0 {
+            let p = Int(((h / b - 1) * 100).rounded())
+            parts.append("HRV \(p >= 0 ? "+" : "")\(p) % vs usual")
+        }
+        if let r = restingHR, r > 0 { parts.append("resting HR \(Int(r.rounded()))" + (restingUsual.map { " (usual \(Int($0.rounded())))" } ?? "")) }
+        if let v = vo2Max, v > 0 { parts.append("VO2 max \(num(v))") }
+        return parts.isEmpty ? nil : "Recovery (Apple Health): " + parts.joined(separator: "; ") + "."
+    }
+
+    /// "Mind: 4 check-ins in 7 days, mood 2.8 of 5 on average, low days about sleep, work; last check-in 3 of 5." Nil with none.
+    public static func mind(_ checkIns: [MindCheckIn], now: Date) -> String? {
+        let from = now.addingTimeInterval(-7 * 86_400)
+        let week = checkIns.filter { $0.date >= from && $0.date <= now }.sorted { $0.date < $1.date }
+        guard let last = week.last else { return nil }
+        let mood = WeekReviewDigest.mood(week, from: from, to: now.addingTimeInterval(1))
+        var line = "Mind: \(week.count) check-in\(week.count == 1 ? "" : "s") in 7 days"
+        if let avg = mood.average { line += ", mood \(num(avg)) of 5 on average" }
+        if !mood.about.isEmpty { line += ", low days about " + mood.about.joined(separator: ", ").lowercased() }
+        return line + "; last check-in \(last.mood) of 5."
     }
 
     /// 66 → "66", 32.25 → "32.3".

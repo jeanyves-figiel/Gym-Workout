@@ -73,9 +73,35 @@ extension AppModel {
                                 training: coachTraining)
     }
 
-    /// The member's training digest for Coach (#1010): no ids, capped like the server.
+    /// The member's own data for Coach (#1010): this week's plan, Fuel today, workouts, lift trends, body weight, and,
+    /// only when the member allowed the weekly review (health data), sleep / HRV / resting HR and Mind check-ins.
+    /// No ids; capped like the server.
     var coachTraining: [String]? {
-        let lines = CoachDigest.lines(records: history, weights: measurementSeries(.weight))
+        let now = Date()
+        var extra: [String] = []
+        if let week = calendarWeeks(count: 1, now: now).first {
+            let skipped = skippedIds
+            let days = week.plan.sessions.compactMap { s -> CoachDigest.Day? in
+                guard let wd = s.weekday, !skipped.contains(s.id) else { return nil }
+                return CoachDigest.Day(weekday: wd, title: String(s.displayTitle.prefix(30)), done: doneIds.contains(s.id))
+            }
+            if let line = CoachDigest.week(days, today: todayWeekday) { extra.append(line) }
+        }
+        let fuel = fuelPlan(on: now), eaten = FuelStore.shared.log(now)
+        extra.append("Fuel today: target ~\(fuel.protein) g protein, \(fuel.carbs) g carbs, \(fuel.fat) g fat, \(fuel.glasses) glasses; "
+            + "counted \(eaten.eaten.palms)/\(fuel.portions.palms) protein palms, \(eaten.glasses) glasses.")
+        // Health data goes only with the member's yes to Coach's week review (#972: workouts, sleep, HRV, mood).
+        var health: [String] = []
+        if AIConsentStore.shared.allows(.review) {
+            let snap = self.health?.snapshot
+            if let r = CoachDigest.recovery(sleepHours: snap?.sleepHours, hrv: snap?.hrv, hrvUsual: snap?.hrvBaseline,
+                                            restingHR: snap?.restingHR, restingUsual: snap?.restingHRBaseline, vo2Max: snap?.vo2Max) {
+                health.append(r)
+            }
+            if let m = CoachDigest.mind(MindStore.shared.saved.checkIns, now: now) { health.append(m) }
+        }
+        let lines = Array((extra + CoachDigest.lines(records: history, weights: measurementSeries(.weight), now: now) + health)
+            .map { String($0.prefix(CoachDigest.lineLimit)) }.prefix(CoachDigest.maxLines))
         return lines.isEmpty ? nil : lines
     }
 

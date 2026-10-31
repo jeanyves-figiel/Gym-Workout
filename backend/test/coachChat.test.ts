@@ -298,11 +298,11 @@ describe('pronouns and call name (#415)', () => {
     const res = await chat(t, { turns: [{ role: 'member', text: 'My progression over the last few days' }], context: { training } });
     expect(res.statusCode).toBe(200);
     expect(calls[0]!.context).toEqual({ training });
-    expect(describeMember({ training })).toContain('Their training (newest first):\nWorkouts: 9');
+    expect(describeMember({ training })).toContain('Their training:\nWorkouts: 9');
     expect(describeMember({}).includes('Their training')).toBe(false);
     const long = await chat(t, { turns: [{ role: 'member', text: 'Hi' }], context: { training: ['x'.repeat(161)] } });
     expect(long.statusCode).toBe(400);
-    const many = await chat(t, { turns: [{ role: 'member', text: 'Hi' }], context: { training: Array(25).fill('x') } });
+    const many = await chat(t, { turns: [{ role: 'member', text: 'Hi' }], context: { training: Array(33).fill('x') } });
     expect(many.statusCode).toBe(400);
   });
 

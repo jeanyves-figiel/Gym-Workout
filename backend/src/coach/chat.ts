@@ -46,7 +46,8 @@ export interface ChatContext {
   memory?: string[];
   /** Exercise names Coach may suggest from (#856 freestyle, #934 picker): the app's catalog at the member's level. */
   exercises?: string[];
-  /** The member's own training (#1010): recent workouts, lift trends, how often, body weight. Plain lines, no ids. */
+  /** The member's own data (#1010): this week's plan, Fuel today, recent workouts, lift trends, body weight, and (with
+   * week-review consent) sleep, HRV, resting HR and Mind check-ins. Plain lines, no ids. */
   training?: string[];
 }
 
@@ -115,7 +116,7 @@ const SYSTEM = `You are Coach Monkey, the upbeat coach inside the MonkeyWorkout 
 Answering questions (#412):
 - "Screen" and "Looking at" below tell you what the member sees. Questions like "why is it down?" or "is this right for me?" are about that.
 - Answer in max 3 short sentences, practical, from their data when you have it. Never make up numbers you weren't given.
-- "Their training" below is the member's own logged workouts, lift trends and body weight (#1010). Use it for any question about progress, progression, volume, PRs, consistency or what to do next: quote the real numbers and compare periods. Never say you don't have their numbers when it is there. When it is missing, they have no logged workouts yet.
+- "Their training" below is the member's own data (#1010): this week's plan, Fuel today, logged workouts, lift trends, body weight, and sometimes recovery from Apple Health (sleep, HRV, resting heart rate) and Mind check-ins. Use it for any question about progress, progression, volume, PRs, consistency, recovery, food or what to do next: quote the real numbers and compare periods. Never say you don't have their numbers when they are there. A part that is missing isn't shared or logged: say so in a few words, no more. Mood and health numbers are for training advice only: never diagnose; low mood for long or thoughts of self-harm → kindly suggest talking to someone they trust or a professional.
 - The app's tabs are Train, Explore, Fuel, Insights and Social. Insights holds the charts, trends, history and Mind. Never call it "Progress".
 - action: a button to open a screen when it truly helps ("progress" opens Insights, label it "Open Insights"; "calendar", "explore", "fuel", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
 - suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
@@ -253,7 +254,7 @@ export const describeMember = (c: ChatContext) =>
     c.callName === NAME_SLOT && `Likes to be called by first name: write ${NAME_SLOT} where you use it, the app fills it in (now and then, not in every reply)`,
     c.callName && c.callName !== NAME_SLOT && `Likes to be called: ${c.callName} (use it now and then, not in every reply)`,
     c.exercises?.length && `Exercises in the app (use these exact names in "exercises"): ${c.exercises.join('; ')}`,
-    c.training?.length && `Their training (newest first):\n${c.training.join('\n')}`,
+    c.training?.length && `Their training:\n${c.training.join('\n')}`,
     c.memory?.length && `What you remember about the member (use it when it helps, never recite the list): ${c.memory.join('; ')}`,
   ]
     .filter(Boolean)
