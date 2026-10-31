@@ -40,7 +40,7 @@ struct RootView: View {
 }
 
 /// Settings left the tab bar for the avatar (#496): iOS shows 5 tabs, Fuel took its place.
-enum MainTab: Hashable { case train, explore, progress, fuel, community }
+enum MainTab: String, Hashable, CaseIterable { case train, explore, progress, fuel, community }
 
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
@@ -52,6 +52,8 @@ struct MainTabView: View {
     @State private var exerciseLaunch = ExerciseLaunch.shared
     @State private var videoShare = VideoShareLaunch.shared
     @State private var hd = HDAnimations.shared
+    /// Tabs the member hid (#1004).
+    @State private var tabsPref = TabsPref.shared
 
     private var showHDOffer: Bool {
         !hd.offered && !hd.enabled && !model.demo && model.tourStep == nil && !model.offerPro && whatsNew == nil
@@ -63,27 +65,43 @@ struct MainTabView: View {
         NavigationStack { WhatsNewView(notes: notes) }
     }
 
-    var body: some View {
-        TabView(selection: Bindable(model).tab) {
-            NavigationStack { WeekView().meDestination(.train) }
-                // #995 B: new animations downloading, above the tab bar.
-                .overlay(alignment: .bottom) { if hd.status == .downloading { HDDownloadPill() } }
-                .animation(.spring, value: hd.status == .downloading)
-                .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
-                .tag(MainTab.train)
+    /// The tabs, without the ones the member hid (#1004); its own property keeps `body` quick to type-check.
+    @ViewBuilder private var tabPages: some View {
+        NavigationStack { WeekView().meDestination(.train) }
+            // #995 B: new animations downloading, above the tab bar.
+            .overlay(alignment: .bottom) { if hd.status == .downloading { HDDownloadPill() } }
+            .animation(.spring, value: hd.status == .downloading)
+            .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
+            .tag(MainTab.train)
+        if tabsPref.shows(.explore) {
             NavigationStack { LibraryView().meDestination(.explore) }
                 .tabItem { Label("Explore", systemImage: "figure.arms.open") }
                 .tag(MainTab.explore)
+        }
+        if tabsPref.shows(.progress) {
             NavigationStack { ProgressTabView().meDestination(.progress) }
                 .tabItem { Label("Insights", systemImage: "sparkles") }
                 .tag(MainTab.progress)
+        }
+        if tabsPref.shows(.fuel) {
             NavigationStack { FuelView().meDestination(.fuel) }
                 .tabItem { Label("Fuel", systemImage: "fork.knife") }
                 .tag(MainTab.fuel)
+        }
+        if tabsPref.shows(.community) {
             NavigationStack { CommunityView().meDestination(.community) }
                 .tabItem { Label("Social", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
         }
+    }
+
+    var body: some View {
+        TabView(selection: Bindable(model).tab) {
+            tabPages
+        }
+        // A hidden tab (#1004) is never selected: links, widgets and Shortcuts that open it land on Train.
+        .onChange(of: model.tab) { _, t in if !tabsPref.shows(t) { model.tab = .train } }
+        .onAppear { if !tabsPref.shows(model.tab) { model.tab = .train } }
         // Liquid Glass tab bar on iOS 26 (#616 A).
         .glassTabBar()
         .sidebarAdaptableTabs()

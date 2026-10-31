@@ -68,7 +68,7 @@ struct CommunityView: View {
     /// Title, Coach, + (one share sheet: win, plan, meal, tip) and the Me pill (#560, your posts are in Your profile).
     private var header: some View {
         HStack(spacing: 12) {
-            Text("Social").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            TabTitleMenu(tab: .community)
             Spacer(minLength: 4)
             CoachHeaderTile()
             Button { hub = true } label: { HeaderTile(symbol: "plus", lime: true) }
