@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-31.1",
+      "build": 91,
+      "date": "2026-10-31",
+      "items": [
+        {
+          "symbol": "camera.viewfinder",
+          "tint": "strength",
+          "title": "Film from any side",
+          "body": "Front, side or 45°, no buttons. The screen edge shows if you're in frame, and weight is asked only when it can't be read."
+        },
+        {
+          "symbol": "lock.shield.fill",
+          "tint": "cardio",
+          "title": "Coach's AI asks first",
+          "body": "Pick what Coach's AI may see. Change it any time in Settings → Account → AI & privacy."
+        },
+        {
+          "symbol": "book.fill",
+          "tint": "mobility",
+          "title": "How it works, with the science",
+          "body": "Every rule cites its studies. New topics: Warm-up, Pain, Life stages and Coach."
+        },
+        {
+          "symbol": "person.crop.circle",
+          "tint": "power",
+          "title": "Me keeps the tab bar",
+          "body": "Your profile and Settings open inside the tab you're on."
+        },
+        {
+          "symbol": "wrench.and.screwdriver.fill",
+          "tint": "warmup",
+          "title": "Lots of little fixes",
+          "body": "Skip a climb after your workout, Watch follows your After the last set setting, longer Coach chats."
+        }
+      ]
+    },
+    {
       "id": "2026-10-30.4",
       "build": 90,
       "date": "2026-10-30",

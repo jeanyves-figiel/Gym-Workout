@@ -34,13 +34,19 @@ public struct CoachChatContext: Codable, Sendable, Equatable {
     public var memory: [String]?
     /// Exercise names Coach may hand back (#856, freestyle screen).
     public var exercises: [String]?
+    /// Today's workout exercises (#999), so Coach can swap one by name.
+    public var todayExercises: [String]?
+    /// Today, 1 = Monday … 7 = Sunday (#999), for "move it to Saturday".
+    public var weekday: Int?
     /// The member's own training (#1010): recent workouts, lift trends, body weight (`CoachDigest`), no ids.
     public var training: [String]?
 
     public init(goal: String? = nil, level: String? = nil, sessionMinutes: Int? = nil, equipment: [String]? = nil,
                 readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil, screen: String? = nil, focus: String? = nil,
                 pronouns: String? = nil, callName: String? = nil, memory: [String]? = nil, exercises: [String]? = nil,
-                training: [String]? = nil) {
+                todayExercises: [String]? = nil, weekday: Int? = nil, training: [String]? = nil) {
+        self.todayExercises = todayExercises
+        self.weekday = weekday
         self.training = training
         self.memory = memory
         self.exercises = exercises
@@ -73,6 +79,43 @@ public struct CoachChatAnswer<W: Decodable & Sendable>: Decodable, Sendable {
     public var protect: CoachChatProtect?
     /// Body measurements the member told Coach to log (#1000): kg, %, cm.
     public var measurement: CoachChatMeasurement?
+    /// Things Coach does for the member (#999): water, food, mood, move, skip, swap.
+    public var doActions: [CoachChatDo]?
+}
+
+/// One thing Coach does (#999). `kind` water / food / mood / move / skip / swap / done / reminder / voice; only its own fields are set.
+public struct CoachChatDo: Codable, Sendable, Equatable {
+    public var kind: String
+    public var glasses: Int?
+    public var foods: String?
+    /// breakfast / lunch / dinner / snack.
+    public var meal: String?
+    /// 1 drained … 5 amazing.
+    public var mood: Int?
+    /// 1 = Monday … 7 = Sunday.
+    public var weekday: Int?
+    public var from: String?
+    public var to: String?
+    /// reminder: minutes after midnight; `on` false turns it off.
+    public var minutes: Int?
+    public var on: Bool?
+    /// voice: whenTalking / always / never.
+    public var value: String?
+
+    public init(kind: String, glasses: Int? = nil, foods: String? = nil, meal: String? = nil, mood: Int? = nil,
+                weekday: Int? = nil, from: String? = nil, to: String? = nil, minutes: Int? = nil, on: Bool? = nil, value: String? = nil) {
+        self.minutes = minutes
+        self.on = on
+        self.value = value
+        self.kind = kind
+        self.glasses = glasses
+        self.foods = foods
+        self.meal = meal
+        self.mood = mood
+        self.weekday = weekday
+        self.from = from
+        self.to = to
+    }
 }
 
 /// What Coach logs (#1000). `girths[].site` is a GirthSite raw value, `side` left / right / none.

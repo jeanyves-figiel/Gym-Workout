@@ -30,6 +30,10 @@ struct CoachChatMessage: Identifiable, Equatable {
     var history: HistoryAnswer?
     /// Body measurements Coach logged (#1000): the card with Undo.
     var logged: LoggedMeasurement?
+    /// What Coach does for the member (#999): done, asked or listed on one card.
+    var tasks: [CoachTask] = []
+    /// What Coach said it would do but the app couldn't (#999), shown under the reply.
+    var missed: [String] = []
 }
 
 /// Today's conversation, kept while the app runs; a new day starts a fresh chat.
@@ -69,6 +73,8 @@ extension AppModel {
                                 memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) },
                                 // Building as they go (#856): the names Coach may hand back as exercises to add.
                                 exercises: focus?.wantsExercises == true ? Freestyle.coachNames(profile: p) : nil,
+                                // Coach can act (#999): today's exercises to swap by name, and the day for "move it to Saturday".
+                                todayExercises: coachTodayExercises, weekday: todayWeekday,
                                 // Their own workouts, lift trends and body weight (#1010), so progress questions get real numbers.
                                 training: coachTraining)
     }
@@ -342,6 +348,16 @@ struct CoachChatView: View {
                 if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
                 if let p = m.protect { PainPlanCard(protect: p) }
                 if let l = m.logged { loggedCard(m.id, l) }
+                ForEach(m.missed, id: \.self) { line in
+                    Label(line, systemImage: "exclamationmark.circle.fill")
+                        .font(Theme.label(13)).foregroundStyle(.orange)
+                        .padding(.leading, 42)
+                        .accessibilityIdentifier("coach.do.missed")
+                }
+                if !m.tasks.isEmpty {
+                    CoachDoCard(tasks: m.tasks, toggle: { toggleTask(m.id, $0) }, run: { runTasks(m.id) },
+                                undo: { undoTasks(m.id) }, dismiss: { dropTasks(m.id) })
+                }
                 if let w = m.workout { workoutCard(w, message: m) }
             }
         }
@@ -396,6 +412,34 @@ struct CoachChatView: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Undo") { undoLogged(messageId) }
         .padding(.leading, 42)
+    }
+
+    // MARK: Coach can act (#999)
+
+    private func toggleTask(_ messageId: UUID, _ taskId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }),
+              let j = store.messages[i].tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        store.messages[i].tasks[j].on.toggle()
+        Haptics.undo()
+    }
+
+    /// Does the ticked tasks that still wait (A: the one asked, C: the checklist).
+    private func runTasks(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }) else { return }
+        store.messages[i].tasks = store.messages[i].tasks.map { $0.status == .waiting && $0.on ? model.performCoach($0) : $0 }
+        Haptics.success()
+    }
+
+    private func undoTasks(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }) else { return }
+        // Newest first, so a food log undone after water puts the day back exactly.
+        store.messages[i].tasks = Array(store.messages[i].tasks.reversed().map { model.undoCoach($0) }.reversed())
+        Haptics.undo()
+    }
+
+    private func dropTasks(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }) else { return }
+        store.messages[i].tasks = []
     }
 
     private func undoLogged(_ messageId: UUID) {
@@ -763,6 +807,9 @@ struct CoachChatView: View {
                 reply.protect = a.protect.flatMap(PainProtect.init(chat:))
                 // Coach logs what the member told it (#1000), with Undo on the card.
                 if let m = a.measurement.map(MeasurementSay.init(chat:)), !m.isEmpty { reply.logged = model.logSaid(m) }
+                // Coach acts (#999): one log is done at once with Undo (B); a plan change or several wait for a tap (A, C).
+                (reply.tasks, reply.missed) = model.coachTasks(a.doActions ?? [])
+                if reply.tasks.count == 1, reply.tasks[0].instant { reply.tasks[0] = model.performCoach(reply.tasks[0]) }
                 if let s = a.workout, let profile = model.profile {
                     let w = s.workout(profile: profile, seed: UInt32.random(in: .min ... .max))
                         .withFlow(CoachWorkoutSettings.flowMinutes, profile: profile)
@@ -837,6 +884,17 @@ extension Demo {
              "workout":null,"action":null,"exercises":["Cable triceps pushdown","Face pull","Straight-arm pulldown"],
              "suggestions":["Something harder","Add biceps"],"remainingToday":17}
             """#
+            return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
+        }
+        // Coach can act (#999): water is logged at once, a move asks first, several come as a checklist.
+        let said = text.lowercased()
+        if said.contains("water") || said.contains("move") || said.contains("oats") {
+            var acts: [String] = []
+            if said.contains("water") { acts.append(#"{"kind":"water","glasses":2}"#) }
+            if said.contains("oats") { acts.append(#"{"kind":"food","foods":"oats and a banana","meal":"breakfast"}"#) }
+            if said.contains("move") { acts.append(#"{"kind":"move","weekday":6}"#) }
+            let reply = acts.count > 1 ? "Here's what I'll do. Untick anything you don't want." : said.contains("move") ? "Want me to move it to Saturday?" : "Done, two glasses added."
+            let json = #"{"reply":"\#(reply)","workout":null,"doActions":[\#(acts.joined(separator: ","))],"remainingToday":17}"#
             return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
         }
         if focus?.screen == "exercise" || focus?.screen == "player" {
