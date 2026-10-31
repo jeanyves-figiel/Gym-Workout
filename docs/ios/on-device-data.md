@@ -10,7 +10,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 |---|---|---|---|
 | `state.json` | `LocalStore` / `LocalState` | Profile, week plan and seed, done / ticked / skipped, set logs, workout history, custom workouts and exercises, PR attempts, measurements, climbs, sports, machine notes, programme, Train / Progress layouts, taste, growth, paused workout, how each workout felt (`feels`) and its Apple effort 1–10 (`efforts`, local only), **outbox** (pending and deleted id sets, last pull times) | Yes, per kind ([sync protocol](../api/README.md#sync-protocol)); profile as one blob |
 | `machine-notes/` | `MachineNote` | One JPEG per machine setup note | Yes (owner-only photo route) |
-| `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device |
+| `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device, except the meal plan + grocery list when shared with a partner (`HouseholdStore`, #1014) |
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
 | `mind.json` | `MindStore` | Mood check-ins, breathing / relax sessions, daily Mind scores (90 days) | **No**: stays on the device; check-ins and sessions also go to Apple Health (State of Mind, mindful minutes) when connected |
 | `me-avatar.jpg`, `me-avatar.json` | `MeAvatar` | Your own profile photo and its URL, so the Me pill shows it at launch (#639); wiped on sign-out | Copy of the server photo |

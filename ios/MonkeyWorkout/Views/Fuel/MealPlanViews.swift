@@ -23,6 +23,8 @@ struct MealPlanView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 // Days are always planned (#1015): closing a plan sheet re-plans, keeping the member's picks.
+                // Shared with a partner (#1014).
+                PartnerCard()
                 MyPlansCard { replanned(announce: $0) }
                 if let planned {
                     Label(planned, systemImage: "checkmark.circle.fill").font(Theme.label(13)).foregroundStyle(.white)
@@ -69,6 +71,7 @@ struct MealPlanView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .task { await HouseholdStore.shared.watch() }
         .navigationTitle("Meal plan")
         // A plan that runs but has no meals yet gets them straight away.
         .onAppear { model.topUpMealPlan() }
@@ -239,6 +242,8 @@ struct GroceriesView: View {
     @Environment(AppModel.self) private var model
     @State private var store = FuelStore.shared
     @State private var pricing: Food?
+    @State private var sendingCopy = false
+    @State private var home = HouseholdStore.shared
 
     var body: some View {
         let items = model.groceries()
@@ -254,6 +259,8 @@ struct GroceriesView: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 40)
                 } else {
                     let bought = items.filter { store.saved.bought.contains($0.id) }.count
+                    // Shared with a partner (#1014): ticks show on both phones.
+                    PartnerCard()
                     BasketCard(items: items) { withAnimation(.snappy) { model.planMeals() } }
                     Text("\(items.count - bought) to buy · \(bought) in the basket · tap a price to change it")
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
@@ -298,6 +305,8 @@ struct GroceriesView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .task { await HouseholdStore.shared.watch() }
+        .sheet(isPresented: $sendingCopy) { SendCopySheet() }
         .navigationTitle("Groceries")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $pricing) { PriceSheet(food: $0).presentationDetents([.medium]) }
@@ -306,6 +315,10 @@ struct GroceriesView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     ShareLink(item: MealPlanner.shareText(items)) { Image(systemName: "square.and.arrow.up") }
                         .accessibilityLabel("Share the list")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { sendingCopy = true } label: { Image(systemName: "paperplane.fill") }
+                        .accessibilityLabel("Send a copy to a friend")
                 }
             }
         }
@@ -354,6 +367,9 @@ struct GroceriesView: View {
                     Text(packText(i)).font(Theme.label(11)).foregroundStyle(.white.opacity(0.75))
                     Text(i.meals.prefix(3).joined(separator: " · ") + (i.meals.count > 3 ? " +\(i.meals.count - 3)" : ""))
                         .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
+                    if on, let who = home.tickedByOthers[i.id] {
+                        Text("✓ \(who)").font(Theme.label(11)).foregroundStyle(Theme.lime)
+                    }
                 }
             }
             .foregroundStyle(.white)

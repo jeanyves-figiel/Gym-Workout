@@ -23,6 +23,7 @@ import { pushExport } from '../push/schema.ts';
 import { refreshMemberGym } from '../community/schema.ts';
 import { communityExport } from './community.ts';
 import { referralExport } from './referrals.ts';
+import { householdExport } from './household.ts';
 import { programExport } from './programs.ts';
 import { liveExport } from './live.ts';
 import { gymExport, gymMapExport } from './gyms.ts';
@@ -202,6 +203,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     ['community', () => communityExport(db, userId)],
     ['live', () => liveExport(db, userId)],
     ['referrals', () => referralExport(db, userId)],
+    ['fuelSharing', () => householdExport(db, userId)],
     ['programs', () => programExport(db, userId)],
     ['customExercises', rows(() => timeOrderedRows(db, customExerciseTable, userId))],
     ['prAttempts', rows(() => timeOrderedRows(db, prAttemptTable, userId))],

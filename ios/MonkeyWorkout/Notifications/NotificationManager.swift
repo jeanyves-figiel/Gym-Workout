@@ -15,6 +15,8 @@ enum NotificationRoute: Identifiable, Equatable {
     case badge(String)
     /// Someone you follow achieved something: their community page.
     case member(userId: String, nickname: String)
+    /// Meal plan shared with a partner (#1014): invite, yes, or a copy sent to me.
+    case fuelPartner
 
     var id: String {
         switch self {
@@ -23,6 +25,7 @@ enum NotificationRoute: Identifiable, Equatable {
         case let .move(s): "move|\(s)"
         case let .badge(b): "badge|\(b)"
         case let .member(u, _): "member|\(u)"
+        case .fuelPartner: "fuelPartner"
         }
     }
 }
@@ -616,6 +619,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         // Gym buddy invite or pairing (#626) opens the member's page, where Gym buddy accepts.
         if kind == "follow_achievement" || kind == "buddy_invite", let actorId { return .member(userId: actorId, nickname: actorName ?? "") }
         if kind == "badge", let badgeId { return .badge(badgeId) }
+        if kind == "household" || kind == "fuel_share" { return .fuelPartner }
         guard let sessionId else { return nil }
         switch (kind, action) {
         case ("missed", Action.reschedule): return .move(sessionId: sessionId)

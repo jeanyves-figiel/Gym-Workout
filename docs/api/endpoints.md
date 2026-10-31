@@ -209,6 +209,23 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | GET | `/v1/referrals/me` | Bearer | → `{code, path, joined, subscribed, invitedBy: {nickname, at} \| null, canRedeem}`; `subscribed` = invitees with a paid (non-trial, not revoked) App Store subscription | |
 | POST | `/v1/referrals/redeem` | Bearer | `{code}` (case-insensitive), accounts ≤ 14 days old, once → same as GET. Inviter and invitee follow each other once both are in Social (#747; also on join) | 404 `invalid_code`; 400 `own_code`, `account_too_old`, `referral_cycle`; 409 `already_redeemed`; 10/hour |
 
+## Fuel with a partner (#1014)
+
+Household = up to 6 members sharing one meal plan + grocery list, only after invite → accept. `state` is the app's plan blob (plan days, recipes used, people, budget, less waste; ≤ 256 KB); food logs, macros, weight and What I have never leave the phone. Ticks are separate rows. Leaving keeps the phone's copy; last one out deletes the household; a block ends invites, copies and the blocker's shared household. Copies expire after 30 days.
+
+| Method | Path | Auth | Summary | Errors / limits |
+|---|---|---|---|---|
+| GET | `/v1/household` | Bearer | → `{household: {id, rev, state, updatedAt, updatedBy, members[{userId, nickname, joinedAt, me}] (me first), bought[{itemId, by, at}]} \| null, invites: {incoming[{id, from, members, createdAt}], outgoing[{id, to, createdAt}]}}` | |
+| POST | `/v1/household/invites` | Bearer | `{userId}` (a Social member) → same as GET; makes my household on first invite; push to them (once a day per pair) | 400 `own_content`, `household_full`, `too_many_invites`; 403 `community_profile_required`; 404 `not_found` (not a member, blocked); 409 `already_member`; 20/hour |
+| POST | `/v1/household/invites/:id/accept` | Bearer | `{leaveCurrent?}` → same as GET; push to inviter | 404; 409 `in_household` (already share with others, send `leaveCurrent: true`); 400 `household_full` |
+| DELETE | `/v1/household/invites/:id` | Bearer | Decline (invitee) or cancel (inviter) → 204 | 404 |
+| PUT | `/v1/household/state` | Bearer | `{rev, state}` → `{rev, updatedAt}` | 404 `no_household`; 409 `stale` + current `household` (someone wrote first); 413 `too_large` |
+| PUT | `/v1/household/bought` | Bearer | `{itemIds[≤500], bought}` → `{bought}` | 404 `no_household` |
+| DELETE | `/v1/household/me` | Bearer | Leave → 204 | |
+| POST | `/v1/fuel-shares` | Bearer | Send a copy: `{toUserId, kind: plan\|groceries\|both, payload: {plan?, groceries?[{id, name, grams}], note?}}` → 201 `{id}`; push to them. Only to mutual follows or my household | 400 `invalid_share`, `own_content`; 404 `not_found`; 413; 429 `daily_limit` (20/day); 30/hour |
+| GET | `/v1/fuel-shares` | Bearer | Copies sent to me, last 30 days → `{shares[{id, from, kind, payload, createdAt}]}` | |
+| DELETE | `/v1/fuel-shares/:id` | Bearer | Dismiss (recipient) or unsend (sender) → 204 | 404 |
+
 ## Workout library
 
 | Method | Path | Auth | Summary | Errors / limits |
