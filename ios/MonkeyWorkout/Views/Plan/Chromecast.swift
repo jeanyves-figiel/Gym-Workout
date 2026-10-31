@@ -40,13 +40,28 @@ final class CastDevices {
     }
 }
 
-/// Plays the workout stream on a Chromecast with Google's own media player (Default Media Receiver): no page of ours on
-/// the TV. Speaks the Cast v2 protocol directly (TLS on 8009, length-prefixed protobuf `CastMessage`s with JSON payloads).
+/// Casts the workout to a Chromecast. Speaks the Cast v2 protocol directly (TLS on 8009, length-prefixed protobuf
+/// `CastMessage`s with JSON payloads).
+/// Native (#1008): our receiver (`/cast/receiver`, App ID in the OTA value `castReceiverAppId`) draws the workout on the
+/// TV itself; the phone only sends `TVLive` as small JSON messages, and the movement clip plays on the TV. Smooth and
+/// instant, like any cast app. Without an App ID: the older phone-recorded video in Google's Default Media Receiver.
 @MainActor @Observable
 final class CastSession {
     static let shared = CastSession()
     /// Google's Default Media Receiver.
     static let mediaApp = "CC1AD845"
+    /// Our own receiver's namespace (backend `src/routes/cast.ts`).
+    static let workoutNamespace = "urn:x-cast:cloud.monkeygrade.workout"
+
+    /// Our receiver in the Google Cast console (Custom Receiver at `/cast/receiver`).
+    static let defaultReceiverAppId = "E195DE34"
+
+    /// Our receiver's App ID; the OTA value `castReceiverAppId` overrides it, and an empty one falls back to video.
+    static var receiverAppId: String? {
+        guard case let .string(id)? = Remote.shared.value("castReceiverAppId") else { return defaultReceiverAppId }
+        let trimmed = id.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 
     enum State: Equatable { case idle, connecting, casting, failed(String) }
 
@@ -60,6 +75,9 @@ final class CastSession {
     private var loaded = false
     private var requestId = 1
     private var heartbeat: Timer?
+    /// The App ID launched for this cast: our receiver, or the Default Media Receiver.
+    private var appId = CastSession.mediaApp
+    private var native: Bool { appId != Self.mediaApp }
 
     private enum NS {
         static let connection = "urn:x-cast:com.google.cast.tp.connection"
@@ -72,7 +90,8 @@ final class CastSession {
         stop()
         deviceName = device.name
         state = .connecting
-        TVStreamer.shared.start(for: "chromecast")
+        appId = Self.receiverAppId ?? Self.mediaApp
+        if !native { TVStreamer.shared.start(for: "chromecast") }
         let tls = NWProtocolTLS.Options()
         // Cast devices use their own self-signed certificate.
         sec_protocol_options_set_verify_block(tls.securityProtocolOptions, { _, _, done in done(true) }, .main)
@@ -102,7 +121,7 @@ final class CastSession {
         sessionId = nil
         loaded = false
         deviceName = nil
-        if state != .idle { TVStreamer.shared.stop(for: "chromecast") }
+        if state != .idle, !native { TVStreamer.shared.stop(for: "chromecast") }
         state = .idle
     }
 
@@ -110,7 +129,7 @@ final class CastSession {
         switch s {
         case .ready:
             send(NS.connection, to: "receiver-0", ["type": "CONNECT"])
-            send(NS.receiver, to: "receiver-0", ["type": "LAUNCH", "appId": Self.mediaApp, "requestId": nextId()])
+            send(NS.receiver, to: "receiver-0", ["type": "LAUNCH", "appId": appId, "requestId": nextId()])
             heartbeat = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
                 MainActor.assumeIsolated { CastSession.shared.send(NS.heartbeat, to: "receiver-0", ["type": "PING"]) }
             }
@@ -161,7 +180,7 @@ final class CastSession {
             send(NS.heartbeat, to: m.source, ["type": "PONG"])
         case "RECEIVER_STATUS":
             let apps = (json["status"] as? [String: Any])?["applications"] as? [[String: Any]] ?? []
-            guard let app = apps.first(where: { $0["appId"] as? String == Self.mediaApp }),
+            guard let app = apps.first(where: { $0["appId"] as? String == appId }),
                   let transport = app["transportId"] as? String else {
                 if transportId != nil { stop() }  // closed on the TV
                 return
@@ -170,7 +189,12 @@ final class CastSession {
             guard transportId != transport else { return }
             transportId = transport
             send(NS.connection, to: transport, ["type": "CONNECT"])
-            Task { await load(transport) }
+            if native {
+                state = .casting
+                sendLive(play: true)
+            } else {
+                Task { await load(transport) }
+            }
         case "MEDIA_STATUS":
             state = .casting
         case "LOAD_FAILED", "LOAD_CANCELLED", "LAUNCH_ERROR":
@@ -179,6 +203,26 @@ final class CastSession {
             if m.source != "receiver-0" { stop() }
         default:
             break
+        }
+    }
+
+    /// The player changed what the TV shows (#1008): our receiver gets the new state; a new exercise or set replays the
+    /// movement there, as on the phone.
+    func liveChanged(from old: TVLive?) {
+        guard native, state == .casting else { return }
+        let live = TVCast.shared.live
+        let newExercise = old?.exercise.id != live?.exercise.id
+        sendLive(play: live != nil && (newExercise || old?.set != live?.set), newExercise: newExercise)
+    }
+
+    private func sendLive(play: Bool, newExercise: Bool = true) {
+        guard let transportId else { return }
+        guard let live = TVCast.shared.live else {
+            return send(Self.workoutNamespace, to: transportId, ["type": "state"])
+        }
+        send(Self.workoutNamespace, to: transportId, ["type": "state", "live": TVReceiverMessage.state(live)])
+        if play {
+            send(Self.workoutNamespace, to: transportId, TVReceiverMessage.play(live, newExercise: newExercise))
         }
     }
 
@@ -277,34 +321,76 @@ struct CastMessage: Equatable {
     }
 }
 
-/// AirPlay of the same stream from the system picker (#724): Apple TVs and AirPlay 2 TVs play it themselves.
+/// AirPlay of the workout video from the system picker (#724): Apple TVs and AirPlay 2 TVs play it themselves.
+/// #1008: the TV only took the sound when picked before the video was ready, or with the app's mixable audio session.
+/// Now the picker opens only once the player plays, with a long-form video session (the picker then sends the
+/// picture); if a TV still takes only the sound, `soundOnly` says so and the sheet points to Screen Mirroring, which
+/// shows the native TV screen (`TVSceneDelegate`).
 @MainActor @Observable
 final class AirPlayStream {
     static let shared = AirPlayStream()
-    /// A TV plays the stream.
+    /// A TV plays the video.
     private(set) var active = false
+    /// The player plays: the picker can send the picture.
+    private(set) var ready = false
+    /// An AirPlay TV got the sound but not the picture.
+    private(set) var soundOnly = false
+    /// The audio session is set for long-form video: the coach's voice leaves it as it is.
+    private(set) var holdsSession = false
     @ObservationIgnored private var player: AVPlayer?
     @ObservationIgnored private var watch: NSKeyValueObservation?
+    @ObservationIgnored private var status: NSKeyValueObservation?
+    @ObservationIgnored private var routes: NSObjectProtocol?
 
     /// Ready before the picker opens, so picking a TV sends the video.
     func prepare() {
         TVStreamer.shared.start(for: "airplay")
         guard player == nil else { return }
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .moviePlayback, policy: .longFormVideo, options: [])
+        holdsSession = true
+        routes = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { AirPlayStream.shared.routeChanged() }
+        }
         Task {
-            for _ in 0..<60 where TVStreamer.shared.segments < 3 { try? await Task.sleep(for: .milliseconds(250)) }
-            guard let url = TVStreamer.shared.url, player == nil else { return }
+            for _ in 0..<60 where TVStreamer.shared.segments < 2 { try? await Task.sleep(for: .milliseconds(250)) }
+            guard let url = TVStreamer.shared.url, player == nil, holdsSession else { return }
             let p = AVPlayer(url: url)
             p.allowsExternalPlayback = true
+            p.usesExternalPlaybackWhileExternalScreenIsActive = true
+            p.automaticallyWaitsToMinimizeStalling = false
             p.isMuted = true
-            p.play()
             player = p
+            status = p.observe(\.timeControlStatus, options: [.initial, .new]) { p, _ in
+                let playing = p.timeControlStatus == .playing
+                Task { @MainActor in if playing { AirPlayStream.shared.ready = true } }
+            }
             watch = p.observe(\.isExternalPlaybackActive) { p, _ in
                 let active = p.isExternalPlaybackActive
                 Task { @MainActor in
-                    AirPlayStream.shared.active = active
-                    if !active { AirPlayStream.shared.end() }
+                    let me = AirPlayStream.shared
+                    let was = me.active
+                    me.active = active
+                    if active { me.soundOnly = false }
+                    if was, !active { me.end() }
                 }
             }
+            try? session.setActive(true)
+            p.play()
+        }
+    }
+
+    /// A TV picked: the picture should follow within a few seconds, or only its sound went there.
+    private func routeChanged() {
+        let airPlay = AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
+        guard airPlay, !active else {
+            if !airPlay { soundOnly = false }
+            return
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            let still = AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
+            if still, !active, !TVCast.shared.connected { soundOnly = true }
         }
     }
 
@@ -315,22 +401,50 @@ final class AirPlayStream {
 
     func end() {
         active = false
+        ready = false
         watch = nil
+        status = nil
+        if let routes { NotificationCenter.default.removeObserver(routes) }
+        routes = nil
         player?.pause()
         player = nil
+        if holdsSession {
+            holdsSession = false
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
         TVStreamer.shared.stop(for: "airplay")
     }
 }
 
-/// System AirPlay picker, video devices first.
+/// System AirPlay picker, video devices first. The sheet keeps one out of sight and opens it from a tap anywhere on the
+/// AirPlay card (#1008) through `AirPlayPicker.Opener`.
 struct AirPlayPicker: UIViewRepresentable {
+    /// Opens the picker it is attached to.
+    @MainActor final class Opener {
+        fileprivate weak var view: AVRoutePickerView?
+
+        func open() {
+            guard let view else { return }
+            func button(in v: UIView) -> UIButton? {
+                if let b = v as? UIButton { return b }
+                return v.subviews.lazy.compactMap(button(in:)).first
+            }
+            button(in: view)?.sendActions(for: .touchUpInside)
+        }
+    }
+
+    var opener: Opener?
+
     func makeUIView(context: Context) -> AVRoutePickerView {
         let v = AVRoutePickerView()
         v.prioritizesVideoDevices = true
         v.activeTintColor = UIColor(Theme.lime)
         v.tintColor = .white
+        opener?.view = v
         return v
     }
 
-    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {
+        opener?.view = uiView
+    }
 }
