@@ -54,6 +54,9 @@
       "name": "Invite a friend (#745)"
     },
     {
+      "name": "Fuel with a partner (#1014)"
+    },
+    {
       "name": "Workout library"
     },
     {
@@ -3763,6 +3766,291 @@
         ],
         "summary": "{code} (case-insensitive), accounts ≤ 14 days old, once → same as GET. Inviter and invitee follow each other once both are in Social (#747; also on join)",
         "description": "Errors / limits: 404 invalid_code; 400 own_code, account_too_old, referral_cycle; 409 already_redeemed; 10/hour",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household": {
+      "get": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "→ {household: {id, rev, state, updatedAt, updatedBy, members[{userId, nickname, joinedAt, me}] (me first), bought[{itemId, by, at}]} | null, invites: {incoming[{id, from, members, createdAt}], outgoing[{id, to, createdAt}]}}",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/invites": {
+      "post": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{userId} (a Social member) → same as GET; makes my household on first invite; push to them (once a day per pair)",
+        "description": "Errors / limits: 400 own_content, household_full, too_many_invites; 403 community_profile_required; 404 not_found (not a member, blocked); 409 already_member; 20/hour",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/invites/{id}/accept": {
+      "post": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{leaveCurrent?} → same as GET; push to inviter",
+        "description": "Errors / limits: 404; 409 in_household (already share with others, send leaveCurrent: true); 400 household_full",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/invites/{id}": {
+      "delete": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Decline (invitee) or cancel (inviter) → 204",
+        "description": "Errors / limits: 404",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/state": {
+      "put": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{rev, state} → {rev, updatedAt}",
+        "description": "Errors / limits: 404 no_household; 409 stale + current household (someone wrote first); 413 too_large",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/bought": {
+      "put": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{itemIds[≤500], bought} → {bought}",
+        "description": "Errors / limits: 404 no_household",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/me": {
+      "delete": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Leave → 204",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fuel-shares": {
+      "post": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Send a copy: {toUserId, kind: plan|groceries|both, payload: {plan?, groceries?[{id, name, grams}], note?}} → 201 {id}; push to them. Only to mutual follows or my household",
+        "description": "Errors / limits: 400 invalid_share, own_content; 404 not_found; 413; 429 daily_limit (20/day); 30/hour",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Copies sent to me, last 30 days → {shares[{id, from, kind, payload, createdAt}]}",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fuel-shares/{id}": {
+      "delete": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Dismiss (recipient) or unsend (sender) → 204",
+        "description": "Errors / limits: 404",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearer": []

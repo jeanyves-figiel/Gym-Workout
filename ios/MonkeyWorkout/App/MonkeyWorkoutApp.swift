@@ -35,6 +35,8 @@ struct MonkeyWorkoutApp: App {
                     model.health = health
                     FuelStore.shared.health = health
                     FuelStore.shared.planFor = { [model] in model.fuelPlan(on: $0) }
+                    // Meal plan shared with a partner (#1014): watches Fuel changes from here on.
+                    HouseholdStore.shared.api = model.api
                     // Screens reopened by Undo (#285) live outside this tree: give them the same environment.
                     UndoCloseCenter.shared.environment = { [model, lock, health] view in
                         AnyView(view.environment(model).environment(lock).environment(health)

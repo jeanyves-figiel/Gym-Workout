@@ -19,6 +19,7 @@ import { followerIds } from './community/moderation.ts';
 import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { liveRoutes } from './routes/live.ts';
 import { referralPublicRoutes, referralRoutes } from './routes/referrals.ts';
+import { householdRoutes } from './routes/household.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
 import { coachReviewRoutes } from './routes/coachReview.ts';
@@ -344,6 +345,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       liveRoutes(r, deps.db, now, push);
       referralRoutes(r, deps.db, now);
+      householdRoutes(r, deps.db, now, push);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       climbRoutes(r, deps.db, deps.now ?? (() => new Date()));

@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { ensureCommunitySchema, ensureLiveSchema } from './community/schema.ts';
 import { ensureReferralSchema } from './routes/referrals.ts';
+import { ensureHouseholdSchema } from './routes/household.ts';
 import { ensureGymSchema } from './gymSchema.ts';
 import { ensurePushSchema } from './push/schema.ts';
 import { ensureSchemaExtras } from './schemaExtras.ts';
@@ -132,6 +133,7 @@ export const openDb = (path: string): DB => {
   ensurePushSchema(db);
   ensureSubscriptionSchema(db);
   ensureReferralSchema(db);
+  ensureHouseholdSchema(db);
   ensureGymSchema(db);
   ensureSecuritySchema(db);
   ensureThrottleSchema(db);
