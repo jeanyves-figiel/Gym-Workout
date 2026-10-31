@@ -356,7 +356,7 @@ struct SharePlanSheet: View {
                             TextField("Who it suits, what it did for you…", text: $about, axis: .vertical)
                                 .lineLimit(1...4)
                                 .card(padding: 14)
-                                .onChange(of: about) { _, v in if v.count > 200 { about = String(v.prefix(200)) } }
+                                .onChange(of: about) { _, v in if v.utf16.count > 200 { about = v.utf16Capped(200) } }
                             Text("Who can see it").eyebrow()
                             VisibilityPicker(selection: $visibility)
                             ErrorText(message: task.error)
@@ -529,7 +529,7 @@ struct PostTipSheet: View {
                               text: $text, axis: .vertical)
                         .lineLimit(3...6)
                         .card(padding: 14)
-                        .onChange(of: text) { _, v in if v.count > 280 { text = String(v.prefix(280)) } }
+                        .onChange(of: text) { _, v in if v.utf16.count > 280 { text = v.utf16Capped(280) } }
                     Text("\(text.count)/280").font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted)
                     Text("Who can see it").eyebrow()
                     VisibilityPicker(selection: $visibility)

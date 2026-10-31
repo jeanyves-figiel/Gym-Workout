@@ -14,6 +14,16 @@ extension AppModel {
         profile?.sport(onWeekday: weekday, key: key, date: date, away: away)
     }
 
+    /// This week's climbing days less the ones skipped or away (#987), for the "Climbing tomorrow" notes.
+    func climbingDaysThisWeek(_ days: [Int]) -> [Int] {
+        let cal = planCalendar
+        let start = Progression.weekStart(Date(), cal)
+        return days.filter { d in
+            let key = cal.date(byAdding: .day, value: d - 1, to: start).map { PlanCalendar.key($0, cal) }
+            return daySport(onWeekday: d, key: key) == .climbing
+        }
+    }
+
     /// Other sports' days of a week without the ones on away days.
     func sportDays(on date: Date, calendar cal: Calendar = Progression.calendar()) -> [SportDay] {
         profile?.sportDays(on: date, calendar: cal, away: away) ?? []

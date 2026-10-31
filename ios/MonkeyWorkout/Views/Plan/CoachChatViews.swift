@@ -84,8 +84,9 @@ extension AppModel {
         if demo { return try Demo.coachAnswer(messages.last?.text ?? "", focus: focus) }
         #endif
         let name = coachCallIsName ? coachCallName : nil
-        let turns = messages.filter { !$0.text.isEmpty }.map { m in
-            CoachChatTurn(role: m.role.rawValue, text: m.role == .coach ? Self.slotName(m.text, name) : m.text)
+        // The server takes the last 30 turns of up to 600 characters (#990): a long chat would otherwise be refused.
+        let turns = messages.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.suffix(30).map { m in
+            CoachChatTurn(role: m.role.rawValue, text: (m.role == .coach ? Self.slotName(m.text, name) : m.text).trimmingCharacters(in: .whitespacesAndNewlines).utf16Capped(600))
         }
         var answer = try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus), photo: photo,
                                              as: CoachWorkoutSettings.self)
@@ -576,7 +577,7 @@ struct CoachChatView: View {
                 Text(p).font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted).padding(.leading, 16)
             }
             if let r = store.remaining, r <= 5 {
-                Text(r == 0 ? "No messages left today. Coach is back tomorrow!" : "\(r) message\(r == 1 ? "" : "s") left today")
+                Text(r == 0 ? "No messages left today. Coach is back at \(Self.quotaReset.formatted(date: .omitted, time: .shortened))." : "\(r) message\(r == 1 ? "" : "s") left today")
                     .font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted)
                     .padding(.leading, 16)
             }
@@ -699,6 +700,13 @@ struct CoachChatView: View {
     }
 
     /// On-device answer (#608 A); false when the model couldn't answer, so the server Coach can.
+    /// The daily message allowance turns over at midnight UTC on the server (#989), shown in local time.
+    static var quotaReset: Date {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        return utc.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime) ?? Date()
+    }
+
     private func answerOnDevice(_ question: String, about: String, history: [CoachChatMessage]) async -> Bool {
         let start = Date()
         guard let text = try? await OnDeviceCoach.answer(question, about: about, history: history) else { return false }

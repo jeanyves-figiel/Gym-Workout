@@ -20,6 +20,11 @@ struct WatchSnapshot: Codable, Equatable {
     /// Readiness headline from Apple Health ("Ready to push"), if known.
     var readiness: String?
     var progress = WProgress()
+    /// Coach voice turned off on the iPhone (#990): the Watch's spoken cues stay quiet too. nil (older phone app) = on.
+    var coachVoiceOff: Bool?
+    /// After an exercise's last set (#990), Settings → Workout flow: seconds of "Next in", 0 straight on, -1 wait for
+    /// Next. nil (older phone app) = straight on.
+    var autoNextSec: Int?
     /// MonkeyWorkout Pro (#126): false = starting workouts on the Watch is locked. nil (older phone app) = allowed.
     var pro: Bool?
     /// Watch home style (#219) picked on the iPhone or the Watch, and when; nil = default (coach).
@@ -137,6 +142,8 @@ struct WProgress: Codable, Equatable {
     var target = 3
     var records: [WRecord] = []
     var recent: [WRecent] = []
+    /// All PRs (#989): `records` holds only the latest 5; nil from older iPhone apps.
+    var recordCount: Int?
 }
 
 struct WRecord: Codable, Equatable, Hashable {

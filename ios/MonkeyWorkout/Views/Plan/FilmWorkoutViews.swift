@@ -221,7 +221,7 @@ struct FilmWorkoutView: View {
                     camera.start(front: front)
                 }
             }
-            square("xmark", label: "Close") { close() }
+            square("xmark", label: "Close") { discard() }
         }
         .foregroundStyle(.white)
         .padding(.top, 6)
@@ -440,7 +440,7 @@ struct FilmWorkoutView: View {
                 HStack {
                     Text(move?.name ?? "Review").font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.6)
                     Spacer()
-                    square("xmark", label: "Close") { close() }
+                    square("xmark", label: "Close") { discard() }
                 }
                 clipBox
                 HStack(spacing: 8) {
@@ -537,7 +537,7 @@ struct FilmWorkoutView: View {
                 HStack {
                     Text("Workout built").font(Theme.display(28))
                     Spacer()
-                    square("xmark", label: "Close") { close() }
+                    square("xmark", label: "Close") { discard() }
                 }
                 ForEach(Array(moves.enumerated()), id: \.element.id) { i, m in
                     HStack(spacing: 10) {
@@ -781,6 +781,17 @@ struct FilmWorkoutView: View {
     private func close() {
         dropClip()
         dismiss()
+    }
+
+    /// X with filmed sets (#988): closes at once, the Undo bar keeps them (logged as on Log workout / Done).
+    private func discard() {
+        var kept = moves
+        if let move, !sets.isEmpty { kept.append(FilmedMove(exerciseId: move.id, sets: sets)) }
+        close()
+        guard !kept.isEmpty else { return }
+        let at = started
+        UndoCloseCenter.shared.deleted("Filmed sets discarded", detail: "\(kept.count) move\(kept.count == 1 ? "" : "s")",
+                                       symbol: "video.slash.fill") { [onDone] in onDone(kept, at) }
     }
 
     // MARK: Clip

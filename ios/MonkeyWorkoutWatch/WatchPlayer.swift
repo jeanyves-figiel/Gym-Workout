@@ -36,6 +36,8 @@ final class WatchPlayer {
     var coachApplied: String?
     /// Superset member to go to once the rest after the round ends (#716).
     var pendingJump: Int?
+    /// "Next in" countdown after an exercise's last set (#990): when it moves on by itself.
+    var autoNextAt: Date?
 
     init(session: WSession) {
         self.session = session
@@ -119,8 +121,16 @@ final class WatchPlayer {
         if rest > 0 || effortSet != nil {
             phase = .rest(end: rest > 0 ? Date().addingTimeInterval(TimeInterval(rest)) : nil, total: rest, effortSet: effortSet)
         } else if i + 1 >= step.sets {
-            // Last set: straight on to the next exercise.
-            events += advance()
+            // Last set: as Settings → Workout flow on the iPhone (#990): straight on, a countdown, or wait for Next.
+            // nil (older phone app) = straight on.
+            let sec = WatchStore.current?.snapshot.autoNextSec ?? 0
+            if sec == 0 {
+                events += advance()
+            } else {
+                let end = sec > 0 ? Date().addingTimeInterval(TimeInterval(sec)) : nil
+                phase = .rest(end: end, total: max(sec, 0), effortSet: nil)
+                autoNextAt = end
+            }
         }
         return events
     }
@@ -141,6 +151,7 @@ final class WatchPlayer {
     @discardableResult
     func skipRest() -> [WatchEvent] {
         phase = .work
+        autoNextAt = nil
         if let j = pendingJump {
             move(to: j)
             return []
@@ -174,6 +185,7 @@ final class WatchPlayer {
 
     private func move(to target: Int) {
         pendingJump = nil
+        autoNextAt = nil
         index = target
         phase = .work
         timedEnd = nil
@@ -273,6 +285,7 @@ final class WatchPlayer {
         var events: [WatchEvent] = []
         if let step, done >= step.sets { events.append(.itemDone(uid: step.uid)) }
         pendingJump = nil
+        autoNextAt = nil
         timedEnd = nil
         timedRemaining = nil
         // A superset member finished earlier in the round is passed over (#716).
@@ -290,6 +303,7 @@ final class WatchPlayer {
     func back() {
         guard index > 0 else { return }
         pendingJump = nil
+        autoNextAt = nil
         index -= 1
         phase = .work
         timedEnd = nil

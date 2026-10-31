@@ -304,6 +304,14 @@ public struct FilmSession: Sendable {
         moves[i].kg = kg
     }
 
+    /// The move was changed (Watch ✗ or an alternative picked, #988): a weight not read off the plates was the old
+    /// move's last time, so it becomes the new move's (`lastKg`, nil = none) on the move and its sets.
+    public mutating func moveChanged(_ i: Int, lastKg: Double?) {
+        guard moves.indices.contains(i), !moves[i].kgRead else { return }
+        moves[i].kg = lastKg
+        for k in moves[i].sets.indices { moves[i].sets[k].kg = lastKg ?? 0 }
+    }
+
     /// A weight entered for a move none was read for (#969): it and its sets logged without one take it.
     public mutating func enter(kg: Double, move i: Int) {
         guard moves.indices.contains(i) else { return }

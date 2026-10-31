@@ -172,6 +172,19 @@ import Testing
         s.confirm(0)
         #expect(s.moves[0].sure)
     }
+
+    @Test func changedMoveTakesItsOwnLastWeightUnlessRead() {
+        var s = FilmSession()
+        s.moves = [FilmSession.Move(exerciseId: "bench-press", alternatives: ["incline-db-press"], sure: false, kg: 80)]
+        s.moves[0].sets = [FilmedSet(reps: 8, kg: 80), FilmedSet(reps: 7, kg: 80)]
+        s.reject(0)
+        s.moveChanged(0, lastKg: 26)
+        #expect(s.moves[0].kg == 26)
+        #expect(s.moves[0].sets.map(\.kg) == [26, 26])
+        s.moves[0].kgRead = true
+        s.moveChanged(0, lastKg: 30)
+        #expect(s.moves[0].kg == 26, "a weight read off the plates stays")
+    }
 }
 
 /// Better detection (#969): moves named and reps counted from any camera spot, in-frame guidance, weight only when needed.

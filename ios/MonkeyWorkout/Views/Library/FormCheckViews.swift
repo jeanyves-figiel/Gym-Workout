@@ -280,7 +280,8 @@ struct FormCheckView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("formCheck.mode") private var modeRaw = Mode.mirror.rawValue
     @AppStorage("formCheck.front") private var front = true
-    @AppStorage("formCheck.voice") private var voiceOn = true
+    // Starts from the Coach voice setting (#990): off there means quiet here until unmuted.
+    @AppStorage("formCheck.voice") private var voiceOn = CoachPref.on && CoachPref.voice != .off
     @State private var analyzer: FormAnalyzer?
     @State private var live = FormLive()
     @State private var pose: FormPose?

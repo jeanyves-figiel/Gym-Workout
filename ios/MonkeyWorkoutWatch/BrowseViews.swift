@@ -80,7 +80,7 @@ struct HomeStatRows: View {
             NavigationLink { ProgressScreen() } label: {
                 // Real counts on the right (#541), not a bare "›".
                 HomeRow(symbol: "sparkles", title: "Insights",
-                        value: "\(p.records.count)", tint: (0x3D5AFF, 0x7B3DFF), unit: "PR")
+                        value: "\(p.recordCount ?? p.records.count)", tint: (0x3D5AFF, 0x7B3DFF), unit: "PR")
             }
             .buttonStyle(.plain)
             // Fuel water (#496): a tap adds a glass on the iPhone too.

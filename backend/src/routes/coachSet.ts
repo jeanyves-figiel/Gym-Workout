@@ -47,7 +47,7 @@ export const coachSetRoutes = (
     if (!busy.enter(req.userId!)) throw new ApiError(429, 'busy', 'Coach is still answering.');
     try {
       const slot = reserveAiCall(db, 'coach_set_usage', req.userId!, day, dailyLimit, globalLimit);
-      if (slot === 'member') throw new ApiError(429, 'daily_limit', "That's a lot of questions today. Coach is back tomorrow!");
+      if (slot === 'member') throw new ApiError(429, 'daily_limit', "That's a lot of questions today. Coach is back at midnight UTC.");
       if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Coach is very busy today. Try again tomorrow!');
       try {
         return await talk(question, context);

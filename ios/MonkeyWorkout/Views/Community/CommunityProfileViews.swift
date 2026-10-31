@@ -286,7 +286,7 @@ struct CommunityProfileForm: View {
             TextField("A short description (optional)", text: $bio, axis: .vertical)
                 .lineLimit(2...4)
                 .card(padding: 14)
-                .onChange(of: bio) { _, v in if v.count > 160 { bio = String(v.prefix(160)) } }
+                .onChange(of: bio) { _, v in if v.utf16.count > 160 { bio = v.utf16Capped(160) } }
             Text("\(bio.count)/160").font(.caption).foregroundStyle(Theme.muted)
         }
     }

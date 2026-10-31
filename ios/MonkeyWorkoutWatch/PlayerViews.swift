@@ -57,6 +57,13 @@ struct PlayerView: View {
             guard !Task.isCancelled, player.timedEnd == end else { return }
             send(player.completeSet())
         }
+        .task(id: player.autoNextAt) {
+            // "Next in" countdown over (#990): on to the next exercise, as on the iPhone.
+            guard let at = player.autoNextAt else { return }
+            try? await Task.sleep(for: .seconds(max(0, at.timeIntervalSinceNow)))
+            guard !Task.isCancelled, player.autoNextAt == at, case .rest = player.phase else { return }
+            send(player.skipRest())
+        }
         .onChange(of: player.phase) { _, p in if p == .finished { finish() } }
         .onChange(of: ActionButton.shared.presses) { actionPress() }
         .overlay(alignment: .top) {
