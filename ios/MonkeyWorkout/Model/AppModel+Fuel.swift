@@ -145,6 +145,25 @@ extension AppModel {
         store.setPlan(meals)
     }
 
+    /// What a variety choice gives (#1015): the next 7 planned dinners (lunches when the plans hold no dinner) and
+    /// how many different ones over 4 weeks. Nothing is saved; picks stay as they are.
+    func mealVarietyPreview(_ variety: MealVariety, now: Date = Date()) -> (week: [Recipe], distinct: Int) {
+        let store = FuelStore.shared
+        let cal = planCalendar
+        let book = store.book
+        let dates = Array(book.days(from: now, cal).prefix(28))
+        let kind: MealKind = dates.contains { book.kinds(on: $0, cal).contains(.dinner) } ? .dinner : .lunch
+        let slots = dates.map { book.kinds(on: $0, cal).intersection([kind]) }
+        var shopping = store.shopping
+        shopping.variety = variety
+        let meals = MealPlanner.plan(days: dates.map { (key: PlanCalendar.key($0, cal), plan: fuelPlan(on: $0)) }, prefs: store.prefs,
+                                     favourites: store.saved.favourites, own: store.saved.recipes, have: store.pantryIds,
+                                     kept: store.saved.plan.filter { $0.pinned && $0.kind == kind }, servings: store.saved.people,
+                                     daySlots: slots, shopping: shopping).filter { !$0.leftover }
+        let recipes = meals.compactMap { RecipeBook.recipe($0.recipeId, own: store.saved.recipes) }
+        return (Array(recipes.prefix(7)), Set(recipes.map(\.id)).count)
+    }
+
     /// The plan tops itself up when a day with meals in the coming week isn't planned yet; a plan that runs but has
     /// nothing planned yet is filled (#1015).
     func topUpMealPlan(now: Date = Date()) {

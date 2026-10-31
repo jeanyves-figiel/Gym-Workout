@@ -228,6 +228,25 @@ import Testing
         #expect(book.days(from: start, cal).count == MealPlanBook.horizon)
     }
 
+    @Test func varietyChangesHowOftenMealsComeBack() {
+        let prefs = FuelPrefs(meals: 4)
+        let days = (0..<21).map { i in
+            let d = cal.date(byAdding: .day, value: i, to: cal.date(from: DateComponents(year: 2026, month: 10, day: 19))!)!
+            return (key: PlanCalendar.key(d, cal), plan: Fuel.plan(FuelDayInput(day: d, weightKg: 75), prefs: prefs, calendar: cal))
+        }
+        func dinners(_ v: MealVariety) -> Int {
+            let meals = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [], slots: [.dinner],
+                                         shopping: .init(variety: v))
+            #expect(meals.count >= 14)
+            return Set(meals.map(\.recipeId)).count
+        }
+        let same = dinners(.same), varied = dinners(.varied), fresh = dinners(.new)
+        #expect(same < varied)
+        #expect(varied <= fresh)
+        #expect(same <= 6)
+        #expect(MealVariety.new.gap == 14)
+    }
+
     @Test func budgetCountsOnlyDaysWithMeals() {
         let prefs = FuelPrefs(meals: 4)
         let days = week(prefs)

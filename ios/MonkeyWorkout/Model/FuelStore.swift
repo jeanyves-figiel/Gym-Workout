@@ -52,6 +52,8 @@ final class FuelStore {
         var water: WaterPrefs?
         /// Plates of plain foods saved from Just ate (#710).
         var usuals: [FoodUsual]?
+        /// How often planned meals come back (#1015, `MealVariety`); nil = some variety.
+        var variety: MealVariety?
     }
 
     private(set) var saved = Saved() {
@@ -373,6 +375,12 @@ final class FuelStore {
         save(s)
     }
 
+    func setVariety(_ v: MealVariety) {
+        var s = saved
+        s.variety = v
+        save(s)
+    }
+
     func setMarket(_ id: String?) {
         var s = saved
         s.market = id
@@ -387,7 +395,7 @@ final class FuelStore {
     }
 
     var shopping: MealPlanner.Shopping {
-        MealPlanner.Shopping(budget: saved.budget, lessWaste: saved.lessWaste, prices: saved.prices)
+        MealPlanner.Shopping(budget: saved.budget, lessWaste: saved.lessWaste, prices: saved.prices, variety: saved.variety ?? .varied)
     }
 
     func pin(_ meal: PlannedMeal) {

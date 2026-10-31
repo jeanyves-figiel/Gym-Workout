@@ -156,7 +156,7 @@ struct MyPlansCard: View {
                         .strokeBorder(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
             }
             .buttonStyle(.plain)
-            Text("Meals follow each day's training, your diet and favourites, use what you have first, and don't repeat within 3 days. Batch dinners become next day's lunch when that day has lunch.")
+            Text("Meals follow each day's training, your diet and favourites, use what you have first, and come back as often as your Variety pick says. Batch dinners become next day's lunch when that day has lunch.")
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
         }
         .foregroundStyle(.white)
@@ -207,6 +207,14 @@ struct MyPlansCard: View {
         .accessibilityLabel("\(p.name)\(active ? ", active today" : ""). Edit")
         .accessibilityAction(named: "Delete plan") { MealPlanDelete.run(p) { replan(false) } }
     }
+}
+
+/// One choice on the plan sheet's variety cards (#1015).
+private struct VarietyCard: Identifiable {
+    let id: MealVariety
+    let title: String
+    let detail: String
+    let colors: [Color]
 }
 
 /// Deletes a named plan with an Undo bar that brings back the plan and its planned meals.
@@ -291,6 +299,7 @@ struct MealPlanEditor: View {
     @State private var store = FuelStore.shared
     @State private var editing: MealBlock?
     @State private var ownBudget = false
+    @State private var preview: (week: [Recipe], distinct: Int)?
 
     private var plan: NamedMealPlan? { store.book.plans.first { $0.id == planId } }
 
@@ -340,6 +349,8 @@ struct MealPlanEditor: View {
                         .accessibilityIdentifier("fuel.plan.people")
                         label("BUDGET A WEEK")
                         budget()
+                        label("VARIETY")
+                        variety()
                         Button {
                             dismiss()
                             // The meal list is re-planned when the sheet closes.
@@ -374,6 +385,66 @@ struct MealPlanEditor: View {
             .sheet(isPresented: $ownBudget) { BudgetSheet(replan: {}).presentationDetents([.large]) }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Same meals / Some variety / Always new as cards (design B), with a live preview of the dinners it gives (C).
+    private func variety() -> some View {
+        let current = store.saved.variety ?? .varied
+        let cards: [VarietyCard] = [
+            VarietyCard(id: .same, title: "🔁 Same meals", detail: "A few favourites on repeat · simpler shopping",
+             colors: [Color(red: 0.18, green: 0.72, blue: 0.63), Color(red: 0.23, green: 0.53, blue: 0.94)]),
+            VarietyCard(id: .varied, title: "⚖️ Some variety", detail: "No meal twice in 3 days",
+             colors: [Color(red: 0.48, green: 0.3, blue: 0.94), Color(red: 0.9, green: 0.31, blue: 0.65)]),
+            VarietyCard(id: .new, title: "🌈 Always new", detail: "Different every day for 2 weeks",
+             colors: [Color(red: 0.94, green: 0.63, blue: 0.23), Color(red: 0.93, green: 0.31, blue: 0.54)]),
+        ]
+        return VStack(alignment: .leading, spacing: 8) {
+            ForEach(cards) { card in
+                let on = card.id == current
+                Button { store.setVariety(card.id) } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(card.title).font(Theme.display(16))
+                            Text(card.detail).font(.caption.weight(.semibold)).opacity(0.9)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.system(size: 20, weight: .heavy))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(LinearGradient(colors: card.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    .opacity(on ? 1 : 0.55)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(card.title.dropFirst(2)). \(card.detail)")
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+            if let preview, !preview.week.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("NEXT 7").font(Theme.label(10)).tracking(1.2).foregroundStyle(Theme.muted)
+                        Spacer()
+                        Text("≈ \(preview.distinct) different in 4 weeks").font(Theme.label(11)).foregroundStyle(Theme.lime)
+                    }
+                    HStack(spacing: 5) {
+                        ForEach(Array(preview.week.enumerated()), id: \.offset) { _, r in
+                            Text(r.emoji).font(.system(size: 20))
+                                .frame(maxWidth: .infinity).padding(.vertical, 7)
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
+                        }
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Next meals: \(preview.week.map(\.name).joined(separator: ", ")). About \(preview.distinct) different in 4 weeks.")
+            }
+        }
+        .task(id: "\(current.rawValue)-\(store.saved.people)-\(store.version)") {
+            preview = model.mealVarietyPreview(current)
+        }
     }
 
     /// Saver / Normal / Treat for these people and meals, the member's own amount, or no limit (#1015).
