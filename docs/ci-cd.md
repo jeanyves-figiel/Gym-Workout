@@ -43,6 +43,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | Garmin signing key | `garmin-key.yml` | manual | Generate the Connect IQ developer key straight into a secret (never in a log or artifact) |
 | Coach live check | `coach-live.yml` | manual | One real Ask Coach call (Claude) or one real Polly voice recording; prints the answer or error |
 | HD animations pack | `hd-animations.yml` | push to `main` touching `ios/HDAnimations/**` or `ios/HDMotion/**` (#944 clips), manual (dry run default) | Packs the HD exercise animations (`pack.py`) and publishes new files + `manifest.json` to the `hd-animations` release; deletes files the manifest no longer lists (#932) |
+| Position realism | `position-realism.yml` | PR touching `ExercisePositions.json.z`, `rig.py`, `contact.py`, the body data or `preview3d/realism*`; manual | Poses every exercise's 3D key positions on the body and fails on a new realism finding (hand off the grip, kit through the body, limb clipping, floor) vs `realism-baseline.json` (#1020) |
 
 ### Operations workflows
 
