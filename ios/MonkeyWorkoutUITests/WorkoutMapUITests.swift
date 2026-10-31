@@ -68,6 +68,30 @@ final class WorkoutMapUITests: XCTestCase {
         XCTAssertFalse(tile.label.contains("Resume"), "Nothing to resume: \(tile.label)")
     }
 
+    /// #997 A: ✕ on a custom gym session with an exercise in but no set logged keeps it: "Workout kept", Train offers Resume.
+    func testClosedCustomSessionIsKeptToResume() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo", "-demoScreen", "week"]
+        app.launch()
+        let tile = app.buttons["train.freestyle"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 20), "Custom gym session tile")
+        for _ in 0..<6 where !tile.isHittable { app.swipeUp() }
+        tile.tap()
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Start ")).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "A pick to start")
+        start.tap()
+        let close = app.buttons["player.close"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "Player ✕")
+        close.tap()
+        XCTAssertTrue(app.staticTexts["Workout kept"].firstMatch.waitForExistence(timeout: 5), "Kept, not discarded")
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                             object: app.staticTexts["Workout kept"].firstMatch)
+        XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 10), .completed, "Undo bar gone")
+        XCTAssertTrue(tile.waitForExistence(timeout: 5), "Tile back on Train")
+        XCTAssertTrue(tile.label.contains("Resume"), "Resumable: \(tile.label)")
+    }
+
     private func waitEnabled(_ e: XCUIElement) -> Bool {
         let exp = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: e)
         return XCTWaiter().wait(for: [exp], timeout: 5) == .completed

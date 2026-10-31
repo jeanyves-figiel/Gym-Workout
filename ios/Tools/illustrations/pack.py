@@ -6,7 +6,9 @@ Reads ios/HDAnimations/<id>/<frame>.png and writes to OUT (default ios/build/hd-
   the PNGs; then (#944) b"MCLP", the movement clip's byte length (UInt32 LE) and the HD clip (ios/HDMotion/<id>.mp4,
   video.py). Apps from before the clips read the frames and ignore the rest. Named by content, so a file never changes once published (cached for good) and a new manifest never
   points at a file an older one used.
-- `manifest.json`: {"format": 1, "exercises": {id: {"file", "frames", "bytes", "sha256"}}, "bytes": total}.
+- `manifest.json`: {"format": 1, "version", "published", "exercises": {id: {"file", "frames", "bytes", "sha256"}}, "bytes": total}.
+  `version` (#995): first 8 hex of the sha256 over every exercise's sha256, so it changes only when art changes;
+  `published`: when this pack was built (UTC, ISO 8601). Settings → HD animations shows both.
 The app keeps a file only when its frame count matches its build's catalog and its sha256 matches the manifest.
 Published as assets of the `hd-animations` release by the "HD animations pack" workflow.
 
@@ -16,6 +18,7 @@ import hashlib
 import json
 import struct
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -42,7 +45,10 @@ def main(out):
         (out / name).write_bytes(data)
         exercises[d.name] = {"file": name, "frames": n, "bytes": len(data), "sha256": sha}
         total += len(data)
-    (out / "manifest.json").write_text(json.dumps({"format": 1, "exercises": exercises, "bytes": total},
+    version = hashlib.sha256("".join(e["sha256"] for _, e in sorted(exercises.items())).encode()).hexdigest()[:8]
+    published = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    (out / "manifest.json").write_text(json.dumps({"format": 1, "version": version, "published": published,
+                                                   "exercises": exercises, "bytes": total},
                                                   indent=1, sort_keys=True) + "\n")
     print(f"{len(exercises)} exercises, {total / 1e6:.1f} MB → {out}")
 

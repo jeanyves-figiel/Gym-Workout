@@ -66,6 +66,9 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: Bindable(model).tab) {
             NavigationStack { WeekView().meDestination(.train) }
+                // #995 B: new animations downloading, above the tab bar.
+                .overlay(alignment: .bottom) { if hd.status == .downloading { HDDownloadPill() } }
+                .animation(.spring, value: hd.status == .downloading)
                 .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
                 .tag(MainTab.train)
             NavigationStack { LibraryView().meDestination(.explore) }
