@@ -80,7 +80,7 @@ import Testing
         for f in FoodBook.catalog {
             let s = f.source
             #expect(s != nil, "\(f.id) has no source")
-            if s?.kind == .usda { #expect(!(s?.ref ?? "").isEmpty, "\(f.id) USDA without ref") }
+            if s?.kind == .usda { #expect((s?.ref ?? "").count > 0, "\(f.id) USDA without ref") }
             #expect(s?.kind == .usda || s?.kind == .label, "\(f.id) catalog source")
             // Energy sanity: kcal near 4·protein + 4·carbs + 9·fat (fibre and alcohol add some, so a wide band; alcohol exempt).
             let p = f.per100, atwater = p.protein * 4 + p.carbs * 4 + p.fat * 9
