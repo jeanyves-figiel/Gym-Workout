@@ -505,11 +505,18 @@ public final class BodyRig: Sendable {
     /// always bends forward). Kneeling, the toes point back while the knees point forward: toes alone turned the
     /// hips round (#1020). Mirrors rig.facing.
     static func facing(_ J: [String: SIMD3<Double>], _ l: String, _ r: String) -> SIMD3<Double> {
-        let toe = (J["toe" + l]! + J["toe" + r]!) / 2 - (J["ankle" + l]! + J["ankle" + r]!) / 2
-        let knee = (J["knee" + l]! + J["knee" + r]!) / 2
-        let line = ((J["hip" + l]! + J["hip" + r]!) / 2 + (J["ankle" + l]! + J["ankle" + r]!) / 2) / 2
-        let bulge = knee - line
-        return simd_length(bulge) > 8 ? toe + 2.0 * bulge : toe
+        let toeL: SIMD3<Double> = J["toe" + l]!, toeR: SIMD3<Double> = J["toe" + r]!
+        let ankL: SIMD3<Double> = J["ankle" + l]!, ankR: SIMD3<Double> = J["ankle" + r]!
+        let kneeL: SIMD3<Double> = J["knee" + l]!, kneeR: SIMD3<Double> = J["knee" + r]!
+        let hipL: SIMD3<Double> = J["hip" + l]!, hipR: SIMD3<Double> = J["hip" + r]!
+        let ankle: SIMD3<Double> = (ankL + ankR) * 0.5
+        let toe: SIMD3<Double> = (toeL + toeR) * 0.5 - ankle
+        let knee: SIMD3<Double> = (kneeL + kneeR) * 0.5
+        let hip: SIMD3<Double> = (hipL + hipR) * 0.5
+        let line: SIMD3<Double> = (hip + ankle) * 0.5
+        let bulge: SIMD3<Double> = knee - line
+        if simd_length(bulge) > 8 { return toe + bulge * 2.0 }
+        return toe
     }
 
     /// Palm normal for the hand on figure side `d`: fingers wrap around the held object's axis; the palm continues
