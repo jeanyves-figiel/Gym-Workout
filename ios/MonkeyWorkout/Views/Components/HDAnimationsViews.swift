@@ -74,7 +74,16 @@ struct HDAnimationsOffer: View {
     }
 }
 
-/// B (#932): Settings → Look: HD animations switch, download progress, Wi-Fi only.
+/// "07:15" today, "yesterday", else "30 Oct" (#995).
+private func shortDay(_ date: Date) -> String {
+    let cal = Calendar.current
+    if cal.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
+    if cal.isDateInYesterday(date) { return String(localized: "yesterday") }
+    return date.formatted(.dateTime.day().month(.abbreviated))
+}
+
+/// B (#932): Settings → Look: HD animations switch, download progress, Wi-Fi only; #995 B: chips with the pack's date,
+/// last check (tap: check now), last update and HD moves on this build.
 struct HDAnimationsSettingsCard: View {
     private let hd = HDAnimations.shared
 
@@ -100,6 +109,9 @@ struct HDAnimationsSettingsCard: View {
             if hd.status == .downloading {
                 ProgressView(value: hd.progress).tint(.white)
             }
+            if hd.enabled && hd.status != .off {
+                chips
+            }
             if hd.enabled {
                 Toggle(isOn: Binding(get: { hd.wifiOnly }, set: { hd.wifiOnly = $0 })) {
                     Text("Download on Wi-Fi only").font(.subheadline.weight(.semibold))
@@ -116,9 +128,39 @@ struct HDAnimationsSettingsCard: View {
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(hdGradient))
     }
 
+    private var chips: some View {
+        FlowLayout(spacing: 6) {
+            if let published = hd.packPublished {
+                chip("shippingbox.fill", "Pack \(shortDay(published))")
+                    .accessibilityLabel("Pack published \(published.formatted(date: .abbreviated, time: .shortened))")
+            }
+            Button { hd.checkNow() } label: {
+                chip("arrow.triangle.2.circlepath", hd.status == .checking ? "Checking…" : hd.lastCheck.map { "Checked \(shortDay($0))" } ?? "Check now")
+            }
+            .buttonStyle(.plain)
+            .disabled(hd.status == .checking || hd.status == .downloading)
+            .accessibilityHint("Checks for new animations now")
+            .accessibilityIdentifier("hd.checkNow")
+            if let update = hd.lastUpdate {
+                chip("arrow.down.circle.fill", "Updated \(shortDay(update)) · \(hd.lastUpdateCount)")
+                    .accessibilityLabel("Last update \(update.formatted(date: .abbreviated, time: .shortened)), \(hd.lastUpdateCount) moves")
+            }
+            chip("film.fill", "\(hd.installed.count)/\(hd.catalogCount)")
+                .accessibilityLabel("\(hd.installed.count) of \(hd.catalogCount) moves in HD")
+        }
+    }
+
+    private func chip(_ symbol: String, _ text: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.system(size: 11, weight: .heavy)).lineLimit(1)
+            .padding(.horizontal, 7).padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.2)))
+    }
+
     private var icon: String {
         switch hd.status {
         case .downloading, .waitingForWiFi: "arrow.down.circle.fill"
+        case .checking: "arrow.triangle.2.circlepath"
         case .failed: "exclamationmark.triangle.fill"
         default: "film.stack.fill"
         }
@@ -129,7 +171,8 @@ struct HDAnimationsSettingsCard: View {
         case .off: "Not downloaded · \(megabytes(hd.totalBytes))"
         case .waitingForWiFi: "Waiting for Wi-Fi · \(megabytes(hd.totalBytes))"
         case .downloading: "\(megabytes(hd.doneBytes)) of \(megabytes(hd.totalBytes))"
-        case .ready: "Downloaded · \(megabytes(hd.totalBytes))"
+        case .checking: "Checking for new moves…"
+        case .ready: hd.installed.count >= hd.catalogCount ? "Up to date · \(megabytes(hd.totalBytes))" : "Downloaded · \(megabytes(hd.totalBytes))"
         case .failed: "Download stopped · light moves for now"
         }
     }
@@ -157,5 +200,37 @@ struct HDReadyToast: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("hd.readyToast")
         .transition(.move(edge: .top).combined(with: .opacity))
+    }
+}
+
+/// #995 B: floating pill above the tab bar on Train while new animations download; tap opens Settings.
+struct HDDownloadPill: View {
+    @Environment(AppModel.self) private var model
+    private let hd = HDAnimations.shared
+
+    var body: some View {
+        Button { model.settingsOpen = true } label: {
+            VStack(spacing: 5) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill").font(.system(size: 13, weight: .heavy))
+                        .frame(width: 26, height: 26)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.22)))
+                    Text(hd.installed.isEmpty ? "Downloading HD moves" : "Updating \(hd.fetching) moves")
+                        .font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 4)
+                    Text("\(Int(hd.progress * 100))%").font(Theme.display(16)).monospacedDigit()
+                }
+                ProgressView(value: hd.progress).tint(.white).scaleEffect(y: 0.7)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(hdGradient))
+            .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: 360)
+        .padding(.horizontal, 28).padding(.bottom, 6)
+        .accessibilityIdentifier("hd.downloadPill")
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
