@@ -2,8 +2,8 @@ import Foundation
 
 /// Film my workout (#952, design B "Show · Lift · Review" with A's sets that log themselves): the member shows the
 /// weight to the camera, lifts, and the phone names the move, counts the reps, scores the form and logs each set when
-/// they rack. Everything here is pure: the camera, the text reader and the clip live in the app. Moves and reps come
-/// from the form check's models (`FormCheck.swift`), so only exercises with a position guide can be named.
+/// they rack. Everything here is pure: the camera, the text reader and the clip live in the app. Moves are named from
+/// their 3D position guides (`FilmDetect.swift`, #969), so only exercises with a position guide can be named.
 public enum FilmWorkout {
     /// One camera frame: seconds since the camera started and the body seen (nil = nobody).
     public typealias Frame = (time: Double, pose: FormPose?)
@@ -13,7 +13,7 @@ public enum FilmWorkout {
         public let exerciseId: String
         /// Share of the top guesses' scores, 0–100: high only when one move stands out.
         public let confidence: Int
-        /// Reps this move's model counted on the frames.
+        /// Reps seen on the member's movement.
         public let reps: Int
     }
 
@@ -24,36 +24,48 @@ public enum FilmWorkout {
     public static let planBoost = 0.25
     public static let recentBoost = 0.12
     public static let sameMoveBoost = 0.2
+    /// Taken off a move whose kit isn't in the member's gym.
+    public static let missingKit = 0.2
+    /// A move looking less like the frames than this is not offered (walking about, tidying up).
+    public static let minSimilarity = 0.12
     /// Reps seen before the screen names the move.
     public static let repsToGuess = 2
     /// The top guess is taken without a tap after this many reps.
     public static let repsToAccept = 4
 
-    /// The moves `frames` look like, best first. Each model counts reps over the same frames; a move scores by how close
-    /// the bottom of its reps came to its guide (70 %) and how much of its range was reached (30 %).
-    /// `current`: the move done just before (whole session, #957): a set after a rest is most likely the same move.
+    /// The moves `frames` look like, best first (#969). Reps are counted on the member's own movement first (the joint
+    /// that swings most), then each move scores by how its 3D guide's start and bottom shapes match the member's,
+    /// from whatever side the camera films; a bar or free weights in the hands, kit in the scene and the member's gym
+    /// nudge moves that look alike. `current`: the move done just before (whole session): a set after a rest is most
+    /// likely the same move.
     public static func guess(_ frames: [Frame], models: [FormModel], planned: Set<String> = [], recent: [String] = [],
-                             current: String? = nil, limit: Int = 3) -> [Guess] {
+                             current: String? = nil, scene: Set<String> = [], gym: Set<Equipment>? = nil,
+                             limit: Int = 3) -> [Guess] {
+        guard let seen = SeenMotion(frames) else { return [] }
+        let kit = KitHint(frames)
         let recentSet = Set(recent.prefix(10))
-        var scored: [(id: String, reps: Int, score: Double)] = []
+        var scored: [(id: String, score: Double)] = []
         for m in models {
-            var an = FormAnalyzer(model: m)
-            for f in frames { an.add(f.pose, at: f.time) }
-            let reps = an.reps
-            guard !reps.isEmpty else { continue }
-            let n = Double(reps.count)
-            let match = Double(reps.map(\.match).reduce(0, +)) / n / 100
-            let depth = reps.map { min(1, $0.depth) }.reduce(0, +) / n
-            var s = match * 0.7 + depth * 0.3
+            guard let sig = MoveSignature.all[m.exerciseId] else { continue }
+            let like = sig.similarity(start: seen.start, peak: seen.peak)
+            guard like >= minSimilarity else { continue }
+            var s = like + kit.nudge(sig.equipment) + KitHint.sceneNudge(sig.equipment, scene: scene)
             if planned.contains(m.exerciseId) { s += planBoost }
             if recentSet.contains(m.exerciseId) { s += recentBoost }
             if m.exerciseId == current { s += sameMoveBoost }
-            scored.append((m.exerciseId, reps.count, s))
+            if let gym, !Set(sig.equipment).isSubset(of: gym.union(PRPlanner.bodyweightGear)) { s -= missingKit }
+            scored.append((m.exerciseId, max(0.01, s)))
         }
         let top = scored.sorted { $0.score != $1.score ? $0.score > $1.score : $0.id < $1.id }.prefix(max(1, limit))
         let total = top.map(\.score).reduce(0, +)
         guard total > 0 else { return [] }
-        return top.map { Guess(exerciseId: $0.id, confidence: Int(($0.score / total * 100).rounded()), reps: $0.reps) }
+        return top.map { Guess(exerciseId: $0.id, confidence: Int(($0.score / total * 100).rounded()), reps: seen.reps) }
+    }
+
+    /// The move needs a weight entered when none was read: it takes a load and none is known (#969).
+    public static func needsWeight(_ exerciseId: String, kg: Double?) -> Bool {
+        guard kg == nil || kg == 0 else { return false }
+        return !PRPlanner.isBodyweight(Exercise.get(exerciseId))
     }
 
     /// Seconds without a new rep (racked, resting, out of view) after which the set logs itself.
@@ -195,8 +207,14 @@ public struct FilmSession: Sendable {
     public static let sureShare = 50
     /// Frames kept while a move is unknown (about 40 s).
     public static let maxPending = 1200
-    /// Frames needed before naming is tried.
-    public static let minPending = 60
+    /// Seconds of frames needed before naming is tried.
+    public static let minPending = 2.0
+    /// Holding still this long in a new position (the next move's start) drops the frames before it (#969).
+    public static let settle = 1.0
+    /// Joints moving less than this (frame share) between frames count as still.
+    static let stillness = 0.025
+    /// Shapes further apart than this (degrees) are a different position.
+    static let newPosition = 35.0
 
     /// Editable in the review.
     public var moves: [Move] = []
@@ -205,16 +223,22 @@ public struct FilmSession: Sendable {
     public private(set) var current: Int?
     public private(set) var live = FormLive()
     public private(set) var paused = false
-    private var analyzer: FormAnalyzer?
+    private var counter: MoveCounter?
     private var lastRepAt: Double?
     private var nextKg: Double?
+    // Waiting frames: where they were still, so a new start position drops the move before (#969).
+    private var still: (pose: FormPose, since: Double)?
+    private var anchor: BodyShape?
 
     public init() {}
 
     /// A set's move is known and being counted.
-    public var inSet: Bool { analyzer != nil }
+    public var inSet: Bool { counter != nil }
     /// Frames of an unknown move wait for `accept`.
-    public var needsGuess: Bool { !paused && analyzer == nil && pending.count >= Self.minPending }
+    public var needsGuess: Bool {
+        guard !paused, counter == nil, pending.count >= 15, let a = pending.first?.time, let b = pending.last?.time else { return false }
+        return b - a >= Self.minPending
+    }
     /// The moves with at least one set, for logging.
     public var filmed: [FilmedMove] {
         moves.filter { !$0.sets.isEmpty }.map { FilmedMove(id: $0.id, exerciseId: $0.exerciseId, sets: $0.sets) }
@@ -224,14 +248,15 @@ public struct FilmSession: Sendable {
     @discardableResult
     public mutating func add(_ pose: FormPose?, at time: Double) -> Event? {
         guard !paused else { return nil }
-        guard var an = analyzer else {
+        guard var c = counter else {
             pending.append((time: time, pose: pose))
+            settle(pose, at: time)
             if pending.count > Self.maxPending { pending.removeFirst(pending.count - Self.maxPending) }
             return nil
         }
         let before = live.reps.count
-        live = an.add(pose, at: time)
-        analyzer = an
+        live = c.add(pose, at: time)
+        counter = c
         if live.reps.count > before { lastRepAt = time }
         return FilmWorkout.setEnded(reps: live.reps.count, lastRepAt: lastRepAt, now: time) ? endSet() : nil
     }
@@ -240,14 +265,13 @@ public struct FilmSession: Sendable {
     /// are counted again on the waiting frames.
     @discardableResult
     public mutating func accept(_ guesses: [FilmWorkout.Guess]) -> Event? {
-        guard analyzer == nil, !paused, let top = guesses.first, top.reps >= FilmWorkout.repsToGuess,
-              let model = FormModel(exercise: Exercise.get(top.exerciseId)) else { return nil }
-        var an = FormAnalyzer(model: model)
-        for f in pending { an.add(f.pose, at: f.time) }
-        analyzer = an
-        live = an.live
+        guard counter == nil, !paused, let top = guesses.first, top.reps >= FilmWorkout.repsToGuess,
+              var c = MoveCounter(exercise: Exercise.get(top.exerciseId)) else { return nil }
+        for f in pending { c.add(f.pose, at: f.time) }
+        counter = c
+        live = c.live
         lastRepAt = pending.last?.time
-        pending = []
+        clearPending()
         let read = nextKg
         nextKg = nil
         if let i = moves.indices.last, moves[i].exerciseId == top.exerciseId {
@@ -288,6 +312,13 @@ public struct FilmSession: Sendable {
         for k in moves[i].sets.indices { moves[i].sets[k].kg = lastKg ?? 0 }
     }
 
+    /// A weight entered for a move none was read for (#969): it and its sets logged without one take it.
+    public mutating func enter(kg: Double, move i: Int) {
+        guard moves.indices.contains(i) else { return }
+        moves[i].kg = kg
+        for k in moves[i].sets.indices where moves[i].sets[k].kg == 0 { moves[i].sets[k].kg = kg }
+    }
+
     /// The member confirmed the move (Watch ✓).
     public mutating func confirm(_ i: Int) {
         guard moves.indices.contains(i) else { return }
@@ -309,7 +340,7 @@ public struct FilmSession: Sendable {
     public mutating func pause() -> Event? {
         guard !paused else { return nil }
         let e = endSet()
-        pending = []
+        clearPending()
         paused = true
         return e
     }
@@ -320,9 +351,45 @@ public struct FilmSession: Sendable {
     @discardableResult
     public mutating func end() -> Event? { endSet() }
 
+    private mutating func clearPending() {
+        pending = []
+        still = nil
+        anchor = nil
+    }
+
+    /// Holding a position: the first one held is the waiting move's start; holding a different one later means a new
+    /// move is starting there, and the frames before it (the last move's rest, walking over) are dropped.
+    private mutating func settle(_ pose: FormPose?, at time: Double) {
+        guard let pose else { return }
+        guard let s = still, Self.moved(s.pose, pose) < Self.stillness else {
+            still = (pose, time)
+            return
+        }
+        guard time - s.since >= Self.settle else { return }
+        let shape = BodyShape(pose)
+        guard let a = anchor else {
+            anchor = shape
+            return
+        }
+        guard shape.distance(to: a) > Self.newPosition else { return }
+        pending.removeAll { $0.time < s.since }
+        anchor = shape
+    }
+
+    /// Largest move of a joint both frames have.
+    private static func moved(_ a: FormPose, _ b: FormPose) -> Double {
+        var m = 0.0
+        for (j, p) in a.points {
+            guard let q = b[j] else { continue }
+            let d = p - q
+            m = max(m, (d * d).sum().squareRoot())
+        }
+        return m
+    }
+
     private mutating func endSet() -> Event? {
         defer {
-            analyzer = nil
+            counter = nil
             live = FormLive()
             lastRepAt = nil
             current = nil
