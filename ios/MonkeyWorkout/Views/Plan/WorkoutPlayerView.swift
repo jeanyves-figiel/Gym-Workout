@@ -131,7 +131,7 @@ struct WorkoutPlayerView: View {
         var effort: Effort?
     }
 
-    enum MapAction { case finish, finishEarly, discard }
+    enum MapAction { case pause, finish, finishEarly, discard }
 
     struct SplitUndo: Equatable {
         var text: String
@@ -574,9 +574,35 @@ struct WorkoutPlayerView: View {
         .transition(.opacity)
     }
 
-    /// Workout map footer (#538): Finish and Discard side by side, Finish early under them. Each runs once the map closed.
+    /// Workout map footer (#538, #1025 A): Pause & leave on top, Finish and Discard side by side, Finish early under them.
+    /// Each runs once the map closed. The player's ✕ opens this, so every way out is here.
     private var mapActions: some View {
         VStack(spacing: 6) {
+            Button {
+                mapAction = .pause
+                mapOpen = false
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "pause.fill").font(.system(size: 16, weight: .heavy))
+                        .frame(width: 36, height: 36)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Pause & leave").font(Theme.label(17))
+                        Text("Saved · resume from Train").font(Theme.label(12)).opacity(0.85)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(hex: 0xFF2D55), Color(hex: 0xA64DFF)], startPoint: .leading, endPoint: .trailing)))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Pause and leave")
+            .accessibilityHint("Closes the workout. Resume it from Train.")
+            .accessibilityIdentifier("player.pauseLeave")
             HStack(spacing: 10) {
                 Button {
                     mapAction = .finish
@@ -641,6 +667,7 @@ struct WorkoutPlayerView: View {
         guard let a = mapAction else { return }
         mapAction = nil
         switch a {
+        case .pause: closeWorkout()
         case .finish: finish()
         case .finishEarly: finishingEarly = true
         case .discard: discardWithUndo()
@@ -1008,16 +1035,6 @@ struct WorkoutPlayerView: View {
 
     private func topBar(_ session: Session) -> some View {
         HStack(spacing: 10) {
-            // Workout menu: the workout map with Finish, Finish early and Discard (#538). Not a pause icon:
-            // the ✕ is what pauses (#556, design A from `player-topbar/proposals.png`).
-            Button { mapOpen = true } label: {
-                Image(systemName: "ellipsis").font(.system(size: 16, weight: .heavy))
-                    .frame(width: 44, height: 44)
-                    .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Theme.cardStrong))
-            }
-            .disabled(steps.isEmpty)
-            .accessibilityLabel("Workout menu")
-            .accessibilityHint("Finish, finish early or discard the workout")
             // Tap the dots for the workout map (#361).
             Button { mapOpen = true } label: {
                 HStack(spacing: 3) {
@@ -1066,14 +1083,18 @@ struct WorkoutPlayerView: View {
             .layoutPriority(1)
             .disabled(steps.isEmpty)
             .accessibilityLabel(fitEnd == nil ? "Workout time. Finish early" : "Time left. Change or undo finish early")
-            // Closes at once (#538): the workout stays paused to resume, with Undo on Train.
-            Button(action: closeWorkout) {
+            // One exit (#1025, design A from `player-close-unify/proposals.png`): ✕ opens the workout map with
+            // Pause & leave, Finish, Discard and Finish early. No ••• beside it doing a different close.
+            // Nothing in the workout yet (custom session start): nothing to map, so it closes at once.
+            Button {
+                if steps.isEmpty { closeWorkout() } else { mapOpen = true }
+            } label: {
                 Image(systemName: "xmark").font(.system(size: 16, weight: .heavy))
                     .frame(width: 44, height: 44)
                     .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Theme.cardStrong))
             }
             .accessibilityLabel("Close workout")
-            .accessibilityHint("Pauses it. Resume from Train.")
+            .accessibilityHint("Pause and leave, finish, finish early or discard")
             .accessibilityIdentifier("player.close")
         }
         .foregroundStyle(.white)
@@ -1519,7 +1540,7 @@ struct WorkoutPlayerView: View {
         UndoCloseCenter.shared.show(.workoutSaved(r, model: model))
     }
 
-    /// X (#538): closes at once and keeps the workout paused to resume; the Undo bar on Train reopens it.
+    /// Pause & leave (#538, #1025): closes at once and keeps the workout paused to resume; the Undo bar on Train reopens it.
     private func closeWorkout() {
         let logged = setsDone.values.reduce(0, +)
         if isFree {
