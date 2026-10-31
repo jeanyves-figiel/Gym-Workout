@@ -144,10 +144,7 @@ struct MainTabView: View {
         .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
             whatsNewSheet($0)
         }
-        // Coach's AI consent (#972 A): the first AI use waits for this answer.
-        .sheet(item: Binding(get: { AIConsentStore.shared.asking }, set: { if $0 == nil { AIConsentStore.shared.dismissed() } })) { _ in
-            NavigationStack { AIConsentSheet() }
-        }
+        // Coach's AI consent (#972 A) is presented by AIConsentStore on top of any open sheet (#1000).
         // HD animations offer (#932 A): once per device, when nothing else is showing (after sign-up and the tour).
         .sheet(isPresented: Binding(get: { showHDOffer }, set: { if !$0 { hd.offered = true } })) {
             NavigationStack { HDAnimationsOffer() }

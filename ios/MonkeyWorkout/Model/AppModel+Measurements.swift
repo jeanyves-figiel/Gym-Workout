@@ -38,6 +38,22 @@ extension AppModel {
         Task { await sync() }
     }
 
+    /// Told to Coach (#1000): written on today's entry, or a new one. Returns what Undo needs.
+    func logSaid(_ said: MeasurementSay, now: Date = Date()) -> LoggedMeasurement {
+        let previous = measurements.last { Calendar.current.isDate($0.date, inSameDayAs: now) }
+        let entry = said.applied(to: previous ?? BodyMeasurement(date: now))
+        saveMeasurement(entry)
+        return LoggedMeasurement(id: entry.id, previous: previous, summary: said.summary)
+    }
+
+    /// Puts today's entry back as it was before Coach logged (#1000).
+    func undoLogged(_ logged: LoggedMeasurement) {
+        guard var p = logged.previous else { return deleteMeasurement(logged.id) }
+        // Keep the newest server version as the base, so the restore is not taken for a stale edit.
+        p.updatedAt = state.measurements?.first { $0.id == logged.id }?.updatedAt
+        saveMeasurement(p)
+    }
+
     func deleteMeasurement(_ id: UUID) {
         state.measurements?.removeAll { $0.id == id }
         state.pendingMeasurementIds?.remove(id)
@@ -77,5 +93,28 @@ extension AppModel {
         merged += (state.measurements ?? []).filter { stillPending.contains($0.id) }
         var seen = Set<UUID>()
         state.measurements = merged.filter { seen.insert($0.id).inserted }
+    }
+}
+
+/// A measurement Coach logged in the chat (#1000), with what Undo puts back.
+struct LoggedMeasurement: Equatable {
+    let id: UUID
+    let previous: BodyMeasurement?
+    let summary: String
+    var undone = false
+}
+
+extension MeasurementSay {
+    /// Coach's server answer (#1000) in the app's keys.
+    init(chat m: CoachChatMeasurement) {
+        var girths: [String: Double] = [:]
+        for g in m.girths ?? [] {
+            guard let site = GirthSite(rawValue: g.site), BodyMeasurement.girthRange.contains(g.cm) else { continue }
+            let side: LimbSide? = site.bilateral ? (g.side == "left" ? .left : g.side == "right" ? .right : nil) : nil
+            girths[BodyMeasurement.key(site, side)] = g.cm
+        }
+        self.init(weightKg: m.weightKg.flatMap { BodyMeasurement.weightRange.contains($0) ? $0 : nil },
+                  bodyFatPct: m.bodyFatPct.flatMap { BodyMeasurement.bodyFatRange.contains($0) ? $0 : nil },
+                  girthsCm: girths)
     }
 }

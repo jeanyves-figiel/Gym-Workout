@@ -4112,30 +4112,6 @@
             }
           }
         }
-      },
-      "post": {
-        "tags": [
-          "Coach (AI and voices)"
-        ],
-        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory, exercises[≤400 names]}, photo?} (photo: base64 JPEG ≤1.5 MB of a machine, sent with the last message, #856) → {reply, workout?, action?, suggestions, exercises, protect?{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp, seeDoctor} (#870 train around pain), remainingToday} (exercises: ≤4 names from context.exercises, screens freestyle and picker #934)",
-        "description": "Errors / limits: 400 bad_photo; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "See summary. Errors: `{error, message}`",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/v1/me/coach-review": {

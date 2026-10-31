@@ -199,6 +199,7 @@ describe('clean', () => {
       exercises: [],
       suggestions: [],
       protect: null,
+      measurement: null,
       workout: { name: 'Coach workout', minutes: 120, groups: ['legs'], rest: 'standard', grouping: 'straight', avoidGroups: ['shoulders'], avoidEquipment: ['rack'], avoidKeywords: ['lunge'] },
     });
     expect(clean({ reply: 'Which muscles?', workout: { ...a.workout!, groups: [] } }, {}).workout).toBeNull();
@@ -235,6 +236,19 @@ describe('ask from any screen (#412)', () => {
 });
 
 describe('train around pain (#870)', () => {
+  it('keeps logged measurements in range, drops odd ones, null when nothing is left (#1000)', () => {
+    const ok = clean({ reply: 'Logged: 66 kilos.', workout: null, measurement: { weightKg: 66.04, bodyFatPct: null, girths: [
+      { site: 'waist', side: 'none', cm: 82 },
+      { site: 'upperArm', side: 'left', cm: 35.55 },
+      { site: 'upperArm', side: 'left', cm: 40 },
+      { site: 'ear' as 'neck', side: 'none', cm: 30 },
+      { site: 'calf', side: 'up' as 'left', cm: 1000 },
+    ] } }, {});
+    expect(ok.measurement).toEqual({ weightKg: 66, bodyFatPct: null, girths: [{ site: 'waist', side: 'none', cm: 82 }, { site: 'upperArm', side: 'left', cm: 35.6 }] });
+    expect(clean({ reply: 'a', workout: null, measurement: { weightKg: 900, bodyFatPct: 1, girths: [] } }, {}).measurement).toBeNull();
+    expect(clean({ reply: 'a', workout: null }, {}).measurement).toBeNull();
+  });
+
   it('keeps a valid protect, defaults side and level, drops unknown areas', () => {
     const ok = clean({ reply: 'I will protect it.', workout: null, protect: { area: 'knee', side: 'right', level: 'loaded', seeDoctor: false } }, {});
     expect(ok.protect).toEqual({ area: 'knee', side: 'right', level: 'loaded', seeDoctor: false });

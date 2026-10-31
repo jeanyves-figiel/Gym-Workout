@@ -11,9 +11,13 @@ final class AIConsentStore {
     private static let key = "aiConsent.v1"
 
     private(set) var state: AIConsentState
-    /// The feature that opened the first-use sheet (RootView shows it).
+    /// The feature that opened the first-use sheet.
     var asking: AIFeature?
     @ObservationIgnored private var waiting: [CheckedContinuation<Void, Never>] = []
+    /// The sheet on screen. Shown on top of whatever is open (Ask Coach is itself a sheet, #1000), not from RootView,
+    /// which can't present while another sheet is up: the call waited behind it and Coach spun until closed.
+    @ObservationIgnored private weak var sheet: UIViewController?
+    @ObservationIgnored private let swipe = SwipeWatcher()
 
     init(defaults: UserDefaults = .standard) {
         state = defaults.data(forKey: Self.key).flatMap { try? JSONDecoder().decode(AIConsentState.self, from: $0) } ?? AIConsentState()
@@ -30,8 +34,39 @@ final class AIConsentStore {
         if state.decided { return state.allows(f) }
         guard UIApplication.shared.applicationState == .active else { return false }
         if asking == nil { asking = f }
+        guard present() else {
+            asking = nil
+            return false
+        }
         await withCheckedContinuation { waiting.append($0) }
         return state.allows(f)
+    }
+
+    /// Presents the sheet from the top-most screen; false when there is no screen to show it on.
+    private func present() -> Bool {
+        if sheet?.presentingViewController != nil { return true }
+        guard let top = Self.topController() else { return false }
+        let host = UIHostingController(rootView: NavigationStack { AIConsentSheet() }.preferredColorScheme(.dark).tint(Theme.lime))
+        host.overrideUserInterfaceStyle = .dark
+        swipe.onDismiss = { [weak self] in self?.dismissed() }
+        host.presentationController?.delegate = swipe
+        top.present(host, animated: true)
+        sheet = host
+        return true
+    }
+
+    private func close() {
+        if let s = sheet, s.presentingViewController != nil, !s.isBeingDismissed { s.dismiss(animated: true) }
+        sheet = nil
+    }
+
+    static func topController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        let window = scene?.windows.first { $0.isKeyWindow } ?? scene?.windows.first { $0.windowLevel == .normal }
+        var top = window?.rootViewController
+        while let next = top?.presentedViewController, !next.isBeingDismissed { top = next }
+        return top
     }
 
     /// Allow (the switches left on) or Not now (none).
@@ -39,6 +74,7 @@ final class AIConsentStore {
         state.answer(allowed)
         save()
         asking = nil
+        close()
         resume()
     }
 
@@ -51,6 +87,7 @@ final class AIConsentStore {
     /// ✕ or swipe: nothing decided, that call stays on the device; the next AI use asks again.
     func dismissed() {
         asking = nil
+        close()
         resume()
     }
 
@@ -63,6 +100,12 @@ final class AIConsentStore {
     private func save() {
         if let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: Self.key) }
     }
+}
+
+/// Swipe-down on the consent sheet counts as ✕.
+@MainActor private final class SwipeWatcher: NSObject, UIAdaptivePresentationControllerDelegate {
+    var onDismiss: () -> Void = {}
+    func presentationControllerDidDismiss(_: UIPresentationController) { onDismiss() }
 }
 
 extension AIFeature {
