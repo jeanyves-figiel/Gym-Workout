@@ -10,6 +10,13 @@ public enum Freestyle {
 
     public static func isFreestyle(_ sessionId: String) -> Bool { sessionId.hasPrefix(idPrefix) }
 
+    /// A paused workout's contents for its Resume tile and "Workout kept" bar (#997): "3 exercises · 4 sets done".
+    public static func resumeLine(exercises: Int, setsDone: Int) -> String {
+        let ex = exercises == 1 ? "1 exercise" : "\(exercises) exercises"
+        guard setsDone > 0 else { return ex + " · none done yet" }
+        return ex + " · " + (setsDone == 1 ? "1 set done" : "\(setsDone) sets done")
+    }
+
     /// A new empty workout with its own id, so its sets, history and Watch link never mix with another run.
     public static func session(id: UUID = UUID()) -> Session {
         Session(id: idPrefix + String(id.uuidString.lowercased().prefix(8)), index: 0, focus: .fullUpper, title: title,

@@ -14,6 +14,12 @@ extension AppModel {
         return s
     }
 
+    /// What the paused freestyle workout holds (#997), for its Resume tile: "3 exercises · 4 sets done".
+    var freestyleResumeLine: String? {
+        guard let s = freestyleInProgress, let run = activeWorkout(s.id) else { return nil }
+        return Freestyle.resumeLine(exercises: s.blocks.flatMap(\.items).count, setsDone: run.setsDone.values.reduce(0, +))
+    }
+
     /// A new empty workout to open in the player.
     func startFreestyle() -> Session {
         let s = Freestyle.session()
