@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **What's new 2026-10-31.5** (bundle 95): one card (Cleaner moves, checked #1020); 2026-10-31.4 moved to history as build 94.
 - **Animation check in CI** (#1020): new workflow "Animation check" runs `check.py` (jumps, stretched limbs, floor, wrong-way bends) and new `kit2d.py` on every 2D frame: hands stay on the grip, feet on the plates, no figure floating off the floor and kit. All 441 pass (9 reviewed as expected: jumps, throws, running, foam rolls, end-on plates).
 - **What's new 2026-10-31.4** (bundle 94): three cards (One ✕ to leave #1025, Cleaner 3D moves #1020, TV closer to live #1008); 2026-10-31.3 moved to history as build 93.
 - **What's new 2026-10-31.3** (bundle 93): nine cards (Coach knows your training #1010, Cast to your TV #1008, Scan live sees your food #1012, Cook together #1014, Meal plans one step #1015, Numbers you can trust #1017, Real-life positions #1020, Hide tabs #1004, Swipe to close #1005); 2026-10-31.2 moved to history as build 92.
