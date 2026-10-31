@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { householdOnBlock } from './household.ts';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type Moderator, noModerator } from '../community/aiModeration.ts';
@@ -851,6 +852,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         req.userId!, b.userId, b.userId, req.userId!,
       );
       unpair(db, req.userId!, b.userId);
+      householdOnBlock(db, req.userId!, b.userId);
     });
     return reply.status(204).send();
   });

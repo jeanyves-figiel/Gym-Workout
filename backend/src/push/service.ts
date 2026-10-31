@@ -4,7 +4,7 @@ import type { ApnsEnv, ApnsSender } from './apns.ts';
 import { defaultPrefs, inQuietHours, NotificationPrefs } from './prefs.ts';
 
 /** Kinds of remote notifications. Each maps to a preference toggle. */
-export type PushKind = 'follow_achievement' | 'buddy_invite' | 'test';
+export type PushKind = 'follow_achievement' | 'buddy_invite' | 'household' | 'test';
 
 /** Pushes to followers in flight at once per fan-out, so a member with many followers can't flood APNs or the loop. */
 const FAN_OUT_CONCURRENCY = 5;
