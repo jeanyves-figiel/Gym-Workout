@@ -109,14 +109,26 @@ extension AppModel {
         return names.isEmpty ? nil : Array(names.prefix(40))
     }
 
-    /// Coach's actions as the app can do them (#999); anything that doesn't fit today's data is dropped.
-    func coachTasks(_ list: [CoachChatDo]) -> [CoachTask] {
-        var out: [CoachTask] = []
+    /// Coach's actions as the app can do them (#999). What doesn't fit today's data is not done, and `missed` says
+    /// why in a line the chat shows, so Coach's "Done" never stands for something that didn't happen.
+    func coachTasks(_ list: [CoachChatDo]) -> (tasks: [CoachTask], missed: [String]) {
+        var out: [CoachTask] = [], missed: [String] = []
         for d in list.prefix(5) {
-            guard let k = coachKind(d) else { continue }
-            out.append(CoachTask(kind: k))
+            if let k = coachKind(d) { out.append(CoachTask(kind: k)) } else { missed.append(Self.missedLine(d)) }
         }
-        return out
+        return (out, missed)
+    }
+
+    static func missedLine(_ d: CoachChatDo) -> String {
+        switch d.kind {
+        case "water": "Couldn't add the water."
+        case "food": "Couldn't find \"\(d.foods ?? "that")\" in foods. Add it in Fuel."
+        case "mood": "Couldn't log your mood."
+        case "move": "Couldn't move today's workout to that day."
+        case "skip": "There's no workout left to skip today."
+        case "swap": "Couldn't swap \(d.from ?? "that exercise") for \(d.to ?? "that one") in today's workout."
+        default: "Coach can't do that one."
+        }
     }
 
     private func coachKind(_ d: CoachChatDo) -> CoachTask.Kind? {

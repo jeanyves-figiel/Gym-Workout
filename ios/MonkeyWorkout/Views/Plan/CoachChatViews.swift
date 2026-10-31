@@ -32,6 +32,8 @@ struct CoachChatMessage: Identifiable, Equatable {
     var logged: LoggedMeasurement?
     /// What Coach does for the member (#999): done, asked or listed on one card.
     var tasks: [CoachTask] = []
+    /// What Coach said it would do but the app couldn't (#999), shown under the reply.
+    var missed: [String] = []
 }
 
 /// Today's conversation, kept while the app runs; a new day starts a fresh chat.
@@ -312,6 +314,12 @@ struct CoachChatView: View {
                 if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
                 if let p = m.protect { PainPlanCard(protect: p) }
                 if let l = m.logged { loggedCard(m.id, l) }
+                ForEach(m.missed, id: \.self) { line in
+                    Label(line, systemImage: "exclamationmark.circle.fill")
+                        .font(Theme.label(13)).foregroundStyle(.orange)
+                        .padding(.leading, 42)
+                        .accessibilityIdentifier("coach.do.missed")
+                }
                 if !m.tasks.isEmpty {
                     CoachDoCard(tasks: m.tasks, toggle: { toggleTask(m.id, $0) }, run: { runTasks(m.id) },
                                 undo: { undoTasks(m.id) }, dismiss: { dropTasks(m.id) })
@@ -766,7 +774,7 @@ struct CoachChatView: View {
                 // Coach logs what the member told it (#1000), with Undo on the card.
                 if let m = a.measurement.map(MeasurementSay.init(chat:)), !m.isEmpty { reply.logged = model.logSaid(m) }
                 // Coach acts (#999): one log is done at once with Undo (B); a plan change or several wait for a tap (A, C).
-                reply.tasks = model.coachTasks(a.doActions ?? [])
+                (reply.tasks, reply.missed) = model.coachTasks(a.doActions ?? [])
                 if reply.tasks.count == 1, reply.tasks[0].instant { reply.tasks[0] = model.performCoach(reply.tasks[0]) }
                 if let s = a.workout, let profile = model.profile {
                     let w = s.workout(profile: profile, seed: UInt32.random(in: .min ... .max))
