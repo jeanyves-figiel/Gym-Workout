@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 
@@ -16,7 +16,18 @@ export const CAST_NAMESPACE = 'urn:x-cast:cloud.monkeygrade.workout';
 
 const clipName = /^motion-[a-z0-9-]{1,80}\.mp4$/;
 
+/** Every clip on disk by file name, first directory wins: requests only ever pick from this list, never build a path. */
+const clipIndex = (dirs: string[]) => {
+  const clips = new Map<string, string>();
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir)) if (clipName.test(f) && !clips.has(f)) clips.set(f, join(dir, f));
+  }
+  return clips;
+};
+
 export const castRoutes = (app: FastifyInstance, motionDirs: string[]) => {
+  const clips = clipIndex(motionDirs);
   app.get('/cast/receiver', async (_req, reply) =>
     reply
       .type('text/html; charset=utf-8')
@@ -27,8 +38,7 @@ export const castRoutes = (app: FastifyInstance, motionDirs: string[]) => {
 
   app.get<{ Params: { file: string } }>('/cast/motion/:file', async (req, reply) => {
     const { file } = req.params;
-    if (!clipName.test(file)) return reply.status(404).send({ error: 'not_found', message: 'No such clip.' });
-    const path = motionDirs.map((d) => join(d, file)).find((p) => existsSync(p));
+    const path = clips.get(file);
     if (!path) return reply.status(404).send({ error: 'not_found', message: 'No such clip.' });
     const size = statSync(path).size;
     reply.header('cache-control', 'public, max-age=86400').header('accept-ranges', 'bytes').header('access-control-allow-origin', '*');
