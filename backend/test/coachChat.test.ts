@@ -361,6 +361,8 @@ describe('Coach can act (#999)', () => {
       { ...none, kind: 'voice', value: 'never' },
     ]);
     expect(cleanDo([{ ...none, kind: 'reminder', minutes: 2000, on: true }], ctx)).toEqual([]);
+    expect(cleanDo([{ ...none, kind: 'supplement', foods: ' Creatine ' }, { ...none, kind: 'supplement', foods: ' ' }], ctx))
+      .toEqual([{ ...none, kind: 'supplement', foods: 'Creatine' }]);
     expect(cleanDo([{ ...none, kind: 'reminder', on: false }], ctx)).toEqual([{ ...none, kind: 'reminder', on: false }]);
   });
 
