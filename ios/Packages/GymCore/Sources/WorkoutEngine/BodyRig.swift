@@ -402,7 +402,8 @@ public final class BodyRig: Sendable {
         let aFa0 = -perp(nrm(ua0), nrm(fa0))
         let aFa = bend > 0.2 ? -perp(nrm(ua), nrm(fa)) : Rua * aFa0
         let Rfa = rot(basis(fa0, aFa0), basis(fa, aFa))
-        let Rhd = rot(basis(hd0 - wr0, palm[s]!), basis(hd, Self.palmDir(J, d, hd, fa, held, aFa)))
+        // a gripping hand keeps the palm the grip was placed with (the posed forearm can flip the sign, #1020)
+        let Rhd = rot(basis(hd0 - wr0, palm[s]!), basis(hd, held != nil ? pd : Self.palmDir(J, d, hd, fa, held, aFa)))
         return ["clavicle": (Rcl, 1), "shoulder01": (Rsh, 1), "upperarm01": (Rua, k), "upperarm02": (Rua, k),
                 "lowerarm01": (Rfa, k), "lowerarm02": (Rfa, k), "wrist": (Rhd, 1)]
     }

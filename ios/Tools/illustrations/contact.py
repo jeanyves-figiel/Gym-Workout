@@ -978,11 +978,26 @@ def reach(ex, keys, R, iters=4):
     fingers = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("finger")])
     for k in keys:
         parallel_bars_width(k, R)
+        bar_length(k, R)
         for _ in range(iters):
             moved = False
             V = R.pose(k["j"], k["p"]); J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
             held = dict(R.held); rch = dict(R.reach)
             rods = {}
+            for d in "NF":          # a weight out of reach: the hand (and the weight with it) comes in
+                h = held[d]
+                if h is None or h[0] not in ("db", "kb") or d not in rch:
+                    continue
+                S, Wt, L = rch[d]
+                dist = np.linalg.norm(Wt - S)
+                if dist > L * REACH_SLACK + 0.3:
+                    v = (S - Wt) / dist * (dist - L * REACH_SLACK)
+                    for nm, f in (("hand", 1.0), ("wrist", 1.0), ("elbow", 0.5)):
+                        k["j"][nm + d] = [round(float(c + f * dv), 1) for c, dv in zip(k["j"][nm + d], v)]
+                    for q in k["p"]:
+                        if q["k"] == h[0] and np.allclose(q["c"], h[2]):
+                            shift_any(q, v)
+                    moved = True
             for d in "NF":
                 h = held[d]
                 if h is None or h[0] != "rod" or d not in rch:
@@ -1057,6 +1072,29 @@ def bar_out(ex, k, R, fingers=None):
             if held[dd] is not None and held[dd][0] == "rod" and np.allclose(held[dd][2][0], h[2][0]):
                 for n in ("hand", "wrist"):
                     k["j"][n + dd] = [round(float(c + dv), 1) for c, dv in zip(k["j"][n + dd], v)]
+
+
+def bar_length(k, R):
+    """A handle or bar held across the body (rowing handle, pulldown bar) drawn for the figure's narrow hands is
+    shorter than the body's grip: the fist sat off its end. Its ends reach a little past both fists (#1020)."""
+    R.pose(k["j"], k["p"])
+    for d in "NF":
+        h = R.held.get(d)
+        if h is None or h[0] != "rod" or d not in R.grip:
+            continue
+        p = next((q for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0]) and np.allclose(q["b"], h[2][1])), None)
+        if p is None or p.get("s") in ("cable", "band"):
+            continue
+        a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+        u = (b - a) / max(np.linalg.norm(b - a), 1e-6)
+        if abs(u[2]) < 0.9:
+            continue
+        S = R.reach[d][0]
+        z = S[2] + np.sign(S[2] - (a[2] + b[2]) / 2) * 6.0
+        for e, x in (("a", a), ("b", b)):
+            other = b if e == "a" else a
+            if np.sign(x[2] - other[2]) == np.sign(z - other[2]) and abs(z - other[2]) > abs(x[2] - other[2]):
+                p[e] = [p[e][0], p[e][1], round(float(z), 1)]
 
 
 def parallel_bars_width(k, R):
@@ -1314,6 +1352,32 @@ def clear_kit(ex, keys, R, rounds=6):
             break                     # one part per round: the frame it moved may have cleared others
 
 
+def carry_held(k, held, dy):
+    """Shift the figure by dy (joints) together with the bars / handles (and their plates, cable ends) and
+    weights its hands hold."""
+    v = np.array([0.0, dy, 0.0])
+    moved = set()
+    for d, h in held.items():
+        if h is None:
+            continue
+        if h[0] == "rod":
+            p = next((q for q in k["p"] if q["k"] == "rod" and np.allclose(q["a"], h[2][0]) and np.allclose(q["b"], h[2][1])), None)
+            if p is None or id(p) in moved:
+                continue
+            group, ends = _rod_group(k["p"], p)
+            group = [q for q in group if id(q) not in moved]
+            _move_group(group, ends, v)
+            moved |= {id(q) for q in group}
+        else:
+            c = np.asarray(h[2], float)
+            for q in k["p"]:
+                if q["k"] in ("db", "kb", "ball") and id(q) not in moved and np.allclose(q["c"], c):
+                    shift_any(q, v); moved.add(id(q))
+    for n, x in k["j"].items():
+        if not n.startswith("_"):
+            k["j"][n] = [x[0], round(x[1] + dy, 1), x[2]]
+
+
 def run(ids=None):
     if not RAW.exists():
         RAW.write_bytes(DATA.read_bytes())
@@ -1398,10 +1462,27 @@ def run(ids=None):
                     and not any(h is not None and h[0] == "rod" for h in held.values()):
                 # over the bar (muscle-up) is still on it; hands on bars or a held bar (dips, L-sit, a jump) carry it
                 dy = -min_y
+            k.pop("dy", None)
             if abs(dy) > 0.5:
-                k["dy"] = round(dy, 1)
-            else:
-                k.pop("dy", None)
+                if any(h is not None for h in held.values()):
+                    # hands hold something: the body and what it holds move together (a render-only body offset
+                    # would leave the bar, handle or dumbbell where the hands were, #1020)
+                    total = 0.0
+                    for _ in range(4):      # the rig's floor rules (ankle on the floor) shift with the joints: settle
+                        carry_held(k, held, dy)
+                        total += dy
+                        V2 = R.pose(k["j"], k["p"])
+                        my = float(V2[~fingers, 1].min())
+                        held = dict(R.held)
+                        dy = -my if (min_y < -2.0 or (not supported and my > 2.5)) else 0.0
+                        if abs(dy) < 0.5:
+                            break
+                    for side in grip:
+                        grip[side] = np.asarray(R.grip.get(side, grip[side]), float)
+                    J.update({n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")})
+                    V[:] = V2
+                else:
+                    k["dy"] = round(dy, 1)
         plates = foot_plates(ex, keys, poses, feet) + clear_blocks(ex, keys, poses, fingers | palms)
         done = 0
         for (J, V, held, grip), k in zip(poses, keys):

@@ -28,4 +28,4 @@ in the trunk / legs, shin in the other leg; **stretch** limb scaled > 1.06; **fl
 Body vs figure: the body's arms (67.7) are shorter than the 2D figure's (80) and the rig no longer stretches them
 (`ARM_STRETCH` 1.03, Swift `armStretch`). `contact.py` moves held bars / handles into reach, bodies on bars to the bar
 (`reach`), dip bars under the shoulders (`parallel_bars_width`), free forearms out of the hips (`arms_clear`), kit onto the
-floor (`on_floor`), widens frames (`widen_frames`), moves machine parts and bars out of the skin (`clear_kit`, `bar_out`) and rebuilds shrugs (`shrugs`: `_elev` joint = shoulder girdle raised, rig `elev`).
+floor (`on_floor`), widens frames (`widen_frames`), moves machine parts and bars out of the skin (`clear_kit`, `bar_out`), lengthens handles (`bar_length`), carries held kit with the body offset (`carry_held`) and rebuilds shrugs (`shrugs`: `_elev` joint = shoulder girdle raised, rig `elev`).

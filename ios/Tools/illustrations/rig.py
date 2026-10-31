@@ -373,7 +373,9 @@ class Rig:
         a_fa = -perp(nrm(ua), nrm(fa)) if bend > 0.2 else Rua @ a_fa0
         Rfa = rot(basis(fa0, a_fa0), basis(fa, a_fa))
         hd = J["hand" + d] - J["wrist" + d]
-        Rhd = rot(basis(hd0 - wr0, self.palm[s]), basis(hd, palm_dir(J, d, hd, fa, self.held.get(d), a_fa)))
+        # a gripping hand keeps the palm the grip was placed with (the posed forearm can flip the sign, #1020)
+        pd2 = pd if held is not None else palm_dir(J, d, hd, fa, self.held.get(d), a_fa)
+        Rhd = rot(basis(hd0 - wr0, self.palm[s]), basis(hd, pd2))
         return {**out, "upperarm01": (Rua, k), "upperarm02": (Rua, k), "lowerarm01": (Rfa, k), "lowerarm02": (Rfa, k),
                 "wrist": (Rhd,)}
 
