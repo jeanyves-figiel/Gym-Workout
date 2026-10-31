@@ -68,6 +68,14 @@ final class MindStore {
         save(s)
     }
 
+    /// Undo of a check-in Coach logged (#999).
+    func removeCheckIn(_ c: MindCheckIn) {
+        var s = saved
+        guard let i = s.checkIns.lastIndex(of: c) else { return }
+        s.checkIns.remove(at: i)
+        save(s)
+    }
+
     func addSession(_ m: MindSession) {
         var s = saved
         s.sessions.append(m)

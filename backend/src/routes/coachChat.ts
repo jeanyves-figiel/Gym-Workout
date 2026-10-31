@@ -25,6 +25,8 @@ const body = z.object({
       callName: z.string().trim().max(30).optional(),
       memory: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
       exercises: z.array(z.string().trim().min(1).max(60)).max(400).optional(),
+      todayExercises: z.array(z.string().trim().min(1).max(60)).max(40).optional(),
+      weekday: z.number().int().min(1).max(7).optional(),
     })
     .default({}),
   /** JPEG of the machine in front of the member (#856), base64, sent with the last message. */
