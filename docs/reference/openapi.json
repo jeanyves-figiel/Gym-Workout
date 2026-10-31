@@ -27,6 +27,9 @@
       "name": "Legal pages"
     },
     {
+      "name": "Chromecast receiver (#1008)"
+    },
+    {
       "name": "Over-the-air config (#583)"
     },
     {
@@ -161,6 +164,59 @@
           "Legal pages"
         ],
         "summary": "Support page (HTML)",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cast/receiver": {
+      "get": {
+        "tags": [
+          "Chromecast receiver (#1008)"
+        ],
+        "summary": "Cast receiver page (HTML, CAF v3): TV workout layout, timers count locally",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cast/motion/{file}": {
+      "get": {
+        "tags": [
+          "Chromecast receiver (#1008)"
+        ],
+        "summary": "Light movement clip motion-<exercise id>.mp4 (byte ranges, cached 1 day)",
+        "description": "Errors / limits: 404 not_found unknown clip; 416 bad range",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [],
         "responses": {
           "default": {

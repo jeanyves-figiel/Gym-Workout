@@ -336,7 +336,7 @@ struct WorkoutPlayerView: View {
             OrientationLock.allowLandscape(false)
             saveProgress()
             live.end()
-            TVCast.shared.live = nil
+            TVCast.shared.publish(nil)
             coach.stop()
             listener.cancel()
             if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }
@@ -2133,14 +2133,14 @@ struct WorkoutPlayerView: View {
     private func updateLive() {
         guard ready, !finished, !discarded else {
             LiveRoom.shared.player(nil, api: model.api)
-            TVCast.shared.live = nil
+            TVCast.shared.publish(nil)
             return WatchSync.shared.sendLive(nil)
         }
         let state = liveState()
         live.update(state)
         guard steps.indices.contains(index), let session else { return }
         let step = steps[index]
-        TVCast.shared.live = tvLive(step, session: session, state: state)
+        TVCast.shared.publish(tvLive(step, session: session, state: state))
         LiveRoom.shared.player(LiveSet(title: session.displayTitle, exercise: state.exercise,
                                        detail: String([state.setLabel, state.detail].filter { !$0.isEmpty }.joined(separator: " · ").prefix(40)),
                                        state: pause != nil ? .rest : .set), api: model.api)

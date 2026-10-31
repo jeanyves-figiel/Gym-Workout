@@ -24,3 +24,4 @@ ios/Tools/illustrations/preview3d/three.module.js
 ios/Tools/illustrations/preview3d/package*.json
 ios/Tools/illustrations/preview3d/*.png
 ios/build/
+backend/content/motion/
