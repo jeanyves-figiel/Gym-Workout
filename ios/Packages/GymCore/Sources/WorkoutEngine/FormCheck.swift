@@ -16,8 +16,14 @@ public enum FormJoint: String, CaseIterable, Sendable {
 /// One frame's joints. Units are equal on both axes (the frame's height is 1, its width the aspect ratio), y up.
 public struct FormPose: Sendable, Hashable {
     public var points: [FormJoint: SIMD2<Double>]
+    /// The same joints in 3D (metres, any axes) when the phone's 3D body pose found them (#969): angles measured on
+    /// them are the same wherever the camera stands. Not saved in replays.
+    public var world: [FormJoint: SIMD3<Double>]?
 
-    public init(_ points: [FormJoint: SIMD2<Double>]) { self.points = points }
+    public init(_ points: [FormJoint: SIMD2<Double>], world: [FormJoint: SIMD3<Double>]? = nil) {
+        self.points = points
+        self.world = world
+    }
 
     public subscript(_ j: FormJoint) -> SIMD2<Double>? { points[j] }
 
@@ -470,10 +476,14 @@ public struct FormLive: Sendable {
     /// The guide's pose fitted over the member, in frame units (design B).
     public var ghost: FormPose?
 
+    /// Reps counted on the member's own movement (#969) where the form check couldn't follow (camera not on the
+    /// guide's side): no score.
+    public var formless = false
+
     public init() {}
 
     /// Average of the reps so far.
-    public var score: Int? { reps.isEmpty ? nil : Int((Double(reps.map(\.score).reduce(0, +)) / Double(reps.count)).rounded()) }
+    public var score: Int? { reps.isEmpty || formless ? nil : Int((Double(reps.map(\.score).reduce(0, +)) / Double(reps.count)).rounded()) }
     public var match: Int? { reps.last?.match }
 }
 

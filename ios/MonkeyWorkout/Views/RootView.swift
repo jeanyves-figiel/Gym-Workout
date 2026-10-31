@@ -65,19 +65,19 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: Bindable(model).tab) {
-            NavigationStack { WeekView() }
+            NavigationStack { WeekView().meDestination(.train) }
                 .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
                 .tag(MainTab.train)
-            NavigationStack { LibraryView() }
+            NavigationStack { LibraryView().meDestination(.explore) }
                 .tabItem { Label("Explore", systemImage: "figure.arms.open") }
                 .tag(MainTab.explore)
-            NavigationStack { ProgressTabView() }
+            NavigationStack { ProgressTabView().meDestination(.progress) }
                 .tabItem { Label("Insights", systemImage: "sparkles") }
                 .tag(MainTab.progress)
-            NavigationStack { FuelView() }
+            NavigationStack { FuelView().meDestination(.fuel) }
                 .tabItem { Label("Fuel", systemImage: "fork.knife") }
                 .tag(MainTab.fuel)
-            NavigationStack { CommunityView() }
+            NavigationStack { CommunityView().meDestination(.community) }
                 .tabItem { Label("Social", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
         }
@@ -96,12 +96,6 @@ struct MainTabView: View {
         .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
         // Shared from TikTok / Instagram (#909 A).
         .sheet(item: $videoShare.draft) { d in VideoImportSheet(draft: d) }
-        // Me sheet (#560): the Me pill at the top right of every tab.
-        .sheet(isPresented: Bindable(model).meOpen) {
-            NavigationStack {
-                MeSheet().toolbar { CloseToolbarItem { model.meOpen = false } }
-            }
-        }
         // Settings straight (#496), e.g. from Coach chat.
         .sheet(isPresented: Bindable(model).settingsOpen) {
             NavigationStack {
@@ -748,4 +742,23 @@ extension MainTabView {
         await Community.shared.autoShare(model.autoShareWins(healthSports: health.snapshot.recentSports), api: model.api,
                                          userId: model.user?.id)
     }
+}
+
+/// Me page pushed inside a tab (#991 C): the tab bar stays, X top right closes it, a tab tap leaves it.
+private struct MeDestination: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let tab: MainTab
+
+    func body(content: Content) -> some View {
+        content.navigationDestination(isPresented: Binding(get: { model.meTab == tab },
+                                                           set: { if !$0, model.meTab == tab { model.meTab = nil } })) {
+            MeSheet()
+                .navigationBarBackButtonHidden()
+                .toolbar { CloseToolbarItem { model.meTab = nil } }
+        }
+    }
+}
+
+extension View {
+    func meDestination(_ tab: MainTab) -> some View { modifier(MeDestination(tab: tab)) }
 }

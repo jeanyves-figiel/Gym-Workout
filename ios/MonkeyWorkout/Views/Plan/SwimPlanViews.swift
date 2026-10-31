@@ -187,7 +187,8 @@ struct SwimHubView: View {
     }
 
     private func start(_ g: SwimPlan.Goal) {
-        let cal = Calendar.current
+        // Monday weeks like Train (#989): the swim week turns over with the plan's, not on a Sunday.
+        let cal = Progression.calendar()
         let days = SwimPlan.days(perWeek: perWeek, lifting: model.liftingWeekdays)
         let start = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? cal.startOfDay(for: Date())
         store.setPlan(SwimPlan(goal: g, weeks: 8, perWeek: perWeek, start: start, days: days, pool: store.saved.pool))

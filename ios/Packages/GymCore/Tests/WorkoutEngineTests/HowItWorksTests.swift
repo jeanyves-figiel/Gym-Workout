@@ -35,6 +35,21 @@ import Testing
         #expect(text("form").contains("−\(FormFault.kneesIn.penalty)"))
     }
 
+    /// Every topic names at least one study (#976); the app's own choices are marked as such, never passed off as science.
+    @Test func everyTopicIsBackedByAStudy() {
+        for t in HowItWorks.topics {
+            #expect(t.sources.contains { !$0.hasPrefix(HowItWorks.appDesign) }, "\(t.id) cites no study")
+            for s in t.sources where s.localizedCaseInsensitiveContains("app design") {
+                #expect(s.hasPrefix(HowItWorks.appDesign), "\(t.id): mark app choices with \(HowItWorks.appDesign)")
+            }
+        }
+        for id in ["warmup", "pain", "life", "coach"] { #expect(HowItWorks.topic(id) != nil, "\(id) missing") }
+        #expect(text("warmup").contains("\(PRPlanner.maxAttempts) attempts at most"))
+        #expect(text("pain").contains(PainProtect.notAdvice))
+        #expect(text("life").contains(LifeStage.talkTest))
+        #expect(text("coach").contains("\(CoachNudges.driftMissed) planned sessions missed"))
+    }
+
     @Test func rankBandsMatchTheLadder() {
         func rank(_ level: Int) -> String { GameProgress(xp: (level - 1) * GameProgress.perLevel).rank }
         #expect(rank(2) == "Rookie" && rank(3) == "Regular" && rank(7) == "Regular" && rank(8) == "Iron")

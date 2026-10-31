@@ -21,7 +21,8 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
     /// Film my workout (#952): while set, frames go to the text reader (twice a second) instead of the body pose, to
     /// read the weight shown to the camera. On the main thread.
     var onText: (([WeightReading.Seen]) -> Void)?
-    /// Film whole session (#957): the text reader runs once a second alongside the body pose instead of replacing it.
+    /// Film whole session (#957) and hands-free steps (#969): the text reader runs once a second alongside the body pose
+    /// instead of replacing it.
     var textWithPose = false
     /// Film my workout's review clip (#952): frames are also written here while set.
     var clip: ClipRecorder?
@@ -34,6 +35,15 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
     private var lastText: Double = -1
     /// Front camera frames are mirrored like the preview: the text reader flips them back.
     private var mirrored = false
+    /// Better detection (#969): the 3D body pose runs on every other frame and its joints ride on that frame's pose,
+    /// so angles are the same from wherever the phone films.
+    var depth = false
+    private let request3D = VNDetectHumanBodyPose3DRequest()
+    private var frameIndex = 0
+    /// Kit in view (#969): the scene's labels (lowercased) every 2 s while set. On the main thread.
+    var onScene: ((Set<String>) -> Void)?
+    private let sceneRequest = VNClassifyImageRequest()
+    private var lastScene: Double = -10
 
     static func allowed() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -97,10 +107,20 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
             }
             if !textWithPose { return }
         }
-        try? VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up).perform([request])
+        frameIndex += 1
+        let want3D = depth && frameIndex % 2 == 0
+        let handler = VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up)
+        try? handler.perform(want3D ? [request, request3D] : [request])
         // The person filling the frame most.
         let best = (request.results ?? []).max { Self.seen($0) < Self.seen($1) }
-        let pose = best.flatMap { Self.pose($0, aspect: aspect) }
+        var pose = best.flatMap { Self.pose($0, aspect: aspect) }
+        if want3D, pose != nil, let o = request3D.results?.first { pose?.world = Self.world(o) }
+        if let onScene, t - lastScene >= 2 {
+            lastScene = t
+            try? handler.perform([sceneRequest])
+            let labels = Set((sceneRequest.results ?? []).filter { $0.confidence > 0.3 }.map { $0.identifier.lowercased() })
+            DispatchQueue.main.async { onScene(labels) }
+        }
         DispatchQueue.main.async { [weak self] in self?.onPose?(pose, t - t0, aspect) }
     }
 
@@ -110,6 +130,24 @@ final class FormCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         (.leftHip, .leftHip), (.rightHip, .rightHip), (.leftKnee, .leftKnee), (.rightKnee, .rightKnee),
         (.leftAnkle, .leftAnkle), (.rightAnkle, .rightAnkle),
     ]
+
+    private static let names3D: [(VNHumanBodyPose3DObservation.JointName, FormJoint)] = [
+        (.centerHead, .nose), (.centerShoulder, .neck), (.leftShoulder, .leftShoulder), (.rightShoulder, .rightShoulder),
+        (.leftElbow, .leftElbow), (.rightElbow, .rightElbow), (.leftWrist, .leftWrist), (.rightWrist, .rightWrist),
+        (.leftHip, .leftHip), (.rightHip, .rightHip), (.leftKnee, .leftKnee), (.rightKnee, .rightKnee),
+        (.leftAnkle, .leftAnkle), (.rightAnkle, .rightAnkle),
+    ]
+
+    /// Vision's 3D joints (metres, from the hips), nil when too few were found.
+    static func world(_ o: VNHumanBodyPose3DObservation) -> [FormJoint: SIMD3<Double>]? {
+        var out: [FormJoint: SIMD3<Double>] = [:]
+        for (vn, j) in names3D {
+            guard let p = try? o.recognizedPoint(vn) else { continue }
+            let c = p.position.columns.3
+            out[j] = SIMD3(Double(c.x), Double(c.y), Double(c.z))
+        }
+        return out.count >= 8 ? out : nil
+    }
 
     private static func seen(_ o: VNHumanBodyPoseObservation) -> Int {
         ((try? o.recognizedPoints(.all)) ?? [:]).values.filter { $0.confidence > 0.3 }.count
@@ -242,7 +280,8 @@ struct FormCheckView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("formCheck.mode") private var modeRaw = Mode.mirror.rawValue
     @AppStorage("formCheck.front") private var front = true
-    @AppStorage("formCheck.voice") private var voiceOn = true
+    // Starts from the Coach voice setting (#990): off there means quiet here until unmuted.
+    @AppStorage("formCheck.voice") private var voiceOn = CoachPref.on && CoachPref.voice != .off
     @State private var analyzer: FormAnalyzer?
     @State private var live = FormLive()
     @State private var pose: FormPose?

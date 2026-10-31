@@ -26,11 +26,11 @@ extension AppModel {
         }
         for s in sportLogs where onDay(s.start) {
             out.append(FuelActivity(id: s.id.uuidString, kind: .sport(s.sport), title: s.sport.label, start: s.start, minutes: s.minutes,
-                                    effort: s.effort, done: true))
+                                    kcal: Sports.kcal(s, weightKg: fuelWeightKg), effort: s.effort, done: true))
         }
         for c in climbLogs where onDay(c.start) {
             out.append(FuelActivity(id: c.id.uuidString, kind: .sport(.climbing), title: "Climbing", start: c.start, minutes: c.minutes,
-                                    effort: c.effort, done: true))
+                                    kcal: Climbs.kcal(c, weightKg: fuelWeightKg), effort: c.effort, done: true))
         }
         // Other apps' sessions from Health (Watch, Strava…), unless already logged here at about the same time.
         let snapshot = health?.snapshot

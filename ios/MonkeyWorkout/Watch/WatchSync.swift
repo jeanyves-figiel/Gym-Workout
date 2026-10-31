@@ -231,7 +231,7 @@ final class WatchSync: NSObject {
     static func changeKey(_ model: AppModel) -> String {
         let plan = model.plan.map { "\($0.seed)-\($0.week)-\($0.sessions.count)" } ?? "-"
         // Next up follows the day too (#266): a missed session stops being next.
-        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.state.customWorkoutList?.count ?? 0)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.state.climbs?.count ?? 0)|\(model.state.sportLogs?.count ?? 0)|\(model.profile?.hyrox?.goalMinutes ?? 0)|\(model.watchUploadKey != nil)"
+        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.state.customWorkoutList?.count ?? 0)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.state.climbs?.count ?? 0)|\(model.state.sportLogs?.count ?? 0)|\(model.profile?.hyrox?.goalMinutes ?? 0)|\(model.watchUploadKey != nil)|\(model.state.skipped?.count ?? 0)-\(model.state.skippedAhead?.values.reduce(0) { $0 + $1.count } ?? 0)-\(model.profile?.sportOff?.count ?? 0)|\(CoachPref.on && CoachPref.voice != .off)|\(UserDefaults.standard.object(forKey: AutoNextPref.key) as? Int ?? AutoNextPref.fallback)"
     }
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).
@@ -505,6 +505,8 @@ final class WatchSync: NSObject {
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,
                          glassMl: fuel.prefs.glassMl)
+        s.coachVoiceOff = !CoachPref.on || CoachPref.voice == .off
+        s.autoNextSec = UserDefaults.standard.object(forKey: AutoNextPref.key) as? Int ?? AutoNextPref.fallback
         // Smart Stack (#612 A): Next up rises at the home gym.
         if let g = model.homePlace, let lat = g.latitude, let lng = g.longitude {
             s.gym = WGym(name: g.name, latitude: lat, longitude: lng)
@@ -514,7 +516,8 @@ final class WatchSync: NSObject {
         s.progress = WProgress(
             streakWeeks: stats.currentStreakWeeks, bestStreakWeeks: stats.bestStreakWeeks, thisWeek: stats.thisWeek, target: target,
             records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.find($0.exerciseId)?.name ?? "Exercise", kg: $0.kg) },
-            recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) })
+            recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) },
+            recordCount: stats.personalRecords.count)
         // Game layer (#219, #227): same XP, level and badges as the iPhone.
         let game = model.game
         let badges = model.badges

@@ -1958,7 +1958,8 @@ struct WorkoutPlayerView: View {
         log.load(item: item, sessionId: sessionId, model: model)
         for (i, set) in m.sets.enumerated() where log.rows.indices.contains(i) {
             log.setReps(i, set.reps)
-            log.setKg(i, set.kg)
+            // An unread weight (0) keeps the row's planned kg, like Film this set (#988): never logs 0 kg.
+            if set.kg > 0 { log.setKg(i, set.kg) }
             _ = log.log(i, model: model)
         }
         setsDone[uid] = m.sets.count

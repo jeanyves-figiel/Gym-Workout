@@ -129,10 +129,10 @@ enum Sports {
         return options.filter { $0 != focus }.min { load.clash($0) < load.clash($1) }
     }
 
-    /// Rough active energy from the sport's MET, scaled by effort.
+    /// Rough active energy (same effort scale as Fuel, #989) from the sport's MET, scaled by effort.
     static func kcal(_ log: SportLog, weightKg: Double?) -> Double? {
         guard let w = weightKg, w > 0 else { return nil }
-        let met = log.sport.met * (0.7 + 0.06 * Double(min(max(log.effort, 1), 10)))
+        let met = log.sport.met * (0.6 + 0.07 * Double(min(max(log.effort, 1), 10)))
         return (met * w * Double(log.minutes) / 60).rounded()
     }
 }

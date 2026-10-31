@@ -37,8 +37,13 @@ final class AppModel {
     var tab: MainTab = .train
     /// Settings sheet, opened from the avatar on every tab (#496).
     var settingsOpen = false
-    /// Me sheet (#560): profile, level and Settings from the Me pill.
-    var meOpen = false
+    /// Me page (#560), pushed on the tab it was opened from so the tab bar stays (#991 C); nil = closed.
+    var meTab: MainTab?
+    /// Me page open on the current tab; setting it opens or closes it there.
+    var meOpen: Bool {
+        get { meTab != nil }
+        set { meTab = newValue ? tab : nil }
+    }
     /// Guided onboarding on screen (#664): keeps it up after its plan step made the profile, until the tour step.
     var onboardingOpen = false
     /// App tour bubble showing (#664), index into `AppTour.steps`; nil = no tour.

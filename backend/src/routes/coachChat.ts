@@ -83,7 +83,7 @@ export const coachChatRoutes = (
     try {
       // Slot taken before the call, given back if it fails: a failed call doesn't use up the member's messages.
       const slot = reserveAiCall(db, 'coach_chat_usage', req.userId!, day, dailyLimit, globalLimit);
-      if (slot === 'member') throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} messages today. Coach is back tomorrow!`);
+      if (slot === 'member') throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} messages today. Coach is back at midnight UTC.`);
       if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Coach is very busy today. Try again tomorrow!');
       count = slot;
       try {

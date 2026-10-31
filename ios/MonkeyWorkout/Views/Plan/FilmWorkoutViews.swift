@@ -122,7 +122,8 @@ struct FilmWorkoutView: View {
     @State private var guesses: [FilmWorkout.Guess] = []
     @State private var guessing = false
     @State private var move: Exercise?
-    @State private var analyzer: FormAnalyzer?
+    @State private var analyzer: MoveCounter?
+    @State private var depthSeen: Double = -10
     @State private var live = FormLive()
     @State private var pose: FormPose?
     @State private var aspect = 9.0 / 16
@@ -220,7 +221,7 @@ struct FilmWorkoutView: View {
                     camera.start(front: front)
                 }
             }
-            square("xmark", label: "Close") { close() }
+            square("xmark", label: "Close") { discard() }
         }
         .foregroundStyle(.white)
         .padding(.top, 6)
@@ -265,19 +266,10 @@ struct FilmWorkoutView: View {
                 Spacer()
                 kgStepper
             }
-            HStack(spacing: 8) {
-                Button {
-                    kg = 0
-                    kgRead = false
-                    goLift()
-                } label: {
-                    Label("Bodyweight", systemImage: "figure.stand").lineLimit(1)
-                }
-                .buttonStyle(LimeButtonStyle(fill: .white))
-                Button { goLift() } label: { Label("Lift", systemImage: "play.fill").lineLimit(1) }
-                    .buttonStyle(LimeButtonStyle())
-                    .accessibilityIdentifier("film.lift")
-            }
+            // Hands-free (#969): the first rep starts the set; bodyweight moves need no weight.
+            Label("Or just start lifting: the set starts on its own", systemImage: "figure.strengthtraining.traditional")
+                .font(Theme.label(13))
+                .accessibilityIdentifier("film.lift")
             Text("Dumbbells, kettlebells, plates and machine labels. Read on this iPhone, nothing saved.")
                 .font(.caption.weight(.semibold)).opacity(0.85)
         }
@@ -448,7 +440,7 @@ struct FilmWorkoutView: View {
                 HStack {
                     Text(move?.name ?? "Review").font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.6)
                     Spacer()
-                    square("xmark", label: "Close") { close() }
+                    square("xmark", label: "Close") { discard() }
                 }
                 clipBox
                 HStack(spacing: 8) {
@@ -545,7 +537,7 @@ struct FilmWorkoutView: View {
                 HStack {
                     Text("Workout built").font(Theme.display(28))
                     Spacer()
-                    square("xmark", label: "Close") { close() }
+                    square("xmark", label: "Close") { discard() }
                 }
                 ForEach(Array(moves.enumerated()), id: \.element.id) { i, m in
                     HStack(spacing: 10) {
@@ -590,6 +582,9 @@ struct FilmWorkoutView: View {
             return
         }
         camera.onPose = { p, t, a in feed(p, at: t, aspect: a) }
+        camera.depth = true
+        // The body is followed while the weight is read, so the first rep can start the set (#969).
+        camera.textWithPose = true
         startReading()
         camera.start(front: front)
     }
@@ -612,24 +607,27 @@ struct FilmWorkoutView: View {
     private func goLift() {
         camera.onText = nil
         readings = []
-        frames = []
-        guesses = []
-        if let move, analyzer == nil { analyzer = FormAnalyzer(exercise: move) }
+        // Frames seen while showing the weight stay: the set may already have started (#969).
+        if let move, analyzer == nil { analyzer = MoveCounter(exercise: move) }
         // Back from fixing the weight mid-set: the set's clip goes on.
         if clip == nil { startClip() }
         withAnimation(.snappy) { step = .lift }
     }
 
     private func feed(_ p: FormPose?, at t: Double, aspect a: Double) {
-        guard step == .lift else { return }
+        guard step == .show || step == .lift else { return }
         clock = t
         aspect = a
         pose = p
+        if p?.world != nil { depthSeen = t }
+        // With the 3D pose found, only its frames are counted: angles from the picture and from 3D don't mix.
+        if p != nil, p?.world == nil, t - depthSeen < 2 { return }
         if move == nil {
             frames.append((time: t, pose: p))
             // About the last 40 s.
             if frames.count > 1200 { frames.removeFirst(frames.count - 1200) }
         }
+        if let move, analyzer == nil { analyzer = MoveCounter(exercise: move) }
         guard var an = analyzer else { return }
         let before = an.reps.count
         live = an.add(p, at: t)
@@ -641,21 +639,28 @@ struct FilmWorkoutView: View {
     }
 
     private func tick() {
-        guard step == .lift else { return }
+        guard step == .show || step == .lift else { return }
         if move == nil { guessMove() }
+        if step == .show {
+            // Hands-free (#969): a rep starts the set, no button.
+            if !live.reps.isEmpty { goLift() }
+            return
+        }
         if move != nil, FilmWorkout.setEnded(reps: live.reps.count, lastRepAt: lastRepAt, now: clock) { logSet() }
     }
 
     /// Names the move off the main thread; the top guess is taken without a tap after `repsToAccept` reps.
     private func guessMove() {
-        guard !guessing, frames.count >= 60 else { return }
+        guard !guessing, let a = frames.first?.time, let b = frames.last?.time, b - a >= 2 else { return }
         guessing = true
         let f = frames, plan = planned, recent = model.recentExerciseIds()
         Task.detached(priority: .userInitiated) {
             let g = FilmWorkout.guess(f, models: FilmWorkout.models, planned: plan, recent: recent)
             await MainActor.run {
                 guessing = false
-                guard move == nil, let top = g.first, top.reps >= FilmWorkout.repsToGuess else { return }
+                guard move == nil, let top = g.first else { return }
+                if step == .show { goLift() }
+                guard top.reps >= FilmWorkout.repsToGuess else { return }
                 guesses = g
                 if top.reps >= FilmWorkout.repsToAccept { pick(top.exerciseId) }
             }
@@ -665,7 +670,7 @@ struct FilmWorkoutView: View {
     /// The move is known: its reps so far are counted again on the frames kept, so none are lost.
     private func pick(_ id: String) {
         let e = Exercise.get(id)
-        guard var an = FormAnalyzer(exercise: e) else { return }
+        guard var an = MoveCounter(exercise: e) else { return }
         for f in frames { an.add(f.pose, at: f.time) }
         live = an.live
         analyzer = an
@@ -674,6 +679,7 @@ struct FilmWorkoutView: View {
         guesses = []
         frames = []
         if kg == nil || !kgRead, let last = model.lastWeight(id) { kg = last }
+        if !kgRead, PRPlanner.isBodyweight(e) { kg = 0 }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
@@ -681,7 +687,7 @@ struct FilmWorkoutView: View {
         guard let move, !live.reps.isEmpty else { return }
         sets.append(FilmedSet(reps: live.reps.count, kg: kg ?? 0, form: live.score))
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        analyzer = FormAnalyzer(exercise: move)
+        analyzer = MoveCounter(exercise: move)
         live = FormLive()
         lastRepAt = nil
         undoShown = true
@@ -775,6 +781,17 @@ struct FilmWorkoutView: View {
     private func close() {
         dropClip()
         dismiss()
+    }
+
+    /// X with filmed sets (#988): closes at once, the Undo bar keeps them (logged as on Log workout / Done).
+    private func discard() {
+        var kept = moves
+        if let move, !sets.isEmpty { kept.append(FilmedMove(exerciseId: move.id, sets: sets)) }
+        close()
+        guard !kept.isEmpty else { return }
+        let at = started
+        UndoCloseCenter.shared.deleted("Filmed sets discarded", detail: "\(kept.count) move\(kept.count == 1 ? "" : "s")",
+                                       symbol: "video.slash.fill") { [onDone] in onDone(kept, at) }
     }
 
     // MARK: Clip

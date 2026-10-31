@@ -75,7 +75,7 @@ public enum HistoryAsk {
     // MARK: Questions
 
     /// The answer to a question about the member's workouts; nil when it isn't one (the Coach chat takes it).
-    public static func answer(_ question: String, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> HistoryAnswer? {
+    public static func answer(_ question: String, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> HistoryAnswer? {
         let words = tokens(question)
         let text = " " + words.joined(separator: " ") + " "
         let found = periods(words, now: now, cal)
@@ -102,12 +102,12 @@ public enum HistoryAsk {
     }
 
     /// Chips under the ask bar: the member's most logged main lift, a month back, this month, volume.
-    public static func starters(records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> [String] {
+    public static func starters(records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> [String] {
         starterTiles(records: records, now: now, calendar: cal).map(\.question)
     }
 
     /// Question tiles under the ask bar (#938): kind (BEST, COMPARE, COUNT, VOLUME), a short title and the question asked.
-    public static func starterTiles(records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> [HistoryStarter] {
+    public static func starterTiles(records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> [HistoryStarter] {
         var out: [HistoryStarter] = []
         if let id = topLift(records) {
             let n = short(Exercise.get(id).name).lowercased()
@@ -126,7 +126,7 @@ public enum HistoryAsk {
     // MARK: Tools
 
     /// Heaviest set of one exercise in a period, with the best of each month as the chart.
-    public static func best(exerciseId id: String, period: HistoryPeriod, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> HistoryAnswer {
+    public static func best(exerciseId id: String, period: HistoryPeriod, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> HistoryAnswer {
         let name = short(Exercise.get(id).name)
         let title = "Best \(name.lowercased()) \(phrase(period))"
         guard let top = topSet(id, in: period, records) else {
@@ -149,7 +149,7 @@ public enum HistoryAsk {
     }
 
     /// One exercise's heaviest set in two periods: the change, both numbers, the months between as the chart.
-    public static func compare(exerciseId id: String, then a: HistoryPeriod, now b: HistoryPeriod, records: [WorkoutRecord], calendar cal: Calendar = .current) -> HistoryAnswer {
+    public static func compare(exerciseId id: String, then a: HistoryPeriod, now b: HistoryPeriod, records: [WorkoutRecord], calendar cal: Calendar = Progression.calendar()) -> HistoryAnswer {
         let name = short(Exercise.get(id).name)
         let title = "\(name) · \(a.label.capitalizedFirst) vs \(b.label.capitalizedFirst)"
         let ta = topSet(id, in: a, records), tb = topSet(id, in: b, records)
@@ -170,7 +170,7 @@ public enum HistoryAsk {
     }
 
     /// Workouts in a period vs the one before, hours, longest streak of training days.
-    public static func count(period: HistoryPeriod, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> HistoryAnswer {
+    public static func count(period: HistoryPeriod, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> HistoryAnswer {
         let inside = records.filter { period.contains($0.startedAt) }
         let n = inside.count
         let hours = Double(inside.reduce(0) { $0 + $1.durationSec }) / 3600
@@ -199,7 +199,7 @@ public enum HistoryAsk {
     }
 
     /// Weight moved per week (sets × reps × kg), last `weeks` weeks, this week last.
-    public static func volume(weeks: Int, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> HistoryAnswer {
+    public static func volume(weeks: Int, records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> HistoryAnswer {
         var bars: [HistoryAnswer.Bar] = []
         for back in stride(from: weeks - 1, through: 0, by: -1) {
             guard let d = cal.date(byAdding: .weekOfYear, value: -back, to: now), let w = cal.dateInterval(of: .weekOfYear, for: d) else { continue }
@@ -241,7 +241,7 @@ public enum HistoryAsk {
     }
 
     /// Periods named in the question, in the order they appear.
-    public static func periods(in question: String, now: Date = Date(), calendar cal: Calendar = .current) -> [HistoryPeriod] {
+    public static func periods(in question: String, now: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> [HistoryPeriod] {
         periods(tokens(question), now: now, cal)
     }
 

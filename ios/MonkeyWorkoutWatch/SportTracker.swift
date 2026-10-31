@@ -389,6 +389,8 @@ final class SportTracker: NSObject {
     }
 
     private func speak(_ text: String) {
+        // Coach voice off on the iPhone (#990) mutes the run's cues too; the haptics stay.
+        guard WatchStore.current?.snapshot.coachVoiceOff != true else { return }
         let u = AVSpeechUtterance(string: text)
         u.rate = AVSpeechUtteranceDefaultSpeechRate
         voice.speak(u)

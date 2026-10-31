@@ -413,7 +413,7 @@ struct WinCard: Identifiable {
                                    reps: e.reps.map { min(max($0, 0), 1000) }, kg: e.weightKg.flatMap { $0 > 0 ? min($0, 1000) : nil })
         }
         return WinCard(kind: "workout", refId: r.id.uuidString.lowercased(),
-                       card: CommunityCard(title: r.title, subtitle: subtitle, metric: metric, style: top.rawValue, stats: stats,
+                       card: CommunityCard(title: r.title.utf16Capped(80), subtitle: subtitle, metric: metric, style: top.rawValue, stats: stats,
                                            exercises: exercises.isEmpty ? nil : Array(exercises)),
                        symbol: top.symbol, date: r.startedAt)
     }
@@ -495,5 +495,15 @@ extension AppModel {
         let moments = WinCard.moments(history: state.history, weights: weightEntries, targetPerWeek: gameTarget,
                                       moveXP: MoveStore.shared.xp + FuelStore.shared.xp)
         return workouts + sports + climbs + moments
+    }
+}
+
+extension String {
+    /// Cut to `max` UTF-16 units (#990): the server's text limits count those, so one emoji can count as 2.
+    func utf16Capped(_ max: Int) -> String {
+        guard utf16.count > max else { return self }
+        var t = String(prefix(max))
+        while t.utf16.count > max { t.removeLast() }
+        return t
     }
 }
