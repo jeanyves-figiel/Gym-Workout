@@ -1,29 +1,35 @@
 {
-  "id": "2026-10-30.4",
+  "id": "2026-10-31.1",
   "items": [
     {
-      "symbol": "video.fill",
+      "symbol": "camera.viewfinder",
       "tint": "strength",
-      "title": "Film the whole session",
-      "body": "Prop your phone and train. MonkeyFit finds every exercise and set on its own. Confirm moves on your Watch, save at the end."
+      "title": "Film from any side",
+      "body": "Front, side or 45°, no buttons. The screen edge shows if you're in frame, and weight is asked only when it can't be read."
     },
     {
-      "symbol": "figure.strengthtraining.functional",
-      "tint": "power",
-      "title": "Clearer position guide",
-      "body": "Feet on the plates, hands on the handles. Coach callouts show each joint: tap a step to zoom, or pinch."
-    },
-    {
-      "symbol": "mappin.and.ellipse",
+      "symbol": "lock.shield.fill",
       "tint": "cardio",
-      "title": "Places know what they are",
-      "body": "Climbing gyms, crags, resorts and trails only show for their sports. Set a home spot per sport in Your places."
+      "title": "Coach's AI asks first",
+      "body": "Pick what Coach's AI may see. Change it any time in Settings → Account → AI & privacy."
     },
     {
-      "symbol": "forward.fill",
+      "symbol": "book.fill",
+      "tint": "mobility",
+      "title": "How it works, with the science",
+      "body": "Every rule cites its studies. New topics: Warm-up, Pain, Life stages and Coach."
+    },
+    {
+      "symbol": "person.crop.circle",
+      "tint": "power",
+      "title": "Me keeps the tab bar",
+      "body": "Your profile and Settings open inside the tab you're on."
+    },
+    {
+      "symbol": "wrench.and.screwdriver.fill",
       "tint": "warmup",
-      "title": "Skip just the climb",
-      "body": "On a Lift + Climb day, Skip asks which part. Your lift stays."
+      "title": "Lots of little fixes",
+      "body": "Skip a climb after your workout, Watch follows your After the last set setting, longer Coach chats."
     }
   ]
 }
