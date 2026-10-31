@@ -209,14 +209,14 @@ public final class BodyRig: Sendable {
         let grip = Set(["N", "F"].filter { held[$0]! != nil })
         let R0 = restJoints()
         let up = shoulder - hip
-        let toe = (J["toeN"]! + J["toeF"]!) / 2 - (J["ankleN"]! + J["ankleF"]!) / 2
+        let toe = Self.facing(J, "N", "F")
         let chir = simd_double3x3(rows: [perp(toe, nrm(up)), up, J["shoulderF"]! - J["shoulderN"]!]).determinant
         // rest: x forward, y up, MakeHuman .L at -z, so (fwd, up, R-L) is right-handed
         let side: [String: String] = chir > 0 ? ["L": "N", "R": "F"] : ["L": "F", "R": "N"]
 
         func trunk(_ Jx: [String: SIMD3<Double>], _ l: String, _ r: String) -> (simd_double3x3, simd_double3x3, simd_double3x3) {
             let u = nrm(Jx["shoulder"]! - Jx["hip"]!)
-            let fwT = (Jx["toe" + l]! + Jx["toe" + r]!) / 2 - (Jx["ankle" + l]! + Jx["ankle" + r]!) / 2
+            let fwT = Self.facing(Jx, l, r)
             var out = [simd_double3x3]()
             for lat in [Jx["hip" + r]! - Jx["hip" + l]!, Jx["shoulder" + r]! - Jx["shoulder" + l]!] {
                 var f = cross(u, nrm(lat))
@@ -499,6 +499,24 @@ public final class BodyRig: Sendable {
         let hanging = hd.y < hip.y + 20 && abs(hd.x - sh.x) < 15
         let lateral = abs(hd.z - shoulder.z) > abs(sh.z - shoulder.z) + 12
         return hanging || lateral ? SIMD3(1, 0, 0) : SIMD3(0, 0, 1)
+    }
+
+    /// Which way the body faces, from the feet: where the toes point, plus where bent knees stick out (a knee
+    /// always bends forward). Kneeling, the toes point back while the knees point forward: toes alone turned the
+    /// hips round (#1020). Mirrors rig.facing.
+    static func facing(_ J: [String: SIMD3<Double>], _ l: String, _ r: String) -> SIMD3<Double> {
+        let toeL: SIMD3<Double> = J["toe" + l]!, toeR: SIMD3<Double> = J["toe" + r]!
+        let ankL: SIMD3<Double> = J["ankle" + l]!, ankR: SIMD3<Double> = J["ankle" + r]!
+        let kneeL: SIMD3<Double> = J["knee" + l]!, kneeR: SIMD3<Double> = J["knee" + r]!
+        let hipL: SIMD3<Double> = J["hip" + l]!, hipR: SIMD3<Double> = J["hip" + r]!
+        let ankle: SIMD3<Double> = (ankL + ankR) * 0.5
+        let toe: SIMD3<Double> = (toeL + toeR) * 0.5 - ankle
+        let knee: SIMD3<Double> = (kneeL + kneeR) * 0.5
+        let hip: SIMD3<Double> = (hipL + hipR) * 0.5
+        let line: SIMD3<Double> = (hip + ankle) * 0.5
+        let bulge: SIMD3<Double> = knee - line
+        if simd_length(bulge) > 8 { return toe + bulge * 2.0 }
+        return toe
     }
 
     /// Palm normal for the hand on figure side `d`: fingers wrap around the held object's axis; the palm continues

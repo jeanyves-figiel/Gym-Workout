@@ -163,6 +163,17 @@ def palm_dir(J, d, hd, fa, held, a_fa):
     return p if p @ to_body >= 0 else -p
 
 
+def facing(J, l="N", r="F"):
+    """Which way the body faces, from the feet: where the toes point, plus where bent knees stick out (a knee
+    always bends forward). Kneeling, the toes point back while the knees point forward: toes alone turned the hips
+    round (#1020)."""
+    toe = (J["toe" + l] + J["toe" + r]) / 2 - (J["ankle" + l] + J["ankle" + r]) / 2
+    knee = (J["knee" + l] + J["knee" + r]) / 2
+    line = ((J["hip" + l] + J["hip" + r]) / 2 + (J["ankle" + l] + J["ankle" + r]) / 2) / 2
+    bulge = knee - line
+    return toe + 2.0 * bulge if np.linalg.norm(bulge) > 8 else toe
+
+
 class Rig:
     def __init__(self):
         r = np.load(HERE / "body_rig.npz")
@@ -217,14 +228,14 @@ class Rig:
             grip = tuple(d for d in ("N", "F") if self.held[d] is not None)
         R0 = self.rest_joints()
         up = J["shoulder"] - J["hip"]
-        toe = (J["toeN"] + J["toeF"]) / 2 - (J["ankleN"] + J["ankleF"]) / 2
+        toe = facing(J)
         chir = np.linalg.det(np.stack([perp(toe, nrm(up)), up, J["shoulderF"] - J["shoulderN"]]))
         # rest: x forward, y up, MakeHuman .L at -z, so (fwd, up, R-L) is right-handed
         S = {"L": "N", "R": "F"} if chir > 0 else {"L": "F", "R": "N"}
 
         def trunk(Jx, side_l, side_r):
             u = nrm(Jx["shoulder"] - Jx["hip"])
-            fw_t = (Jx["toe" + side_l] + Jx["toe" + side_r]) / 2 - (Jx["ankle" + side_l] + Jx["ankle" + side_r]) / 2
+            fw_t = facing(Jx, side_l, side_r)
             out = []
             for lat in (Jx["hip" + side_r] - Jx["hip" + side_l], Jx["shoulder" + side_r] - Jx["shoulder" + side_l]):
                 f = np.cross(u, nrm(lat))
