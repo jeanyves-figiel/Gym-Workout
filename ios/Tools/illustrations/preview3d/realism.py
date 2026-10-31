@@ -93,7 +93,7 @@ def ball_points(p, frac=0.8):
 
 
 def side_map(J):
-    up = J["shoulder"] - J["hip"]; toe = (J["toeN"] + J["toeF"]) / 2 - (J["ankleN"] + J["ankleF"]) / 2
+    up = J["shoulder"] - J["hip"]; toe = rigmod.facing(J)
     chir = np.linalg.det(np.stack([rigmod.perp(toe, rigmod.nrm(up)), up, J["shoulderF"] - J["shoulderN"]]))
     return {"N": "L", "F": "R"} if chir > 0 else {"N": "R", "F": "L"}
 

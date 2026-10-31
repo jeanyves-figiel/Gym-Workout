@@ -346,12 +346,40 @@ def _wipers_key(tilt):
     return {n: [round(float(c), 1) for c in v] for n, v in J.items()}
 
 
-SEATED = ("butterfly", "hip-90-90", "windshield-wipers")
+SEATED = ("butterfly", "hip-90-90", "windshield-wipers", "sleeper-stretch")
+
+
+def _sleeper(k, ang):
+    """Sleeper stretch: on the bottom (near) side, trunk lowered so the bottom shoulder rests on the floor (it
+    hovered ~15 up on its elbow), bottom upper arm straight out in front on the floor, forearm turned `ang`
+    degrees from vertical down toward the feet, top hand pressing on the bottom wrist."""
+    import math
+    J = k["j"]
+    for n in list(J):
+        if not n.startswith("_") and not n.endswith(("elbowN", "wristN", "handN", "elbowF", "wristF", "handF")):
+            J[n] = [J[n][0], round(J[n][1] - 13.0, 1), J[n][2]]
+    S = np.asarray(J["shoulderN"], float)
+    E = S + np.array([34.0, 0.0, 0.0]); E[1] = 5.0
+    a = math.radians(ang)
+    fa = np.array([0.0, math.cos(a), math.sin(a)])
+    W = E + 33.0 * fa; H = W + 9.0 * fa
+    J["elbowN"], J["wristN"], J["handN"] = E, W, H
+    SF = np.asarray(J["shoulderF"], float)
+    HF = W + np.array([3.0, 4.0, 0.0])
+    d = (SF - HF) / max(np.linalg.norm(SF - HF), 1e-6)
+    J["handF"], J["wristF"] = HF, HF + 9.0 * d
+    J["elbowF"] = (SF + J["wristF"]) / 2 + np.array([-4.0, 12.0, 8.0])
+    for n in ("elbowN", "wristN", "handN", "elbowF", "wristF", "handF"):
+        J[n] = [round(float(c), 1) for c in J[n]]
 
 
 def seated_scenes(ex, e):
     """Floor exercises drawn from the front with no depth, authored in 3D (#1020)."""
     if ex not in SEATED:
+        return
+    if ex == "sleeper-stretch":
+        for k, ang in zip(e["k"], (0.0, 45.0, 70.0)):
+            _sleeper(k, ang); k.pop("dy", None)
         return
     if ex == "hip-90-90":
         for k, lean in zip(e["k"], (0.0, 0.5, 1.0)):
@@ -595,6 +623,28 @@ def bar_clear(ex, keys, clear=22.0):
             break
 
 
+def pair_weights(J, P):
+    """Two hands at the same height either side of the body with one weight (or two drawn on top of each other)
+    by one hand: the 2D side view hid the far hand's weight. Each hand gets its own (#1020)."""
+    hN, hF = np.asarray(J["handN"], float), np.asarray(J["handF"], float)
+    if abs(hN[1] - hF[1]) > 4 or abs(hN[0] - hF[0]) > 6 or abs(hN[2] - hF[2]) < 20:
+        return
+    W = [p for p in P if p["k"] in ("db", "kb")]
+    near = {d: [p for p in W if np.linalg.norm(np.asarray(p["c"], float) - h) < p.get("r", 8) + 14] for d, h in (("N", hN), ("F", hF))}
+    for d, o in (("N", "F"), ("F", "N")):
+        if near[d] and not near[o]:
+            src = near[d][0]
+            h_from, h_to = (hN, hF) if d == "N" else (hF, hN)
+            c = np.asarray(src["c"], float) - h_from + h_to
+            c[2] = h_to[2] + (src["c"][2] - h_from[2]) * -1     # mirrored across the body
+            twin = [p for p in near[d][1:] if p["k"] == src["k"]]
+            q = twin[0] if twin else dict(src)
+            if not twin:
+                P.append(q)
+            q["c"] = [round(float(x), 1) for x in c]
+            return
+
+
 def complete(ex, keys):
     """Equipment the 2D scenes drew in shorthand gets its real kind: a short bar in a dumbbell exercise is the
     dumbbell, a ball in a kettlebell exercise is the kettlebell, the ball crunch gets its ball."""
@@ -632,8 +682,9 @@ def complete(ex, keys):
                                   ax=[int(round(float(x))) for x in ax]))
         if ("kb" in parts or "kettlebell" in parts) and "kb" not in kinds:
             for p in P:
-                if p["k"] == "ball" and min(np.linalg.norm(h - np.asarray(p["c"], float)) for h in hands) < p.get("r", 8) + 8:
+                if p["k"] == "ball" and min(np.linalg.norm(h - np.asarray(p["c"], float)) for h in hands) < p.get("r", 8) + 14:
                     p["k"] = "kb"; p["r"] = min(float(p.get("r", 9)), 9.0)
+        pair_weights(J, P)
         for p in P:          # a mat drawn with depth came out as a wall: flatten it
             if p["k"] == "block" and p["hi"][1] - p["lo"][1] > 60 and J["hip"][1] < 120 \
                     and (p["hi"][2] - p["lo"][2] > 120 or p["hi"][0] - p["lo"][0] > 120):
@@ -642,10 +693,10 @@ def complete(ex, keys):
             mid = (J["handN"] + J["handF"]) / 2
             P.append(dict(k="kb", c=[round(float(x), 1) for x in mid - np.array([0, 11.5, 0])], r=9.0))
         if ex == "ball-crunch" and "ball" not in kinds:
-            r = 32.0
+            # a stability ball under the hips, the feet stay on the floor (the body used to be lowered onto a
+            # smaller ball and the feet sank through the floor)
+            r = round(float(min(38.0, max(28.0, (J["hip"][1] - 11.0) / 2))), 1)
             P.append(dict(k="ball", c=[round(float(J["hip"][0]), 1), r, 0.0], r=r))
-            k["dy"] = round(float(2 * r - 10 - J["hip"][1]), 1)
-            k["_ballfix"] = True
 
 
 def frames(props):
@@ -654,6 +705,8 @@ def frames(props):
             and min(p["a"][1], p["b"][1]) > 170 and np.linalg.norm(np.asarray(p["a"]) - np.asarray(p["b"])) > 40]
     verts = [p for p in props if p["k"] == "rod" and is_vertical(p) and max(p["a"][1], p["b"][1]) > 150]
     new = []
+    if len(verts) >= 2:          # a machine or rack already stands round it (assisted pull-up): no extra uprights
+        return 0
     for bar in bars:
         y = bar["a"][1]
         for end in ("a", "b"):
@@ -882,6 +935,27 @@ def foot_plates(ex, keys, poses, feet):
                 attach_rods(k["p"], k["p"][i], dv)
         moved += 1
     return moved
+
+
+def widen_foot_plates(keys, poses, feet):
+    """A plate the soles push (leg press sled, calf block) was drawn as wide as the 2D figure's feet: the body
+    stands wider, so the feet hung off its sides. It widens to take both feet (#1020)."""
+    if not keys or any(len(k["p"]) != len(keys[0]["p"]) for k in keys):
+        return
+    for i, p0 in enumerate(keys[0]["p"]):
+        if p0["k"] != "pad":
+            continue
+        need = 0.0
+        for (J, V, held, grip), k in zip(poses, keys):
+            p = k["p"][i]
+            for s in "LR":
+                g = _sole_gap(V, feet[s], p)
+                if g is not None and abs(g[0] - k.get("dy", 0) * g[1][1]) < 4:
+                    need = max(need, float(np.abs(V[feet[s], 2]).max()) + 4.0)
+        if need:
+            for k in keys:
+                if (k["p"][i].get("w") or 17) < need:
+                    k["p"][i]["w"] = round(need, 1)
 
 
 def clear_blocks(ex, keys, poses, hands):
@@ -1255,7 +1329,7 @@ def _push_out(R, V, p, fingers, clear=1.0):
     a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
     ab = b - a; L = np.linalg.norm(ab); u = ab / max(L, 1e-6)
     P = a + np.linspace(0, 1, max(2, int(L / 1.2)))[:, None] * ab
-    hands = V[np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith(("finger", "metacarpal", "wrist"))])]
+    hands = V[np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith(("finger", "metacarpal", "wrist"))]) | fingers]
     th = cKDTree(hands)
     P = P[th.query(P)[0] > 9]
     if not len(P):
@@ -1297,6 +1371,20 @@ def on_floor(keys):
                     p["hi"][1] = 1.5
             elif p["k"] == "disc" and -8 < p["c"][1] - p.get("r", 10) < 0:
                 p["r"] = round(float(p["c"][1]), 1)
+
+
+def props_on_floor(keys):
+    """Last pass: nothing ends below the floor. A ball, roller or weight sits on it; a slab drawn under the floor
+    line (a slider, the 2D mat's thickness) becomes a mat on it; a box rises onto it (#1020)."""
+    for k in keys:
+        for p in k["p"]:
+            if p["k"] in ("ball", "roller", "db", "kb") and p["c"][1] - p.get("r", 8) < -0.5:
+                p["c"][1] = round(float(p.get("r", 8)), 1)
+            elif p["k"] in ("block", "mat") and p["lo"][1] < -0.5:
+                if p["hi"][1] <= 0.5 or p["hi"][1] - p["lo"][1] < 6:
+                    p["lo"][1] = 0.0; p["hi"][1] = 1.5
+                else:
+                    h = -p["lo"][1]; p["lo"][1] = 0.0; p["hi"][1] = round(p["hi"][1] + h, 1)
 
 
 def arms_clear(ex, keys, R, iters=5):
@@ -1341,7 +1429,7 @@ def _arms_clear_key(k, R, names, iters):
             V = R.pose(k["j"], k["p"])
             J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
             S = {"L": "N", "R": "F"} if np.linalg.det(np.stack([
-                rigmod.perp((J["toeN"] + J["toeF"]) / 2 - (J["ankleN"] + J["ankleF"]) / 2, rigmod.nrm(J["shoulder"] - J["hip"])),
+                rigmod.perp(rigmod.facing(J), rigmod.nrm(J["shoulder"] - J["hip"])),
                 J["shoulder"] - J["hip"], J["shoulderF"] - J["shoulderN"]])) > 0 else {"L": "F", "R": "N"}
             N = None
             moved = False
@@ -1507,10 +1595,12 @@ def _component(P, seed, skip):
     return comp
 
 
-def clear_kit(ex, keys, R, rounds=6):
+def clear_kit(ex, keys, R, rounds=14, feet_hold=False):
     """Machine parts, bars resting on the body and plates that pass through the skin move out along the skin
     normal, with the frame they are joined to; the same shift in every key so the machine stays put (#1020)."""
     fingers = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("finger")])
+    if feet_hold:     # after the rebuild: a foot plate / sled the soles were set on stays on them
+        fingers = fingers | np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith(("foot", "toe"))])
     for _ in range(rounds):
         best = {}
         for ki, k in enumerate(keys):
@@ -1528,6 +1618,14 @@ def clear_kit(ex, keys, R, rounds=6):
                 else:
                     continue
                 v = _push_out(R, V, q, fingers)
+                if v is not None and p["k"] == "rod":
+                    a, b = np.asarray(q["a"], float), np.asarray(q["b"], float)
+                    u = (b - a) / max(np.linalg.norm(b - a), 1e-6)
+                    if abs(u[1]) > 0.9:       # an upright post: straight out from the trunk, never in toward it
+                        hip = np.asarray(k["j"]["hip"], float)
+                        away = np.array([a[0] - hip[0], 0.0, a[2] - hip[2]])
+                        if np.linalg.norm(away) > 1e-3:
+                            v = away / np.linalg.norm(away) * np.linalg.norm(v)
                 if v is not None and np.linalg.norm(v) > np.linalg.norm(best.get(i, np.zeros(3))):
                     best[i] = v
         if not best:
@@ -1653,7 +1751,7 @@ def run(ids=None):
             elif min_y < -2.0:
                 dy = -min_y
             elif supported and resid and min(resid) > 1.0 and min_y > 2.0:
-                dy = -min(resid)
+                dy = -min(min(resid), min_y)          # down onto the support, never through the floor
             elif not supported and min_y > 2.5 and not hanging(J, held) and not hangs(ex) \
                     and not any(h is not None and h[0] == "rod" for h in held.values()):
                 # over the bar (muscle-up) is still on it; hands on bars or a held bar (dips, L-sit, a jump) carry it
@@ -1680,10 +1778,16 @@ def run(ids=None):
                 else:
                     k["dy"] = round(dy, 1)
         plates = foot_plates(ex, keys, poses, feet) + clear_blocks(ex, keys, poses, fingers | palms)
+        if plates:
+            poses = [(J, R.pose(k["j"], k["p"]), h, g) for (J, V, h, g), k in zip(poses, keys)]
+        widen_foot_plates(keys, poses, feet)
         done = 0
         for (J, V, held, grip), k in zip(poses, keys):
             dumbbells(k["p"], J, held, grip)
             done += machines(k["p"]) + frames(k["p"])
+        if done and not any("dy" in k for k in keys):
+            clear_kit(ex, keys, R, feet_hold=True)   # machines / frames were rebuilt round the parts: clear the body again
+        props_on_floor(keys)
         if shifts or done or plates or any("dy" in k for k in keys):
             report.append((ex, {i: round(g, 1) for i, (g, _) in shifts.items()}, [k.get("dy", 0) for k in keys], done))
         print(ex, "shifts", {i: round(g, 1) for i, (g, _) in shifts.items()}, "dy", [k.get("dy", 0) for k in keys], "machines", done, "plates", plates, flush=True)

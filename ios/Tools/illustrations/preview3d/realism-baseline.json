@@ -1,7 +1,4 @@
 {
-"ab-wheel": [
-"floor"
-],
 "archer-pull-up": [
 "through"
 ],
@@ -12,17 +9,8 @@
 "assisted-pull-up": [
 "through"
 ],
-"ball-crunch": [
-"floor"
-],
-"ball-hamstring-curl": [
-"floor"
-],
 "barbell-thruster": [
 "through"
-],
-"breathing": [
-"floor"
 ],
 "cable-external-rotation": [
 "limb"
@@ -46,13 +34,7 @@
 "limb",
 "through"
 ],
-"close-grip-pulldown": [
-"through"
-],
 "cross-body": [
-"limb"
-],
-"curtsy-lunge": [
 "limb"
 ],
 "db-side-bend": [
@@ -61,43 +43,16 @@
 "figure-4": [
 "limb"
 ],
-"incline-chest-press-machine": [
+"incline-reverse-fly": [
 "through"
-],
-"kb-front-squat": [
-"grip"
 ],
 "kb-halo": [
 "through"
-],
-"kb-thruster": [
-"grip"
-],
-"lat-pulldown": [
-"through"
-],
-"leg-press-calf-raise": [
-"limb"
-],
-"machine-lateral-raise": [
-"through"
-],
-"massage-ball-foot": [
-"floor"
-],
-"massage-ball-glute": [
-"floor"
 ],
 "med-ball-scoop-toss": [
 "limb"
 ],
 "muscle-up": [
-"through"
-],
-"neutral-grip-pull-up": [
-"through"
-],
-"overhead-triceps": [
 "through"
 ],
 "pendulum-squat": [
@@ -107,14 +62,8 @@
 "prone-pulldown": [
 "limb"
 ],
-"reverse-grip-pulldown": [
-"through"
-],
 "rotational-throw": [
 "limb"
-],
-"seated-db-calf-raise": [
-"grip"
 ],
 "seated-dip-machine": [
 "limb"
@@ -131,17 +80,8 @@
 "ski-erg": [
 "through"
 ],
-"sleeper-stretch": [
-"floor"
-],
-"slider-reverse-lunge": [
-"floor"
-],
-"straight-arm-pulldown": [
-"through"
-],
-"sumo-high-pull": [
-"through"
+"sumo-deadlift": [
+"limb"
 ],
 "supine-twist": [
 "limb"
@@ -155,17 +95,11 @@
 "turkish-get-up": [
 "limb"
 ],
-"weighted-dip": [
-"through"
-],
 "weighted-muscle-up": [
 "through"
 ],
 "wide-grip-cable-row": [
 "grip",
 "limb"
-],
-"wrist-curl": [
-"grip"
 ]
 }

@@ -36,7 +36,7 @@ for ex in ids:
         V = R.pose(k["j"], k["p"]) + np.array([0, k.get("dy", 0), 0])
         J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
         iss = []
-        up = J["shoulder"] - J["hip"]; toe = (J["toeN"] + J["toeF"]) / 2 - (J["ankleN"] + J["ankleF"]) / 2
+        up = J["shoulder"] - J["hip"]; toe = rigmod.facing(J)
         chir = np.linalg.det(np.stack([rigmod.perp(toe, rigmod.nrm(up)), up, J["shoulderF"] - J["shoulderN"]]))
         SIDE = {"N": "L", "F": "R"} if chir > 0 else {"N": "R", "F": "L"}
         # hands
