@@ -28,6 +28,8 @@ struct CoachChatMessage: Identifiable, Equatable {
     var photo: UIImage?
     /// History question (#868 C): the answer card with its mini chart.
     var history: HistoryAnswer?
+    /// Body measurements Coach logged (#1000): the card with Undo.
+    var logged: LoggedMeasurement?
 }
 
 /// Today's conversation, kept while the app runs; a new day starts a fresh chat.
@@ -214,6 +216,7 @@ struct CoachChatView: View {
                     switch o {
                     case let .exercise(id): ExerciseDetailView(exerciseId: id)
                     case .calendar: CalendarView()
+                    case .measurements: MeasurementsView()
                     }
                 }
             }
@@ -304,6 +307,7 @@ struct CoachChatView: View {
                 if let a = m.action { actionButton(a) }
                 if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
                 if let p = m.protect { PainPlanCard(protect: p) }
+                if let l = m.logged { loggedCard(m.id, l) }
                 if let w = m.workout { workoutCard(w, message: m) }
             }
         }
@@ -324,6 +328,47 @@ struct CoachChatView: View {
         .padding(.trailing, 40)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Coach: \(text)")
+    }
+
+    /// Measurements Coach logged (#1000): tap opens Measurements, Undo puts today's entry back.
+    private func loggedCard(_ messageId: UUID, _ l: LoggedMeasurement) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: l.undone ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill")
+                .font(.title2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(l.undone ? "UNDONE" : "LOGGED TODAY").font(Theme.label(11)).tracking(1.2).opacity(0.7)
+                Text(l.summary.prefix(1).uppercased() + l.summary.dropFirst())
+                    .font(Theme.label(15))
+                    .strikethrough(l.undone)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            if !l.undone {
+                Button { undoLogged(messageId) } label: {
+                    Text("Undo").font(Theme.label(13)).foregroundStyle(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Capsule().fill(Theme.ink))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("coach.logged.undo")
+            }
+        }
+        .foregroundStyle(Theme.ink)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.lime))
+        .contentShape(Rectangle())
+        .onTapGesture { opening = .measurements }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Undo") { undoLogged(messageId) }
+        .padding(.leading, 42)
+    }
+
+    private func undoLogged(_ messageId: UUID) {
+        guard let i = store.messages.firstIndex(where: { $0.id == messageId }), let l = store.messages[i].logged, !l.undone else { return }
+        model.undoLogged(l)
+        store.messages[i].logged?.undone = true
+        Haptics.undo()
     }
 
     /// Coach's "Open …" button (#412).
@@ -633,6 +678,15 @@ struct CoachChatView: View {
             return
         }
         guard !t.isEmpty, !sending else { return }
+        // "Weight is now 66" (#1000): logged on the iPhone at once, free, even offline or with Coach's AI off.
+        if photo == nil, let said = MeasurementSay.parse(t) {
+            store.messages.append(CoachChatMessage(role: .member, text: t))
+            draft = ""
+            self.spoken = spoken
+            store.messages.append(CoachChatMessage(role: .coach, text: "Done, it's on today's entry.", onDevice: true, logged: model.logSaid(said)))
+            speak("Logged \(said.summary).")
+            return
+        }
         // About the logged workouts (#868 C): answered on the iPhone with a chart card, free, even when chat is off.
         if photo == nil, HistoryAsk.answer(t, records: model.state.history) != nil {
             store.messages.append(CoachChatMessage(role: .member, text: t))
@@ -673,6 +727,8 @@ struct CoachChatView: View {
                 var seen = Set<String>()
                 reply.exercises = (a.exercises ?? []).compactMap { Exercise.named($0) }.filter { seen.insert($0.id).inserted }
                 reply.protect = a.protect.flatMap(PainProtect.init(chat:))
+                // Coach logs what the member told it (#1000), with Undo on the card.
+                if let m = a.measurement.map(MeasurementSay.init(chat:)), !m.isEmpty { reply.logged = model.logSaid(m) }
                 if let s = a.workout, let profile = model.profile {
                     let w = s.workout(profile: profile, seed: UInt32.random(in: .min ... .max))
                         .withFlow(CoachWorkoutSettings.flowMinutes, profile: profile)
@@ -786,11 +842,13 @@ extension Demo {
 enum CoachOpen: Identifiable {
     case exercise(String)
     case calendar
+    case measurements
 
     var id: String {
         switch self {
         case let .exercise(e): "exercise-\(e)"
         case .calendar: "calendar"
+        case .measurements: "measurements"
         }
     }
 }

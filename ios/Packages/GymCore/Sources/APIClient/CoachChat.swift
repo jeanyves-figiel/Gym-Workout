@@ -67,6 +67,33 @@ public struct CoachChatAnswer<W: Decodable & Sendable>: Decodable, Sendable {
     public var exercises: [String]?
     /// Train around pain (#870): the spot to protect; the app's engine picks the swaps.
     public var protect: CoachChatProtect?
+    /// Body measurements the member told Coach to log (#1000): kg, %, cm.
+    public var measurement: CoachChatMeasurement?
+}
+
+/// What Coach logs (#1000). `girths[].site` is a GirthSite raw value, `side` left / right / none.
+public struct CoachChatMeasurement: Codable, Sendable, Equatable {
+    public struct Girth: Codable, Sendable, Equatable {
+        public var site: String
+        public var side: String
+        public var cm: Double
+
+        public init(site: String, side: String = "none", cm: Double) {
+            self.site = site
+            self.side = side
+            self.cm = cm
+        }
+    }
+
+    public var weightKg: Double?
+    public var bodyFatPct: Double?
+    public var girths: [Girth]?
+
+    public init(weightKg: Double? = nil, bodyFatPct: Double? = nil, girths: [Girth]? = nil) {
+        self.weightKg = weightKg
+        self.bodyFatPct = bodyFatPct
+        self.girths = girths
+    }
 }
 
 /// Coach's train-around-pain offer (#870): area neck … ankle, side left / right / both, level mild / loaded / sharp.

@@ -16,6 +16,9 @@ export const OPEN_TARGETS = ['progress', 'calendar', 'explore', 'fuel', 'setting
 export const PAIN_AREAS = ['neck', 'shoulder', 'elbow', 'wrist', 'lower-back', 'hip', 'knee', 'ankle'] as const;
 export const PAIN_SIDES = ['left', 'right', 'both'] as const;
 export const PAIN_LEVELS = ['mild', 'loaded', 'sharp'] as const;
+/** Tape sites Coach can log (#1000), as the app keys them (GirthSite). */
+export const GIRTH_SITES = ['neck', 'shoulders', 'chest', 'waist', 'hips', 'upperArm', 'forearm', 'thigh', 'calf'] as const;
+export const GIRTH_SIDES = ['left', 'right', 'none'] as const;
 
 export interface ChatTurn {
   role: 'member' | 'coach';
@@ -73,6 +76,13 @@ export interface CoachProtect {
   seeDoctor: boolean;
 }
 
+/** Body measurements the member told Coach to save (#1000); the app logs them on today's entry with Undo. */
+export interface CoachMeasurement {
+  weightKg: number | null;
+  bodyFatPct: number | null;
+  girths: { site: (typeof GIRTH_SITES)[number]; side: (typeof GIRTH_SIDES)[number]; cm: number }[];
+}
+
 export interface CoachAnswer {
   reply: string;
   /** Settings for the engine; null while the coach still asks something. */
@@ -85,6 +95,8 @@ export interface CoachAnswer {
   exercises?: string[];
   /** Train around pain (#870): offer a plan that protects this spot; null otherwise. */
   protect?: CoachProtect | null;
+  /** Log body measurements (#1000): values in kg, % and cm; null when nothing to log. */
+  measurement?: CoachMeasurement | null;
 }
 
 /** `photo`: a JPEG of the machine in front of the member (#856), with the last message. */
@@ -105,6 +117,7 @@ Answering questions (#412):
 - suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
 - Food (Fuel, #496): give general pointers on eating around training, using the day's training and the targets in "Looking at" when given (protein, carbs, water, meals). Suggest simple meals. Never prescribe diets, calorie restriction or supplements as treatment; for a medical condition, pregnancy or an eating disorder suggest a doctor or dietitian.
 - Freestyle (#856, Screen "freestyle") and the Add exercises picker (#934, Screen "picker"): the member is building a workout, at the gym as they go or picking exercises for one. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list.
+- Logging body measurements (#1000): when the member tells you their body weight, body fat or a tape measurement to save ("weight is now 66", "log my waist 82", "I'm 145 pounds today"), put it in "measurement": weightKg, bodyFatPct, girths (site, side "left"/"right" for one limb, else "none", cm). Convert pounds and inches. Only values the member gave; a bare weight number is kilos. The app saves it on today's entry at once with an Undo button: the reply confirms in one short line ("Logged: 66 kilos.") and may add one encouraging word about the trend in "Looking at". Never say you can't log it. measurement null when they only ask about it.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
 Building a workout: only when the member wants one. Turn what they say into settings for the app's workout generator.
@@ -188,8 +201,35 @@ const schema = {
         },
       ],
     },
+    measurement: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          properties: {
+            weightKg: { anyOf: [{ type: 'null' }, { type: 'number' }] },
+            bodyFatPct: { anyOf: [{ type: 'null' }, { type: 'number' }] },
+            girths: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  site: { type: 'string', enum: [...GIRTH_SITES] },
+                  side: { type: 'string', enum: [...GIRTH_SIDES] },
+                  cm: { type: 'number' },
+                },
+                required: ['site', 'side', 'cm'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['weightKg', 'bodyFatPct', 'girths'],
+          additionalProperties: false,
+        },
+      ],
+    },
   },
-  required: ['reply', 'workout', 'action', 'suggestions', 'exercises', 'protect'],
+  required: ['reply', 'workout', 'action', 'suggestions', 'exercises', 'protect', 'measurement'],
   additionalProperties: false,
 } as const;
 
@@ -244,17 +284,38 @@ const cleanProtect = (p: CoachProtect | null | undefined): CoachProtect | null =
   };
 };
 
+const inRange = (v: number | null | undefined, lo: number, hi: number) =>
+  typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v * 10) / 10 : null;
+
+/** Same ranges as the measurements API (#185); anything outside is dropped, nothing left = null (#1000). */
+const cleanMeasurement = (m: CoachMeasurement | null | undefined): CoachMeasurement | null => {
+  if (!m) return null;
+  const seen = new Set<string>();
+  const girths = (m.girths ?? []).flatMap((g) => {
+    const cm = inRange(g.cm, 5, 300);
+    if (cm === null || !GIRTH_SITES.includes(g.site)) return [];
+    const side = GIRTH_SIDES.includes(g.side) ? g.side : 'none';
+    const key = `${g.site}:${side}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ site: g.site, side, cm }];
+  }).slice(0, 18);
+  const out = { weightKg: inRange(m.weightKg, 20, 400), bodyFatPct: inRange(m.bodyFatPct, 2, 75), girths };
+  return out.weightKg === null && out.bodyFatPct === null && girths.length === 0 ? null : out;
+};
+
 export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
   const reply = a.reply.trim().slice(0, 600) || "Let's train!";
   const action = cleanAction(a.action);
   const suggestions = [...new Set((a.suggestions ?? []).map((q) => q.trim().slice(0, 50)).filter(Boolean))].slice(0, 3);
   const exercises = cleanExercises(a.exercises, context);
   const protect = cleanProtect(a.protect);
+  const measurement = cleanMeasurement(a.measurement);
   const w = a.workout;
-  if (!w) return { reply, workout: null, action, suggestions, exercises, protect };
+  if (!w) return { reply, workout: null, action, suggestions, exercises, protect, measurement };
   const groups = [...new Set(w.groups.filter((g) => MUSCLE_GROUPS.includes(g)))];
   const avoidGroups = [...new Set(w.avoidGroups.filter((g) => MUSCLE_GROUPS.includes(g) && !groups.includes(g)))];
-  if (groups.length === 0) return { reply, workout: null, action, suggestions, exercises, protect };
+  if (groups.length === 0) return { reply, workout: null, action, suggestions, exercises, protect, measurement };
   const known = new Set(context.equipment ?? []);
   return {
     reply,
@@ -262,6 +323,7 @@ export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
     suggestions,
     exercises,
     protect,
+    measurement,
     workout: {
       name: w.name.trim().slice(0, 40) || 'Coach workout',
       minutes: Math.min(120, Math.max(15, Math.round(w.minutes || context.sessionMinutes || 45))),
@@ -307,7 +369,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       messages,
     }));
-    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], exercises: [], protect: null };
+    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], exercises: [], protect: null, measurement: null };
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return clean(JSON.parse(text) as CoachAnswer, context);
   };
