@@ -620,6 +620,14 @@
     "path": "/v1/me/reauth/passkey-options"
   },
   {
+    "method": "DELETE",
+    "path": "/v1/me/recipe-reviews/:recipeId"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/recipe-reviews/:recipeId"
+  },
+  {
     "method": "POST",
     "path": "/v1/me/reports"
   },
@@ -682,6 +690,10 @@
   {
     "method": "GET",
     "path": "/v1/packs/:name/:sha"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/recipe-reviews"
   },
   {
     "method": "GET",

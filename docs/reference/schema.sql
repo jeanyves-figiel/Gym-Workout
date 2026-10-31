@@ -579,6 +579,18 @@ CREATE TABLE reauth_grants (
       created_at TEXT NOT NULL
     );
 
+CREATE TABLE recipe_reviews (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipe_id TEXT NOT NULL,
+      stars INTEGER,
+      numbers TEXT,
+      cooking TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, recipe_id)
+    );
+
+CREATE INDEX recipe_reviews_recipe ON recipe_reviews(recipe_id);
+
 CREATE TABLE recovery_codes (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

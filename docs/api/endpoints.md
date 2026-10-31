@@ -124,6 +124,9 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | PUT | `/v1/me/machine-notes/:id/photo` | Bearer | Raw `image/jpeg` body, EXIF stripped → `{photoId, updatedAt}` | 404 `not_found` (sync the note first); 415 `unsupported_media_type`; 400 `invalid_image`; 409 `quota_exceeded` |
 | DELETE | `/v1/me/machine-notes/:id/photo` | Bearer | → `{photoId: null, updatedAt}` | 404 `not_found` |
 | GET | `/v1/me/machine-notes/photos/:photoId` | Bearer | JPEG, owner only, `Cache-Control: private` | 404 `not_found` |
+| GET | `/v1/recipe-reviews` | Bearer | `?ids=a,b` (≤300 catalog recipe ids) → `{summaries{id: {reviews, stars, rated, valuesRight, flagged}}, mine{id: {stars, numbers, cooking, updatedAt}}}` anonymous counts (#1017) | 400 `bad_request` |
+| PUT | `/v1/me/recipe-reviews/:recipeId` | Bearer | `{stars?1–5, numbers?: right\|portion-big\|portion-small\|kcal-off, cooking?: easy\|steps-unclear\|took-longer}` (at least one) → `{mine, summary}`; one review per member and recipe | 400 `validation` |
+| DELETE | `/v1/me/recipe-reviews/:recipeId` | Bearer | → 204 | |
 
 ## Push and notifications
 

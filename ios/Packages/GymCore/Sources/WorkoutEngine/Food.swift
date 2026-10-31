@@ -108,6 +108,11 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
     /// Fibre and salt, g per 100 g (ml), when read off a nutrition label (#872).
     public var fibre: Double?
     public var salt: Double?
+    /// Where `per100` comes from (#1017): checked against USDA FoodData Central, or typical label values.
+    public var source: FoodSource?
+
+    /// The source shown to members: catalog foods say theirs, a barcode food comes from Open Food Facts, anything else is an estimate.
+    public var nutritionSource: FoodSource { source ?? (barcode != nil ? FoodSource(kind: .openFoodFacts) : FoodSource(kind: .estimate)) }
 
     /// Caffeine in this many grams, mg.
     public func caffeineMg(grams: Double) -> Int { Int(((caffeine ?? 0) * grams / 100).rounded()) }
