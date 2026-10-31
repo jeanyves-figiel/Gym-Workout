@@ -1,59 +1,23 @@
 {
-  "id": "2026-10-31.3",
+  "id": "2026-10-31.4",
   "items": [
     {
-      "symbol": "bubble.left.and.text.bubble.right.fill",
-      "tint": "cardio",
-      "title": "Coach knows your training",
-      "body": "Ask Coach sees your recent workouts, lifts, week plan and Fuel, so answers fit what you actually did."
-    },
-    {
-      "symbol": "tv.fill",
+      "symbol": "xmark.circle.fill",
       "tint": "power",
-      "title": "Cast to your TV",
-      "body": "Chromecast now draws the workout on the TV with smooth moves and timers. AirPlay shows the picture too."
-    },
-    {
-      "symbol": "sparkles",
-      "tint": "mobility",
-      "title": "Scan live sees your food",
-      "body": "Point the camera at food, even in its bag: Scan live names it. Ask Monkey when it can't."
-    },
-    {
-      "symbol": "person.2.fill",
-      "tint": "cardio",
-      "title": "Cook together",
-      "body": "Share your meal plan and grocery list with your partner, or send a copy."
-    },
-    {
-      "symbol": "wand.and.stars",
-      "tint": "strength",
-      "title": "Meal plans, one step",
-      "body": "Budget, people and variety asked when you set it up, days filled as soon as you save."
-    },
-    {
-      "symbol": "checkmark.seal.fill",
-      "tint": "mobility",
-      "title": "Numbers you can trust",
-      "body": "Every recipe shows where its numbers come from, and you can review it."
+      "title": "One ✕ to leave",
+      "body": "Pause, finish or discard a workout from the same place: tap ✕ in the player."
     },
     {
       "symbol": "figure.strengthtraining.traditional",
       "tint": "strength",
-      "title": "Real-life positions",
-      "body": "The 3D guide's arms, bars and handles now line up: shrugs, dips, pull-ups and more."
+      "title": "Cleaner 3D moves",
+      "body": "Arms no longer clip through the body when holding weights, bars sit off the neck, and floor stretches like the butterfly look right."
     },
     {
-      "symbol": "eye.slash",
-      "tint": "power",
-      "title": "Hide tabs you don't use",
-      "body": "Fuel or Social not for you? Hide it in Settings → My tabs or from the tab's title."
-    },
-    {
-      "symbol": "hand.draw.fill",
+      "symbol": "tv.fill",
       "tint": "cardio",
-      "title": "Swipe to close, everywhere",
-      "body": "Every screen closes with a swipe. Add workout keeps the tab bar and adds to the day you tapped."
+      "title": "TV closer to live",
+      "body": "AirPlay now trails the phone by about 2 s, and casting stops when you close the workout."
     }
   ]
 }
