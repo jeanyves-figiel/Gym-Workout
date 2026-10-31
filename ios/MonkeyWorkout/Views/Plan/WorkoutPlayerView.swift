@@ -336,7 +336,7 @@ struct WorkoutPlayerView: View {
             OrientationLock.allowLandscape(false)
             saveProgress()
             live.end()
-            TVCast.shared.publish(nil)
+            TVCast.shared.endCasting()
             coach.stop()
             listener.cancel()
             if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }

@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 final class TVStreamer {
     static let shared = TVStreamer()
     static let size = CGSize(width: 1280, height: 720)
-    static let fps = 12
+    static let fps = 15
 
     private(set) var running = false
     private var window: UIWindow?
@@ -78,7 +78,8 @@ final class TVStreamer {
         guard let type = UTType(AVFileType.mp4.rawValue) else { return false }
         let writer = AVAssetWriter(contentType: type)
         writer.outputFileTypeProfile = .mpeg4AppleHLS
-        writer.preferredOutputSegmentInterval = CMTime(value: 1, timescale: 1)
+        // Half-second segments (#1008): the TV's player starts closer to live (5 s behind with 1 s segments).
+        writer.preferredOutputSegmentInterval = CMTime(value: 1, timescale: 2)
         writer.initialSegmentStartTime = .zero
         writer.delegate = server
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -87,8 +88,8 @@ final class TVStreamer {
             AVVideoHeightKey: Int(Self.size.height),
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: 2_500_000,
-                // A key frame every second: each segment starts on one.
-                AVVideoMaxKeyFrameIntervalKey: Self.fps,
+                // A key frame every half second: each segment starts on one.
+                AVVideoMaxKeyFrameIntervalKey: Self.fps / 2,
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
                 AVVideoAllowFrameReorderingKey: false,
             ] as [String: Any],
@@ -143,7 +144,8 @@ final class TVStreamServer: NSObject, AVAssetWriterDelegate, @unchecked Sendable
     /// Latest segments, oldest first: sequence number, duration, data.
     private var parts: [(seq: Int, duration: Double, data: Data)] = []
     private var nextSeq = 0
-    private static let window = 6
+    /// Newest segments listed (2 s): the player can't start further back than this.
+    private static let window = 4
 
     var segments: Int { queue.sync { parts.count } }
 

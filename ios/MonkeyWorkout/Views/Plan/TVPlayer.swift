@@ -43,6 +43,13 @@ final class TVCast {
         live = next
         CastSession.shared.liveChanged(from: old)
     }
+
+    /// The workout closed (#1008): the TV lets go, AirPlay and Chromecast both stop.
+    func endCasting() {
+        publish(nil)
+        if AirPlayStream.shared.active || AirPlayStream.shared.holdsSession { AirPlayStream.shared.end() }
+        if CastSession.shared.deviceName != nil { CastSession.shared.stop() }
+    }
     /// An AirPlay / HDMI screen shows the workout.
     var connected = false
 }
