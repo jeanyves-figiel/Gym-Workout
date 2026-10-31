@@ -75,6 +75,46 @@ import Testing
         for kind in MealKind.allCases { #expect(RecipeBook.catalog.contains { $0.slots.contains(kind) }, "\(kind)") }
     }
 
+    /// #1017: every catalog food says where its numbers come from, and every recipe's macros add up from its ingredient grams.
+    @Test func nutritionSourcesAndTotals() {
+        for f in FoodBook.catalog {
+            let s = f.source
+            #expect(s != nil, "\(f.id) has no source")
+            if s?.kind == .usda { #expect(!(s?.ref ?? "").isEmpty, "\(f.id) USDA without ref") }
+            #expect(s?.kind == .usda || s?.kind == .label, "\(f.id) catalog source")
+            // Energy sanity: kcal near 4·protein + 4·carbs + 9·fat (fibre and alcohol add some, so a wide band; alcohol exempt).
+            let p = f.per100, atwater = p.protein * 4 + p.carbs * 4 + p.fat * 9
+            if !f.contains.contains(.alcohol) {
+                #expect(p.kcal >= atwater * 0.85 - 10 && p.kcal <= atwater * 1.3 + 15, "\(f.id) kcal \(p.kcal) vs \(atwater)")
+            }
+        }
+        for r in RecipeBook.catalog {
+            let t = RecipeTrust.of(r)
+            #expect(t.level != .estimate, "\(r.id) totals don't add up from its ingredients")
+            if let m = t.computed { #expect(RecipeTrust.addsUp(r, computed: m), "\(r.id) drifts from ingredients") }
+            // Dry goods say so, so a member never weighs cooked rice against dry values.
+            let dry = (r.amounts ?? [:]).keys.compactMap { FoodBook.food($0) }.filter { $0.name.contains("(dry)") }
+            if !dry.isEmpty { #expect(r.ingredients.contains { $0.contains("dry") || $0.contains("uncooked") }, "\(r.id) no dry weight named") }
+        }
+        #expect(FoodBook.catalog.filter { $0.source?.kind == .usda }.count >= 150)
+    }
+
+    @Test func trustLevels() {
+        let own = Recipe(name: "Mine", slots: [.lunch], minutes: 5, servings: 1, protein: 10, carbs: 10, fat: 5, kcal: 125, veg: 0,
+                         base: .vegan, contains: [], tags: [], cuisine: "Any")
+        #expect(RecipeTrust.of(own).level == .estimate)
+        var r = RecipeBook.catalog.first { RecipeTrust.of($0).level == .checked }!
+        #expect(RecipeTrust.of(r).checkedCount == RecipeTrust.of(r).lines.count)
+        r.kcal *= 2
+        #expect(RecipeTrust.of(r).level == .estimate)
+        var off = FoodBook.catalog[0]
+        off.source = nil
+        off.barcode = "7610000000000"
+        #expect(off.nutritionSource.kind == .openFoodFacts)
+        off.barcode = nil
+        #expect(off.nutritionSource.kind == .estimate)
+    }
+
     @Test func dietAndAllergensFilter() {
         let vegan = FuelPrefs(diet: .vegan, avoid: [.nuts])
         let list = RecipeBook.list(RecipeFilter(), prefs: vegan, favourites: [], own: [])

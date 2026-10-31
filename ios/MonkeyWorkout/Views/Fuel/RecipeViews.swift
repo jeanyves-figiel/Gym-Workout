@@ -152,6 +152,7 @@ struct RecipeDetailView: View {
     @State private var eaten = false
     @State private var posting = false
     @State private var story = false
+    @State private var reviewing: RecipeReviewSheet.Start?
 
     init(recipe: Recipe, eat: (slot: FuelSlot, plan: FuelPlan, day: Date)? = nil) {
         self.recipe = recipe
@@ -162,9 +163,10 @@ struct RecipeDetailView: View {
     var body: some View {
         let prefs = store.prefs
         let fav = store.saved.favourites.contains(recipe.id)
+        let trust = RecipeTrust.of(recipe, foods: store.saved.foods)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                hero
+                hero(trust)
                 if !recipe.fits(prefs) {
                     Label("Outside your diet or avoid list", systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote.weight(.bold)).foregroundStyle(Color(hex: 0xFFD23D))
@@ -181,6 +183,7 @@ struct RecipeDetailView: View {
                 }
                 Text(prefs.noNumbers ? "Per serving." : "Per serving · \(recipe.portions.palms) ✋ \(recipe.portions.cups) 🤲 \(recipe.portions.fists) ✊ \(recipe.portions.thumbs) 👍\(recipe.fibre.map { " · \($0) g fibre" } ?? "")")
                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                RecipeTrustCard(recipe: recipe, trust: trust, reviewing: $reviewing)
 
                 HStack {
                     Text("Ingredients").font(Theme.display(20))
@@ -262,23 +265,29 @@ struct RecipeDetailView: View {
             }
         }
         .sheet(isPresented: $posting) { ShareRecipeSheet(recipe: recipe) }
+        .sheet(item: $reviewing) { RecipeReviewSheet(recipe: recipe, start: $0) }
+        .task { await RecipeReviewStore.shared.load([recipe.id], api: model.api, demo: model.demo) }
         .sheet(isPresented: $story) { StorySheet(poster: .recipe(recipe)) }
         .fullScreenCover(isPresented: $cooking) { CookModeView(recipe: recipe, servings: servings) }
         .sheet(isPresented: $editing) { NavigationStack { RecipeEditorView(recipe: recipe) } }
         .confirmationDialog("Which meal?", isPresented: $choosingMeal, titleVisibility: .visible) {
             let plan = model.fuelPlan(on: Date())
             ForEach(plan.slots) { s in
-                Button("\(s.time) · \(s.title)") { tick(s, plan: plan, day: Date()) }
+                Button("\(s.time) · \(s.title)") {
+                    tick(s, plan: plan, day: Date())
+                    promptReview()
+                }
             }
         }
     }
 
-    private var hero: some View {
+    private func hero(_ trust: RecipeTrust) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 PlatePicture(recipe: recipe, size: 104)
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
+                    TrustBadge(trust.level)
                     Text("\(recipe.minutes) min").font(Theme.display(24))
                     if let prep = recipe.prep, let cook = recipe.cook {
                         Text("\(prep) prep · \(cook) cook").font(Theme.label(11)).opacity(0.85)
@@ -327,6 +336,15 @@ struct RecipeDetailView: View {
             dismiss()
         } else {
             choosingMeal = true
+        }
+    }
+
+    /// After logging from the meal picker: ask once for a review (#1017).
+    private func promptReview() {
+        guard eat == nil, RecipeReviewStore.shared.shouldPrompt(recipe) else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            reviewing = .ate
         }
     }
 

@@ -134,6 +134,17 @@ export const ensureSchemaExtras = (db: DB): void => {
       cache_write INTEGER NOT NULL,
       PRIMARY KEY (day, feature, model)
     );
+    -- Recipe reviews (#1017): stars + chips per member per catalog recipe (routes/recipeReviews.ts).
+    CREATE TABLE IF NOT EXISTS recipe_reviews (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipe_id TEXT NOT NULL,
+      stars INTEGER,
+      numbers TEXT,
+      cooking TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, recipe_id)
+    );
+    CREATE INDEX IF NOT EXISTS recipe_reviews_recipe ON recipe_reviews(recipe_id);
     -- Machine setup notes (#355), private to the member (routes/machineNotes.ts).
     CREATE TABLE IF NOT EXISTS machine_notes (
       id TEXT PRIMARY KEY,
