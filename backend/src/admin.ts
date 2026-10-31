@@ -8,6 +8,7 @@
  *   node src/admin.ts challenges                      week challenge suggestions waiting for review (#748)
  *   node src/admin.ts challenge-approve <id>          into the member-week vote
  *   node src/admin.ts challenge-reject <id>
+ *   node src/admin.ts recipe-flags                    recipes whose numbers members flagged in reviews (#1017)
  *   node src/admin.ts ai-usage [--days N]              paid AI calls per day and feature: calls, failures, tokens, cost (#877)
  *   node src/admin.ts tester-add <email|account id> [--note text]  staging only: allow Pro test mode (#924)
  *   node src/admin.ts tester-remove <email> | testers | accounts      accounts: ids, masked emails, nicknames
@@ -17,6 +18,7 @@ import { aiUsageReport } from './aiUsage.ts';
 import { pendingSuggestions, reviewSuggestion } from './community/challenges.ts';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
+import { recipeFlags } from './routes/recipeReviews.ts';
 import { maskEmail } from './emailChange.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
 
@@ -72,6 +74,10 @@ switch (cmd) {
   case 'list':
     // Masked: the workflow log is public (#432).
     console.table(subs.grants().map((g) => ({ ...g, email: g.email ? maskEmail(g.email) : null })));
+    break;
+  case 'recipe-flags':
+    // Recipe ids and counts only, no member data.
+    console.table(recipeFlags(db));
     break;
   case 'challenges':
     // Nicknames only, no emails: the workflow log is public (#432).

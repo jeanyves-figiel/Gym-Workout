@@ -559,7 +559,7 @@ struct PositionCamera: Equatable {
     init(position: ExercisePosition, size: CGSize, zoom: Double = 1, focus: SIMD3<Double>? = nil) {
         var lo = SIMD3<Double>(repeating: .greatestFiniteMagnitude), hi = -lo
         for k in position.keys {
-            for p in k.joints.values {
+            for (n, p) in k.joints where !n.hasPrefix("_") {   // "_elev" is a shrug amount, not a point
                 lo = pointwiseMin(lo, p)
                 hi = pointwiseMax(hi, p)
             }
@@ -954,7 +954,8 @@ enum Mannequin {
     }
 
     static func floor(around k: ExercisePosition.Key) -> SCNNode {
-        let xs = k.joints.values.map(\.x), zs = k.joints.values.map(\.z)
+        let pts = k.joints.filter { !$0.key.hasPrefix("_") }.values
+        let xs = pts.map(\.x), zs = pts.map(\.z)
         let cx = ((xs.min() ?? 0) + (xs.max() ?? 0)) / 2, cz = ((zs.min() ?? 0) + (zs.max() ?? 0)) / 2
         // studio disc: dark, matte, catches the key light's shadow
         let g = SCNCylinder(radius: 150, height: 1)

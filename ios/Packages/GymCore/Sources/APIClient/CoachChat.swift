@@ -38,13 +38,16 @@ public struct CoachChatContext: Codable, Sendable, Equatable {
     public var todayExercises: [String]?
     /// Today, 1 = Monday … 7 = Sunday (#999), for "move it to Saturday".
     public var weekday: Int?
+    /// The member's own training (#1010): recent workouts, lift trends, body weight (`CoachDigest`), no ids.
+    public var training: [String]?
 
     public init(goal: String? = nil, level: String? = nil, sessionMinutes: Int? = nil, equipment: [String]? = nil,
                 readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil, screen: String? = nil, focus: String? = nil,
                 pronouns: String? = nil, callName: String? = nil, memory: [String]? = nil, exercises: [String]? = nil,
-                todayExercises: [String]? = nil, weekday: Int? = nil) {
+                todayExercises: [String]? = nil, weekday: Int? = nil, training: [String]? = nil) {
         self.todayExercises = todayExercises
         self.weekday = weekday
+        self.training = training
         self.memory = memory
         self.exercises = exercises
         self.pronouns = pronouns

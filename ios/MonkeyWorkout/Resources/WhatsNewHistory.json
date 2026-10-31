@@ -1,6 +1,37 @@
 {
   "releases": [
     {
+      "id": "2026-10-31.2",
+      "build": 92,
+      "date": "2026-10-31",
+      "items": [
+        {
+          "symbol": "bubble.left.and.text.bubble.right.fill",
+          "tint": "cardio",
+          "title": "Coach does it for you",
+          "body": "Tell Coach you drank water, ate, how you feel, or to move, skip or swap today's workout. Undo any time."
+        },
+        {
+          "symbol": "ruler.fill",
+          "tint": "mobility",
+          "title": "Coach logs your measurements",
+          "body": "Say \"weight is now 66\" or \"waist 82 cm\" and it's saved, with Undo."
+        },
+        {
+          "symbol": "xmark.circle.fill",
+          "tint": "strength",
+          "title": "Close a custom session any time",
+          "body": "What you added stays. Resume it from Train."
+        },
+        {
+          "symbol": "arrow.down.circle.fill",
+          "tint": "power",
+          "title": "See when your moves were updated",
+          "body": "Settings → HD animations shows the pack date, last check and update. Train shows a pill while new moves download."
+        }
+      ]
+    },
+    {
       "id": "2026-10-31.1",
       "build": 91,
       "date": "2026-10-31",

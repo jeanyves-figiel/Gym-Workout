@@ -71,14 +71,14 @@ final class AppSmokeUITests: XCTestCase {
     func testEveryTabOpens() {
         launchTabs()
         openTab("Explore")
-        XCTAssertTrue(app.staticTexts["Explore"].firstMatch.waitForExistence(timeout: 10), "Explore title")
+        XCTAssertTrue(app.descendants(matching: .any)["tab.menu.explore"].firstMatch.waitForExistence(timeout: 10), "Explore title")
         openTab("Insights")
-        XCTAssertTrue(app.staticTexts["Insights"].firstMatch.waitForExistence(timeout: 10), "Insights title")
+        XCTAssertTrue(app.descendants(matching: .any)["tab.menu.progress"].firstMatch.waitForExistence(timeout: 10), "Insights title")
         openTab("Fuel")
-        XCTAssertTrue(app.staticTexts["Fuel"].firstMatch.waitForExistence(timeout: 10), "Fuel title")
+        XCTAssertTrue(app.descendants(matching: .any)["tab.menu.fuel"].firstMatch.waitForExistence(timeout: 10), "Fuel title")
         openTab("Social")
         XCTAssertNotNil(firstToExist([app.buttons["Share a win"], app.navigationBars["Join the community"],
-                                      app.staticTexts["Social"]], timeout: 10), "Social opens")
+                                      app.descendants(matching: .any)["tab.menu.community"]], timeout: 10), "Social opens")
         openTab("Train")
         XCTAssertNotNil(firstToExist([button(containing: "Start workout"), button(containing: "Resume workout"),
                                       app.buttons["me.pill"]], timeout: 10), "Back on Train")
@@ -145,7 +145,7 @@ final class AppSmokeUITests: XCTestCase {
     func testExploreOpensExerciseAndBack() {
         launchTabs()
         openTab("Explore")
-        XCTAssertTrue(app.staticTexts["Explore"].firstMatch.waitForExistence(timeout: 10), "Explore opens")
+        XCTAssertTrue(app.descendants(matching: .any)["tab.menu.explore"].firstMatch.waitForExistence(timeout: 10), "Explore opens")
 
         // A muscle page (demo screen, so Explore's current mode doesn't matter) → an exercise → close.
         launch("muscle")
@@ -168,7 +168,7 @@ final class AppSmokeUITests: XCTestCase {
     func testProgressOpensHistory() {
         launchTabs()
         openTab("Insights")
-        XCTAssertTrue(app.staticTexts["Insights"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["tab.menu.progress"].firstMatch.waitForExistence(timeout: 10))
         // Either the History tile or the Recent sessions strip's See all (#442).
         let seeAll = button(beginningWith: "See all")
         let tile = button(containing: "History")
@@ -188,7 +188,7 @@ final class AppSmokeUITests: XCTestCase {
     func testFuelAddsWater() {
         launchTabs()
         openTab("Fuel")
-        XCTAssertTrue(app.staticTexts["Fuel"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["tab.menu.fuel"].firstMatch.waitForExistence(timeout: 10))
         // The tank's water square adds a glass per tap (#733).
         let water = app.descendants(matching: .any)["fuel.tank.water"].firstMatch
         XCTAssertTrue(water.waitForExistence(timeout: 10), "Water square")
@@ -205,7 +205,7 @@ final class AppSmokeUITests: XCTestCase {
         launchTabs()
         openTab("Social")
         XCTAssertNotNil(firstToExist([app.buttons["Share a win"], app.navigationBars["Join the community"],
-                                      app.staticTexts["Social"]], timeout: 15), "Social feed or join page")
+                                      app.descendants(matching: .any)["tab.menu.community"]], timeout: 15), "Social feed or join page")
     }
 
     // MARK: Me → Settings

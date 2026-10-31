@@ -56,6 +56,7 @@ struct AccountView: View {
         static let bike = "Bike sensors power meter cadence heart rate strap ftp zones cycling watts"
         static let style = "Style look theme monkey coach watch face home"
         static let widgets = "Home Screen widgets"
+        static let tabs = "My tabs hide tab bar Fuel Social Insights Explore"
         static let hd = "HD animations exercise movement download quality storage size wi-fi"
         static let monkeyGrade = "MonkeyGrade climbing connected apps"
         static let password = "Password sign in"
@@ -76,7 +77,7 @@ struct AccountView: View {
         static let you = [pro, profile, gym, places, body, onboarding]
         static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift, garmin, bike]
-        static let look = [style, widgets, hd, monkeyGrade]
+        static let look = [style, tabs, widgets, hd, monkeyGrade]
         static let account = [password, email, security, devices, lock, ai, export, signOut, delete]
         static let help = [whatsNew, report, privacy, terms, support]
         static let all = you + training + watch + look + account + help
@@ -350,6 +351,14 @@ struct AccountView: View {
                         SettingsRow(symbol: WatchHomePref.shared.style.phoneSymbol, title: "Style", value: WatchHomePref.shared.style.phoneTitle)
                     }
                     .buttonStyle(.plain)
+                }
+                // My tabs (#1004 A): hide Explore, Insights, Fuel or Social.
+                if search.matches(Find.tabs) {
+                    NavigationLink { MyTabsView() } label: {
+                        SettingsRow(symbol: "dock.rectangle", title: "My tabs", value: TabsPref.shared.summary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.tabs")
                 }
                 // Home Screen widgets (#297): presets, look and topic per size.
                 if search.matches(Find.widgets) {

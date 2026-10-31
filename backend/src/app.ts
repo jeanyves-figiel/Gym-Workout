@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import compress from '@fastify/compress';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
@@ -19,6 +20,7 @@ import { followerIds } from './community/moderation.ts';
 import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { liveRoutes } from './routes/live.ts';
 import { referralPublicRoutes, referralRoutes } from './routes/referrals.ts';
+import { householdRoutes } from './routes/household.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
 import { coachReviewRoutes } from './routes/coachReview.ts';
@@ -46,6 +48,7 @@ import { climbRoutes } from './routes/climbs.ts';
 import { sportRoutes, watchSportRoutes } from './routes/sports.ts';
 import { garminRoutes, garminWatchRoutes } from './routes/garmin.ts';
 import { machineNoteRoutes } from './routes/machineNotes.ts';
+import { recipeReviewRoutes } from './routes/recipeReviews.ts';
 import { reportRoutes } from './routes/reports.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
@@ -57,6 +60,7 @@ import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscri
 import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
 import { legalRoutes } from './routes/legal.ts';
+import { castRoutes } from './routes/cast.ts';
 import { remoteRoutes } from './remote.ts';
 import { reauthToken, securityPublicRoutes, securityRoutes } from './routes/security.ts';
 import { SecurityService, type WebAuthnVerifier } from './security.ts';
@@ -220,6 +224,11 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   referralPublicRoutes(app, deps.db, deps.config.appName, deps.config.inviteAppUrl);
   appStoreNotificationRoutes(app, subscriptions);
   legalRoutes(app, deps.config);
+  // Chromecast receiver + movement clips (#1008): the image's copy, else (dev) the app's own resources.
+  castRoutes(app, [
+    process.env.CAST_MOTION_DIR || join(deps.config.remote.dir, 'motion'),
+    join(import.meta.dirname, '..', '..', 'ios', 'MonkeyWorkout', 'Resources', 'Motion'),
+  ]);
   remoteRoutes(app, deps.config.remote.dir, deps.config.remote.signingKey, (m) => app.log.error(m));
   securityPublicRoutes(app, security, deps.config.authRateLimitPerMin);
   watchSportRoutes(app, deps.db, deps.now ?? (() => new Date()));
@@ -344,12 +353,14 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       liveRoutes(r, deps.db, now, push);
       referralRoutes(r, deps.db, now);
+      householdRoutes(r, deps.db, now, push);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       climbRoutes(r, deps.db, deps.now ?? (() => new Date()));
       sportRoutes(r, deps.db, deps.now ?? (() => new Date()));
       garminRoutes(r, deps.db, deps.now ?? (() => new Date()));
       machineNoteRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      recipeReviewRoutes(r, deps.db, now);
       reportRoutes(r, { db: deps.db, now, mailer: deps.mailer, to: deps.config.legal.email, fetch: outbound, config: deps.config.reports, log: warn });
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);

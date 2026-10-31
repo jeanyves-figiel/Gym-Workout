@@ -14,6 +14,7 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE.parent.parent / "Packages/GymCore/Sources/WorkoutEngine/Resources/ExercisePositions.json.z"
 MUSH = 24          # delta-mush smoothing passes
 LIMB = {"arm": (42.0, 38.0), "leg": (56.0, 54.0)}    # figure.py lengths
+ARM_STRETCH = 1.03     # the body keeps its own arm length (#1020): held things are moved into its reach (contact.py)
 
 
 def nrm(v):
@@ -204,9 +205,14 @@ class Rig:
     def pose(self, J, props=None, grip=None):
         """props: the key's prop list (positions.py JSON). A hand closes into a fist only around something it holds,
         and the palm turns to the grip; `grip` forces fists on the given figure sides ("N"/"F")."""
+        ev = J.get("_elev")     # shoulder girdle raised (shrugs), per figure side N / F (#1020)
+        self.elev = {"N": float(ev[0]), "F": float(ev[1])} if ev is not None else {}
         J = {k: np.asarray(v, float) for k, v in J.items() if not k.startswith("_")}
         self.held = {d: held_object(J, d, props or []) for d in ("N", "F")}
         self.grip = {}          # where each gripping hand's fist closes (world), filled by _arm
+        self.reach = {}         # figure side: (body shoulder, wrist target, arm length), for contact.reach
+        self.need = {}          # arm: distance shoulder → wrist target / body arm length (contact.py, realism.py)
+        self.stretch = {}       # limb scale used to reach the target ("armN", "legF"...): > 1 = stretched (realism.py)
         if grip is None:
             grip = tuple(d for d in ("N", "F") if self.held[d] is not None)
         R0 = self.rest_joints()
@@ -321,6 +327,13 @@ class Rig:
         Rcl, Rsh = out["clavicle"][0], out["shoulder01"][0]
         S_ = clav_h + Rcl @ (h(f"shoulder01.{s}") - h(f"clavicle.{s}"))
         S_ = S_ + Rsh @ (sh0 - h(f"shoulder01.{s}"))
+        el = self.elev.get(d, 0.0)
+        if el > 0:              # shrug: the clavicle swings up about its head until the shoulder sits `el` higher
+            v = S_ - clav_h
+            E = between(nrm(v), nrm(v + (Rc @ np.array([0, 1.0, 0])) * el))
+            Rcl, Rsh = E @ Rcl, E @ Rsh
+            out = {"clavicle": (Rcl,), "shoulder01": (Rsh,)}
+            S_ = clav_h + E @ v
         # the figure is narrower than the body: carry the shoulder's sideways offset to the elbow and to hands that
         # hang outside the shoulder line (hands that grip or meet in front stay put)
         lat = nrm(J["shoulder" + d] - J["shoulder"])
@@ -344,7 +357,10 @@ class Rig:
             Wt[1] = max(Wt[1], 4.0)                          # a flat hand on the floor: wrist a palm's thickness up
         self.grip[d] = Wt + goff
         reach = np.linalg.norm(J["wrist" + d] - J["shoulder" + d])
-        k = np.clip((LIMB["arm"][0] + LIMB["arm"][1]) * np.linalg.norm(Wt - S_) / max(reach, 1e-6) / (a0 + b0), 0.95, 1.4)
+        k = np.clip((LIMB["arm"][0] + LIMB["arm"][1]) * np.linalg.norm(Wt - S_) / max(reach, 1e-6) / (a0 + b0), 0.95, ARM_STRETCH)
+        self.stretch["arm" + d] = float(k)
+        self.need["arm" + d] = float(np.linalg.norm(Wt - S_) / (a0 + b0))
+        self.reach[d] = (S_, Wt, a0 + b0)
         E, Wp = two_bone(S_, Wt, a0 * k, b0 * k, Jel + (Jel - (S_ + Wt) / 2) * 2)
         ua, fa = E - S_, Wp - E
         bend = np.linalg.norm(perp(nrm(fa), nrm(ua)))
@@ -357,7 +373,9 @@ class Rig:
         a_fa = -perp(nrm(ua), nrm(fa)) if bend > 0.2 else Rua @ a_fa0
         Rfa = rot(basis(fa0, a_fa0), basis(fa, a_fa))
         hd = J["hand" + d] - J["wrist" + d]
-        Rhd = rot(basis(hd0 - wr0, self.palm[s]), basis(hd, palm_dir(J, d, hd, fa, self.held.get(d), a_fa)))
+        # a gripping hand keeps the palm the grip was placed with (the posed forearm can flip the sign, #1020)
+        pd2 = pd if held is not None else palm_dir(J, d, hd, fa, self.held.get(d), a_fa)
+        Rhd = rot(basis(hd0 - wr0, self.palm[s]), basis(hd, pd2))
         return {**out, "upperarm01": (Rua, k), "upperarm02": (Rua, k), "lowerarm01": (Rfa, k), "lowerarm02": (Rfa, k),
                 "wrist": (Rhd,)}
 
@@ -378,6 +396,7 @@ class Rig:
         Jkn = J["knee" + d] + off
         reach = np.linalg.norm(J["ankle" + d] - J["hip" + d])
         k = np.clip((LIMB["leg"][0] + LIMB["leg"][1]) * np.linalg.norm(At - Hp) / max(reach, 1e-6) / (a0 + b0), 0.9, 1.15)
+        self.stretch["leg" + d] = float(k)
         K, Ap = two_bone(Hp, At, a0 * k, b0 * k, Jkn + (Jkn - (Hp + At) / 2) * 2)
         th, sn = K - Hp, Ap - K
         ft = Toe - Ap

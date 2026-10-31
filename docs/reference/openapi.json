@@ -27,6 +27,9 @@
       "name": "Legal pages"
     },
     {
+      "name": "Chromecast receiver (#1008)"
+    },
+    {
       "name": "Over-the-air config (#583)"
     },
     {
@@ -52,6 +55,9 @@
     },
     {
       "name": "Invite a friend (#745)"
+    },
+    {
+      "name": "Fuel with a partner (#1014)"
     },
     {
       "name": "Workout library"
@@ -161,6 +167,59 @@
           "Legal pages"
         ],
         "summary": "Support page (HTML)",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cast/receiver": {
+      "get": {
+        "tags": [
+          "Chromecast receiver (#1008)"
+        ],
+        "summary": "Cast receiver page (HTML, CAF v3): TV workout layout, timers count locally",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cast/motion/{file}": {
+      "get": {
+        "tags": [
+          "Chromecast receiver (#1008)"
+        ],
+        "summary": "Light movement clip motion-<exercise id>.mp4 (byte ranges, cached 1 day)",
+        "description": "Errors / limits: 404 not_found unknown clip; 416 bad range",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [],
         "responses": {
           "default": {
@@ -2041,6 +2100,101 @@
         }
       }
     },
+    "/v1/recipe-reviews": {
+      "get": {
+        "tags": [
+          "Sync: member content"
+        ],
+        "summary": "?ids=a,b (≤300 catalog recipe ids) → {summaries{id: {reviews, stars, rated, valuesRight, flagged}}, mine{id: {stars, numbers, cooking, updatedAt}}} anonymous counts (#1017)",
+        "description": "Errors / limits: 400 bad_request",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/recipe-reviews/{recipeId}": {
+      "put": {
+        "tags": [
+          "Sync: member content"
+        ],
+        "summary": "{stars?1–5, numbers?: right|portion-big|portion-small|kcal-off, cooking?: easy|steps-unclear|took-longer} (at least one) → {mine, summary}; one review per member and recipe",
+        "description": "Errors / limits: 400 validation",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sync: member content"
+        ],
+        "summary": "→ 204",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/push-device": {
       "put": {
         "tags": [
@@ -3782,6 +3936,291 @@
         }
       }
     },
+    "/v1/household": {
+      "get": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "→ {household: {id, rev, state, updatedAt, updatedBy, members[{userId, nickname, joinedAt, me}] (me first), bought[{itemId, by, at}]} | null, invites: {incoming[{id, from, members, createdAt}], outgoing[{id, to, createdAt}]}}",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/invites": {
+      "post": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{userId} (a Social member) → same as GET; makes my household on first invite; push to them (once a day per pair)",
+        "description": "Errors / limits: 400 own_content, household_full, too_many_invites; 403 community_profile_required; 404 not_found (not a member, blocked); 409 already_member; 20/hour",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/invites/{id}/accept": {
+      "post": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{leaveCurrent?} → same as GET; push to inviter",
+        "description": "Errors / limits: 404; 409 in_household (already share with others, send leaveCurrent: true); 400 household_full",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/invites/{id}": {
+      "delete": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Decline (invitee) or cancel (inviter) → 204",
+        "description": "Errors / limits: 404",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/state": {
+      "put": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{rev, state} → {rev, updatedAt}",
+        "description": "Errors / limits: 404 no_household; 409 stale + current household (someone wrote first); 413 too_large",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/bought": {
+      "put": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "{itemIds[≤500], bought} → {bought}",
+        "description": "Errors / limits: 404 no_household",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/household/me": {
+      "delete": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Leave → 204",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fuel-shares": {
+      "post": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Send a copy: {toUserId, kind: plan|groceries|both, payload: {plan?, groceries?[{id, name, grams}], note?}} → 201 {id}; push to them. Only to mutual follows or my household",
+        "description": "Errors / limits: 400 invalid_share, own_content; 404 not_found; 413; 429 daily_limit (20/day); 30/hour",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Copies sent to me, last 30 days → {shares[{id, from, kind, payload, createdAt}]}",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fuel-shares/{id}": {
+      "delete": {
+        "tags": [
+          "Fuel with a partner (#1014)"
+        ],
+        "summary": "Dismiss (recipient) or unsend (sender) → 204",
+        "description": "Errors / limits: 404",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/library/shared": {
       "get": {
         "tags": [
@@ -4117,7 +4556,7 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory, exercises[≤400 names], todayExercises[≤40 names], weekday 1–7 (#999)}, photo?} (photo: base64 JPEG ≤1.5 MB of a machine, sent with the last message, #856) → {reply, workout?, action?, suggestions, exercises, protect?{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp, seeDoctor} (#870 train around pain), measurement?{weightKg, bodyFatPct, girths[{site neck|shoulders|chest|waist|hips|upperArm|forearm|thigh|calf, side left|right|none, cm}]} (#1000 log body measurements; the app saves them on today's entry with Undo), doActions[≤5]{kind water|food|mood|move|skip|swap|done|reminder|voice|supplement, glasses 1–10, foods (food words, or supplement name), meal breakfast|lunch|dinner|snack, mood 1–5, weekday 1–7 (move: later than today, done: earlier), from (one of todayExercises), to, minutes 0–1439, on, value whenTalking|always|never} (#999 Coach can act: allowlist only, other fields null), remainingToday} (exercises: ≤4 names from context.exercises, screens freestyle and picker #934)",
+        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory, exercises[≤400 names], todayExercises[≤40 names], weekday 1–7 (#999), training[≤32 lines ≤160 chars: the member's week plan, Fuel today, recent workouts, lift trends, body weight; sleep / HRV / resting HR / Mind only with week-review consent, #1010]}, photo?} (photo: base64 JPEG ≤1.5 MB of a machine, sent with the last message, #856) → {reply, workout?, action?, suggestions, exercises, protect?{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp, seeDoctor} (#870 train around pain), measurement?{weightKg, bodyFatPct, girths[{site neck|shoulders|chest|waist|hips|upperArm|forearm|thigh|calf, side left|right|none, cm}]} (#1000 log body measurements; the app saves them on today's entry with Undo), doActions[≤5]{kind water|food|mood|move|skip|swap|done|reminder|voice|supplement, glasses 1–10, foods (food words, or supplement name), meal breakfast|lunch|dinner|snack, mood 1–5, weekday 1–7 (move: later than today, done: earlier), from (one of todayExercises), to, minutes 0–1439, on, value whenTalking|always|never} (#999 Coach can act: allowlist only, other fields null), remainingToday} (exercises: ≤4 names from context.exercises, screens freestyle and picker #934)",
         "description": "Errors / limits: 400 bad_photo; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
         "security": [
           {

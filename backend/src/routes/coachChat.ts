@@ -27,6 +27,8 @@ const body = z.object({
       exercises: z.array(z.string().trim().min(1).max(60)).max(400).optional(),
       todayExercises: z.array(z.string().trim().min(1).max(60)).max(40).optional(),
       weekday: z.number().int().min(1).max(7).optional(),
+      /** The member's own data (#1010): week plan, Fuel, workouts, lifts, body weight, and with week-review consent sleep / HRV / Mind. */
+      training: z.array(z.string().trim().min(1).max(160)).max(32).optional(),
     })
     .default({}),
   /** JPEG of the machine in front of the member (#856), base64, sent with the last message. */
