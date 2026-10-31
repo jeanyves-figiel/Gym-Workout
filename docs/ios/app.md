@@ -41,11 +41,13 @@ The app turns signed-in from the Keychain token before any network call, so ever
 ### Onboarding (`Views/Onboarding`, #664)
 
 - **Guided flow** (`OnboardingFlowView`, mode `newMember` / `rerun` / `single(step)`): Gym (`GymPicker`, add choices open) → Machines (`EquipmentSheet`) → Map (zones + `FloorPlanSheet`) → Plan (Build my plan = `ProfileFormView(newMember:)` without the gym section, or one of 4 one-tap programmes; re-run adds Keep my plan) → Tour. Skip on every step; a new member's skipped plan step makes the draft a starter plan. Nothing is saved before the plan step; `AppModel.onboardingOpen` keeps the flow up after it.
-- **App tour** (`AppTourOverlay`, `AppTour.steps`): six stops (Train, Explore, Insights, Fuel, Social, Coach Monkey), switches `model.tab`, Next / Skip tour. The first Pro offer waits for its end (`proAfterTour`).
+- **App tour** (`AppTourOverlay`, `AppTour.steps`): six stops (Train, Explore, Insights, Fuel, Social, Coach Monkey; `AppTour.all`, hidden tabs skipped since #1004), switches `model.tab`, Next / Skip tour. The tour step's tab rows toggle hideable tabs (tap to hide, #1004 C). The first Pro offer waits for its end (`proAfterTour`).
 - **Set-up card** (`SetupCard`, first in Train's notice slot): steps not done, each opens the step on its own; ✕ hides it (`hideSetupCard`). State `SyncedProfile.onboarding` (engine `OnboardingProgress`: `done`, `cardHidden`); nil = member from before #664, no card.
 - Demo screens `onboarding-gym`, `onboarding-machines`, `onboarding-map`, `onboarding-plan`, `onboarding-tour`, `app-tour`, `train-setup`, `onboarding-hub`.
 
 ## Tabs
+
+**My tabs** (#1004, design A + C from `hide-tabs/proposals.png`): a member can hide Explore, Insights, Fuel or Social; Train is always on and the tab bar always shows. `TabsPref` (`Model/TabsPref.swift`, `UserDefaults` `hiddenTabs`, device only) is read by `MainTabView.tabPages`; selecting a hidden tab (widget, Shortcut, deep link) lands on Train. Hidden with the tab: Train's Fuel widget (`AppModel.visibleTrainLayout`; stays in the saved layout, gallery hides it), Coach chat buttons to it, its tour stop. Data is kept. Ways in: **Settings → Look & apps → My tabs** (`MyTabsView`, A: gradient card + switch per tab), the tab's **title menu** (`TabTitleMenu`, C: *Hide <tab> tab* → Train + Undo bar; *My tabs in Settings*), and the onboarding tour step (C).
 
 ### Train (`Views/Plan`, `WeekView`)
 

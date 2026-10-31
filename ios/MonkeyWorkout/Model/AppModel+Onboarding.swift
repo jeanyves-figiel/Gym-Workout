@@ -84,7 +84,10 @@ struct AppTourStep: Identifiable {
 }
 
 enum AppTour {
-    static let steps: [AppTourStep] = [
+    /// Stops for the tabs on show (#1004): a hidden tab has no stop.
+    static var steps: [AppTourStep] { all.filter { $0.tab.map(TabsPref.shared.shows) ?? true } }
+
+    static let all: [AppTourStep] = [
         AppTourStep(id: "train", tab: .train, symbol: "bolt.heart.fill", title: "Train",
                     text: "Your week, built for your gym. Today's workout starts here; earlier days can be logged.",
                     category: .strength),

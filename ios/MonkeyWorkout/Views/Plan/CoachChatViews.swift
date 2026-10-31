@@ -310,7 +310,8 @@ struct CoachChatView: View {
                 if m.onDevice { OnDeviceBadge(seconds: m.seconds) }
                 if !m.text.isEmpty { coachBubble(m.text) }
                 if !m.exercises.isEmpty, freestyle != nil { exerciseCards(m.exercises) }
-                if let a = m.action { actionButton(a) }
+                // No button to a tab the member hid (#1004).
+                if let a = m.action, MainTab(rawValue: a.target).map(TabsPref.shared.shows) ?? true { actionButton(a) }
                 if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
                 if let p = m.protect { PainPlanCard(protect: p) }
                 if let l = m.logged { loggedCard(m.id, l) }
