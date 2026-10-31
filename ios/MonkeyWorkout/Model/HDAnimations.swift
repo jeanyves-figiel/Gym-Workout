@@ -14,7 +14,8 @@ import WorkoutEngine
 final class HDAnimations {
     static let shared = HDAnimations()
 
-    enum Status: Equatable { case off, waitingForWiFi, downloading, ready, failed }
+    /// `checking`: reading the manifest, nothing to fetch known yet (#995: Train shows only `downloading`).
+    enum Status: Equatable { case off, waitingForWiFi, checking, downloading, ready, failed }
 
     /// Assets of the `hd-animations` release on the public repo (published by the "HD animations pack" workflow).
     /// The remote value `hdAnimationsURL` moves it without a build.
@@ -29,10 +30,37 @@ final class HDAnimations {
     private(set) var totalBytes: Int64 = approxBytes
     /// "HD moves ready" toast, once per finished download.
     var justFinished = false
+    /// Exercises fetched by the download running now (#995): "Updating 24 moves" on Train.
+    private(set) var fetching = 0
+
+    /// #995: the member sees whether the latest art is on the device. Last manifest read, last time files came,
+    /// how many came, and the pack's own version and build time (manifest `version`, `published`).
+    private(set) var lastCheck = UserDefaults.standard.object(forKey: lastCheckKey) as? Date {
+        didSet { UserDefaults.standard.set(lastCheck, forKey: Self.lastCheckKey) }
+    }
+    private(set) var lastUpdate = UserDefaults.standard.object(forKey: lastUpdateKey) as? Date {
+        didSet { UserDefaults.standard.set(lastUpdate, forKey: Self.lastUpdateKey) }
+    }
+    private(set) var lastUpdateCount = UserDefaults.standard.integer(forKey: lastUpdateCountKey) {
+        didSet { UserDefaults.standard.set(lastUpdateCount, forKey: Self.lastUpdateCountKey) }
+    }
+    private(set) var packVersion = UserDefaults.standard.string(forKey: packVersionKey) {
+        didSet { UserDefaults.standard.set(packVersion, forKey: Self.packVersionKey) }
+    }
+    private(set) var packPublished = UserDefaults.standard.object(forKey: packPublishedKey) as? Date {
+        didSet { UserDefaults.standard.set(packPublished, forKey: Self.packPublishedKey) }
+    }
+    /// Exercises this build animates: `installed.count` of it are HD.
+    var catalogCount: Int { ExerciseIllustrations.ids.count }
 
     private static let enabledKey = "hdAnimations.enabled"
     private static let wifiOnlyKey = "hdAnimations.wifiOnly"
     private static let offeredKey = "hdAnimations.offered"
+    private static let lastCheckKey = "hdAnimations.lastCheck"
+    private static let lastUpdateKey = "hdAnimations.lastUpdate"
+    private static let lastUpdateCountKey = "hdAnimations.lastUpdateCount"
+    private static let packVersionKey = "hdAnimations.packVersion"
+    private static let packPublishedKey = "hdAnimations.packPublished"
 
     /// The member asked for HD (welcome card or Settings).
     private(set) var enabled = UserDefaults.standard.bool(forKey: enabledKey)
@@ -56,7 +84,7 @@ final class HDAnimations {
 
     /// `file`: the pack file's name in the bucket (`<id>-<sha>.mwf`, never changes once published).
     struct Entry: Codable, Sendable { let file: String?; let frames: Int; let bytes: Int64; let sha256: String }
-    private struct Manifest: Decodable { let format: Int; let exercises: [String: Entry] }
+    private struct Manifest: Decodable { let format: Int; let version: String?; let published: String?; let exercises: [String: Entry] }
 
     private static var recordURL: URL { HDFrames.dir.appendingPathComponent("installed.json") }
 
@@ -104,9 +132,13 @@ final class HDAnimations {
         record = [:]
         installed = []
         doneBytes = 0
+        fetching = 0
         status = .off
         IllustrationImages.forgetHD()
     }
+
+    /// Settings → Check now (#995): reads the manifest again and fetches changed art.
+    func checkNow() { resume() }
 
     /// App open / back on Wi-Fi: picks up an unfinished download and changed art.
     func resume() {
@@ -146,10 +178,11 @@ final class HDAnimations {
         let session = URLSession(configuration: config)
         defer { session.finishTasksAndInvalidate() }
         let hadAll = !installed.isEmpty && installed.count == ExerciseIllustrations.ids.count
-        status = .downloading
+        status = .checking
         do {
             let (data, _) = try await session.data(from: base.appendingPathComponent("manifest.json"))
             let manifest = try JSONDecoder().decode(Manifest.self, from: data)
+            lastCheck = .now
             // Only exercises this build draws with the same frames (motion path and tempo match them).
             let usable = manifest.exercises.filter { ExerciseIllustrations.frameCount(of: $0.key) == $0.value.frames }
             totalBytes = usable.values.reduce(0) { $0 + $1.bytes }
@@ -162,6 +195,9 @@ final class HDAnimations {
             try? dir.setResourceValues(backup)
             let root = base
             let jobs = Array(wanted)
+            fetching = jobs.count
+            if !jobs.isEmpty { status = .downloading }
+            defer { fetching = 0 }
             try await withThrowingTaskGroup(of: (String, Entry).self) { group in
                 var next = 0
                 func add() {
@@ -180,7 +216,13 @@ final class HDAnimations {
                 }
             }
             status = .ready
-            if !wanted.isEmpty && !hadAll { justFinished = true }
+            packVersion = manifest.version
+            packPublished = manifest.published.flatMap { try? Date($0, strategy: .iso8601) }
+            if !wanted.isEmpty {
+                lastUpdate = .now
+                lastUpdateCount = wanted.count
+                if !hadAll { justFinished = true }
+            }
         } catch {
             if Task.isCancelled { return }
             status = installed.isEmpty ? .failed : .ready

@@ -89,4 +89,10 @@ import Testing
         let after = try #require(picks.firstIndex { $0.id == late.id })
         #expect(after <= before)
     }
+
+    @Test func resumeLineSaysWhatIsKept() {
+        #expect(Freestyle.resumeLine(exercises: 3, setsDone: 4) == "3 exercises · 4 sets done")
+        #expect(Freestyle.resumeLine(exercises: 1, setsDone: 1) == "1 exercise · 1 set done")
+        #expect(Freestyle.resumeLine(exercises: 2, setsDone: 0) == "2 exercises · none done yet")
+    }
 }

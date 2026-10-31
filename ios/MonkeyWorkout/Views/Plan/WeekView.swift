@@ -1923,10 +1923,17 @@ private struct GymSessionTile: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(resumes ? "Resume custom session" : Freestyle.title).font(Theme.label(14))
                                 .lineLimit(1).minimumScaleFactor(0.6)
-                            HStack(spacing: 3) {
-                                Text("you choose ·")
-                                Image(systemName: "mappin.and.ellipse")
-                                Text("\(gym) kit")
+                            Group {
+                                // What the paused one holds (#997 A), so Resume says what comes back.
+                                if let line = model.freestyleResumeLine {
+                                    Label(line, systemImage: "pause.fill").labelStyle(.titleAndIcon)
+                                } else {
+                                    HStack(spacing: 3) {
+                                        Text("you choose ·")
+                                        Image(systemName: "mappin.and.ellipse")
+                                        Text("\(gym) kit")
+                                    }
+                                }
                             }
                             .font(Theme.label(11)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
                         }
