@@ -5,6 +5,14 @@
   },
   {
     "method": "GET",
+    "path": "/cast/motion/:file"
+  },
+  {
+    "method": "GET",
+    "path": "/cast/receiver"
+  },
+  {
+    "method": "GET",
     "path": "/healthz"
   },
   {

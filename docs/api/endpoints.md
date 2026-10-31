@@ -21,6 +21,15 @@ Table columns: **Method**, **Path**, **Auth** (`–` public, `Bearer` access tok
 | GET | `/terms` | – | Terms of Use / EULA (HTML) | |
 | GET | `/support` | – | Support page (HTML) | |
 
+## Chromecast receiver (#1008)
+
+The TV draws the workout itself: the iPhone sends live state over the Cast channel `urn:x-cast:cloud.monkeygrade.workout`, see [`../ios/devices.md`](../ios/devices.md). Register `/cast/receiver` as the Custom Receiver URL in the Google Cast console; its App ID goes in the OTA value `castReceiverAppId`.
+
+| Method | Path | Auth | Summary | Errors / limits |
+|---|---|---|---|---|
+| GET | `/cast/receiver` | – | Cast receiver page (HTML, CAF v3): TV workout layout, timers count locally | |
+| GET | `/cast/motion/:file` | – | Light movement clip `motion-<exercise id>.mp4` (byte ranges, cached 1 day) | 404 `not_found` unknown clip; 416 bad range |
+
 ## Over-the-air config (#583)
 
 Source: `backend/content/` (see its README). Data only, never code (App Review 2.5.2).
