@@ -121,6 +121,10 @@ struct MyPlansCard: View {
     @State private var editing: NamedMealPlan?
     @State private var creating = false
     @State private var openId: UUID?
+    /// Plans and plan options before New plan, put back when the new plan is closed without Save (#1032).
+    @State private var before: FuelStore.Saved?
+    /// Save & plan my days tapped on the open sheet.
+    @State private var confirmed = false
     /// Re-plans the days; true = say how many meals were planned (not after a delete).
     let replan: (_ announce: Bool) -> Void
 
@@ -144,6 +148,8 @@ struct MyPlansCard: View {
             }
             Button {
                 let first = book.plans.isEmpty
+                before = store.saved
+                confirmed = false
                 let p = NamedMealPlan(name: first ? "My plan" : "New plan", blocks: [MealBlock(pattern: .lunchDinner, days: 7)],
                                       periods: first ? [MealPeriod(from: store.key(Date()))] : [])
                 store.savePlan(p)
@@ -160,11 +166,16 @@ struct MyPlansCard: View {
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
         }
         .foregroundStyle(.white)
-        // Closing the plan sheet (button, ✕ or swipe) always re-plans the days (#1015): no empty days to fill by hand.
+        // Closing the plan sheet re-plans the days (#1015): no empty days to fill by hand. A new plan is only kept
+        // with Save & plan my days; ✕ or swipe on a new plan discards it and its option changes (#1032).
         .sheet(item: $editing, onDismiss: {
-            creating = false
+            defer { creating = false; before = nil; confirmed = false }
+            if creating, !confirmed {
+                if let before { store.restorePlanSetup(before) }
+                return
+            }
             replan(store.book.plans.contains { $0.id == openId })
-        }) { p in MealPlanEditor(planId: p.id, isNew: creating).onAppear { openId = p.id } }
+        }) { p in MealPlanEditor(planId: p.id, isNew: creating, onSave: { confirmed = true }).onAppear { openId = p.id } }
     }
 
     private func label(_ t: String) -> some View {
@@ -172,7 +183,7 @@ struct MyPlansCard: View {
     }
 
     private func card(_ p: NamedMealPlan, book: MealPlanBook, active: Bool, cal: Calendar) -> some View {
-        Button { creating = false; editing = p } label: {
+        Button { creating = false; before = nil; editing = p } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top) {
                     Text(p.name).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
@@ -289,11 +300,14 @@ struct PlanLanes: View {
     }
 }
 
-/// One named plan: name, blocks, repeat, when it runs, people, budget, delete. Saves as it's changed; the sticky
-/// button (#1015) confirms and closes, and closing fills the days.
+/// One named plan: name, blocks, repeat, when it runs, people, budget, delete. An existing plan saves as it's
+/// changed; the sticky button (#1015) confirms and closes, and closing fills the days. A new plan is a draft until
+/// the sticky button: ✕ or swipe discards it (#1032).
 struct MealPlanEditor: View {
     let planId: UUID
     var isNew = false
+    /// Sticky Save tapped: the caller keeps a new plan.
+    var onSave: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     @State private var store = FuelStore.shared
@@ -351,7 +365,7 @@ struct MealPlanEditor: View {
                         budget()
                         label("VARIETY")
                         variety()
-                        Button {
+                        if !isNew { Button {
                             dismiss()
                             // The meal list is re-planned when the sheet closes.
                             MealPlanDelete.run(p) {}
@@ -361,13 +375,13 @@ struct MealPlanEditor: View {
                                 .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(FuelPalette.protein))
                         }
                         .buttonStyle(.plain)
-                        .padding(.top, 8)
+                        .padding(.top, 8) }
                     }
                     .padding(16)
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button { dismiss() } label: {
+                Button { onSave(); dismiss() } label: {
                     Label(isNew ? "SAVE & PLAN MY DAYS" : "SAVE & RE-PLAN", systemImage: "wand.and.stars")
                 }
                 .buttonStyle(LimeButtonStyle())
