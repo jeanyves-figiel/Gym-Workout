@@ -44,9 +44,9 @@ struct MealPlanView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                } else {
-                    Text(book.plans.isEmpty ? "No meal plan yet. Tap New plan to pick which meals to plan and when."
-                         : "No plan runs in the coming 31 days. Tap a plan to add dates.")
+                } else if !book.plans.isEmpty {
+                    // No plan yet: the violet New plan card above says it (#1034).
+                    Text("No plan runs in the coming 31 days. Tap a plan to add dates.")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
                 }
                 if !store.saved.plan.isEmpty {

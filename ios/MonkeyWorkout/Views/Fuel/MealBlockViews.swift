@@ -142,22 +142,45 @@ struct MyPlansCard: View {
                 label(active == nil ? "PLANS · NONE TODAY" : "OTHER PLANS")
                 ForEach(others) { card($0, book: book, active: false, cal: cal) }
             }
-            Button {
-                let first = book.plans.isEmpty
-                let p = NamedMealPlan(name: first ? "My plan" : "New plan", blocks: [MealBlock(pattern: .lunchDinner, days: 7)],
-                                      periods: first ? [MealPeriod(from: store.key(Date()))] : [])
-                store.savePlan(p)
-                creating = true
-                editing = p
-            } label: {
-                Label("New plan", systemImage: "plus").font(Theme.label(13)).foregroundStyle(.white)
-                    .frame(maxWidth: .infinity).padding(.vertical, 11)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+            // #1034: New plan is a bold card, not a faint dashed outline. No plan yet → violet hero that says what a
+            // plan does (design B); with plans → lime action card like Cook together / Groceries.
+            if book.plans.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        Text("🗓️").font(.system(size: 22)).frame(width: 44, height: 44)
+                            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.2)))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("NO MEAL PLAN YET").font(Theme.label(10)).tracking(1.2).opacity(0.85)
+                            Text("Plan your week").font(Theme.display(20))
+                        }
+                    }
+                    Text(Self.how).font(.system(size: 12, weight: .bold, design: .rounded)).opacity(0.9)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button { newPlan(book) } label: {
+                        Label("New plan", systemImage: "plus").font(Theme.label(15)).foregroundStyle(Color(hex: 0x7A3DFF))
+                            .padding(.horizontal, 18).padding(.vertical, 11)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("fuel.plan.new")
+                }
+                .foregroundStyle(.white)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.violet))
+            } else {
+                Button { newPlan(book) } label: {
+                    FuelTile(emoji: "🗓️", label: "Meal plan", title: "New plan", detail: "Pick meals and when",
+                             gradient: FuelPalette.lime, ink: Theme.ink) {
+                        Image(systemName: "plus").font(.system(size: 18, weight: .black)).foregroundStyle(Theme.lime)
+                            .frame(width: 38, height: 38)
+                            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Theme.ink))
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("fuel.plan.new")
+                Text(Self.how).font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
             }
-            .buttonStyle(.plain)
-            Text("Meals follow each day's training, your diet and favourites, use what you have first, and come back as often as your Variety pick says. Batch dinners become next day's lunch when that day has lunch.")
-                .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
         }
         .foregroundStyle(.white)
         // Closing the plan sheet (button, ✕ or swipe) always re-plans the days (#1015): no empty days to fill by hand.
@@ -165,6 +188,17 @@ struct MyPlansCard: View {
             creating = false
             replan(store.book.plans.contains { $0.id == openId })
         }) { p in MealPlanEditor(planId: p.id, isNew: creating).onAppear { openId = p.id } }
+    }
+
+    private static let how = "Meals follow each day's training, your diet and favourites, use what you have first, and come back as often as your Variety pick says. Batch dinners become next day's lunch when that day has lunch."
+
+    private func newPlan(_ book: MealPlanBook) {
+        let first = book.plans.isEmpty
+        let p = NamedMealPlan(name: first ? "My plan" : "New plan", blocks: [MealBlock(pattern: .lunchDinner, days: 7)],
+                              periods: first ? [MealPeriod(from: store.key(Date()))] : [])
+        store.savePlan(p)
+        creating = true
+        editing = p
     }
 
     private func label(_ t: String) -> some View {
