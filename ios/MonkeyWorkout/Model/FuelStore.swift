@@ -368,6 +368,17 @@ final class FuelStore {
         save(s)
     }
 
+    /// Puts plans, people, budget and variety back as they were before a new plan was opened (#1032): the new plan
+    /// sheet closed with ✕ or swipe instead of Save.
+    func restorePlanSetup(_ old: Saved) {
+        var s = saved
+        s.book = old.book
+        s.people = old.people
+        s.budget = old.budget
+        s.variety = old.variety
+        save(s)
+    }
+
     /// Weekly budget in CHF (nil = no limit).
     func setBudget(_ chf: Double?) {
         var s = saved

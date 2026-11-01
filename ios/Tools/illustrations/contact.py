@@ -252,7 +252,9 @@ def hang_legs(j, J):
 LEG = rigmod.LIMB["leg"]
 
 
-SIDE_FIX = ("prone-ytw", "supine-twist", "archer-push-up", "open-book")
+SIDE_FIX = ("prone-ytw", "supine-twist", "archer-push-up", "open-book", "side-lying-external-rotation",
+            "incline-reverse-fly")
+SIDE_LYING = ("open-book", "side-lying-external-rotation")  # drawn with near / far stacked: already have width
 
 
 def nrm3(v):
@@ -444,6 +446,8 @@ def lying_scenes(ex, e):
                 p["n"] = [0.0, p["n"][1] if abs(p["n"][1]) > 1e-6 else 8.0]
         # near / far limbs get the body's width (the figure's near side is +z); lying on the side (open book) the
         # far side is on top instead
+        if ex in SIDE_LYING and abs(J["shoulderN"][1] - J["shoulderF"][1]) > 8:
+            continue
         if ex == "open-book":
             for jn in ("shoulder", "elbow", "wrist", "hand"):
                 J[jn + "F"] = [J[jn + "N"][0], round(J[jn + "N"][1] + 34, 1), J[jn + "N"][2]]
@@ -512,6 +516,214 @@ def lying_scenes(ex, e):
             J["wristF"] = [round(sh[0], 1), round(sh[1] - 40 * np.cos(ang) + 30 * np.sin(ang), 1), round(sh[2] + 12 + 40 * np.sin(ang), 1)]
             J["handF"] = [round(sh[0] + 2, 1), round(sh[1] - 48 * np.cos(ang) + 34 * np.sin(ang), 1), round(sh[2] + 14 + 48 * np.sin(ang), 1)]
             J["head"] = [round(J["neck"][0] - 8 - 6 * np.sin(ang), 1), round(J["neck"][1] + 3, 1), round(J["neck"][2] + 10 * np.sin(ang), 1)]
+
+    if ex == "incline-reverse-fly":
+        # the 2D model faced along z; turned, the feet point the way the body faces and the incline bench gets
+        # the pad the chest lies on (the drawing showed only its frame, #1020)
+        for k in e["k"]:
+            J = k["j"]
+            for d in "NF":
+                a = J["ankle" + d]
+                J["toe" + d] = [round(a[0] + 14, 1), round(max(a[1] - 4, 0.0), 1), a[2]]
+            # arms: hanging straight down at the start, opened out to the sides at the top, both alike
+            i = e["k"].index(k)
+            sh = np.asarray(J["shoulder"], float)
+            ang = np.radians((14.0, 48.0, 82.0)[i])
+            for d, sz in (("N", 1.0), ("F", -1.0)):
+                S = sh + [0.0, 0.0, sz * 17.0]
+                J["shoulder" + d] = [round(float(x), 1) for x in S]
+                dv = np.array([0.15, -np.cos(ang), sz * np.sin(ang)]); dv /= np.linalg.norm(dv)
+                E = S + 30 * dv + [4.0, 2.0, 0.0]
+                W = S + 56 * dv
+                H = S + 63 * dv
+                J["elbow" + d], J["wrist" + d], J["hand" + d] = [[round(float(x), 1) for x in v] for v in (E, W, H)]
+            dbs = [p for p in k["p"] if p["k"] == "db"]
+            for p, d in zip(dbs, "NF"):
+                p["c"] = list(J["hand" + d]); p["ax"] = [1, 0, 0]
+            mid = (np.asarray(J["hip"], float) + np.asarray(J["shoulder"], float)) / 2
+            rods = [p for p in k["p"] if p["k"] == "rod" and abs(p["a"][0] - p["b"][0]) > 10
+                    and abs(p["a"][1] - p["b"][1]) > 60]
+            if not rods:
+                continue
+            r = max(rods, key=lambda p: np.linalg.norm(np.subtract(p["a"], p["b"])))
+            a, b = np.asarray(r["a"], float), np.asarray(r["b"], float)
+            u = (b - a) / np.linalg.norm(b - a)
+            n = np.array([-u[1], u[0], 0.0])
+            if (mid - a) @ n < 0:
+                n = -n
+            top, bot = (a, b) if a[1] > b[1] else (b, a)
+            down = (bot - top) / np.linalg.norm(bot - top)
+            # the pad's top edge sits under the collarbones: the arms hang free past it
+            t0 = max(0.0, (np.asarray(J["shoulder"], float) - top) @ down + 14)
+            k["p"].append(dict(k="pad", a=[round(float(x), 1) for x in top + t0 * down], b=[round(float(x), 1) for x in top + (t0 + 75) * down],
+                               n=[round(float(n[0] * 9), 1), round(float(n[1] * 9), 1)], w=16))
+    if ex == "side-lying-external-rotation":
+        # top elbow stays on the side of the ribs; the forearm turns from across the belly to pointing up, the
+        # dumbbell in the hand (the 2D front view drew the arm straight up and the dumbbell beside it)
+        J0 = e["k"][0]["j"]
+        sh0, hip0 = np.asarray(J0["shoulderF"], float), np.asarray(J0["hipF"], float)
+        u = (hip0 - sh0) / np.linalg.norm(hip0 - sh0)
+        f = np.cross(u, [0.0, 1.0, 0.0]); f /= np.linalg.norm(f)
+        if np.dot(np.asarray(J0["handF"], float) - sh0, f) < 0:
+            f = -f
+        up = np.array([0.0, 1.0, 0.0])
+        for i, k in enumerate(e["k"]):
+            J = k["j"]; sh = np.asarray(J["shoulderF"], float)
+            el = sh + 26 * u + 3 * up + 2 * f
+            th = np.radians((25.0, 85.0, 140.0)[i])
+            dv = f * np.sin(th) - up * np.cos(th)
+            J["elbowF"] = [round(float(x), 1) for x in el]
+            J["wristF"] = [round(float(x), 1) for x in el + 24 * dv]
+            J["handF"] = [round(float(x), 1) for x in el + 31 * dv]
+            hand = el + 31 * dv
+            for p in k["p"]:
+                if p["k"] == "rod" and p.get("r", 3) < 2:
+                    p["a"] = [round(float(x), 1) for x in hand - 14 * u]
+                    p["b"] = [round(float(x), 1) for x in hand + 14 * u]
+
+def front_scenes(ex, e):
+    """Front-view machines drawn without depth, given it in 3D (#1020)."""
+    if ex == "torso-rotation":
+        # front view without depth: chest pad, swinging frame and handles sat inside the chest. They go in front of
+        # it, the hands on the handles, elbows bent between (#1020)
+        PAD_X, GRIP_X = 14.0, 30.0
+        for k in e["k"]:
+            J = k["j"]
+            for p in k["p"]:
+                if p["k"] == "block" and p["lo"][1] > 90 and abs(p["lo"][2]) < 40:
+                    w = p["hi"][0] - p["lo"][0]
+                    p["lo"][0], p["hi"][0] = PAD_X, round(PAD_X + min(w, 14.0), 1)
+                elif p["k"] == "rod" and min(p["a"][1], p["b"][1]) >= 90 and max(abs(p["a"][2]), abs(p["b"][2])) < 60:
+                    for q in ("a", "b"):
+                        p[q] = [GRIP_X if p.get("s") == "handle" else GRIP_X + 6, p[q][1], p[q][2]]
+            for d in "NF":
+                J["hand" + d] = [GRIP_X, J["hand" + d][1], J["hand" + d][2]]
+                J["wrist" + d] = [GRIP_X - 6, J["wrist" + d][1], J["wrist" + d][2]]
+                J["elbow" + d] = [12.0, round(J["elbow" + d][1] - 18, 1), J["elbow" + d][2]]
+    if ex == "wide-grip-cable-row":
+        # the 2D side view drew one cable into the near hand and the far hand drifting across: a wide straight bar
+        # held at both ends all the way, the cable clipped to its middle (#1020)
+        Z = 40.0
+        for k in e["k"]:
+            J = k["j"]
+            y = round((J["handN"][1] + J["handF"][1]) / 2, 1)
+            x = round((J["handN"][0] + J["handF"][0]) / 2, 1)
+            sh = J["shoulder"]
+            for d, sz in (("N", 1), ("F", -1)):
+                J["hand" + d] = [x, y, sz * Z]
+                J["wrist" + d] = [round(x - 7, 1), y, sz * (Z - 1)]
+                J["elbow" + d] = [round((x + sh[0]) / 2 - 6, 1), round((y + sh[1]) / 2 - 10, 1), sz * (Z - 4)]
+            for p in k["p"]:
+                if p["k"] == "rod" and p.get("s") == "cable":
+                    for q in ("a", "b"):
+                        p[q] = [p[q][0], p[q][1], 0.0]
+                    for q in ("a", "b"):
+                        if abs(p[q][1] - y) < 12 and abs(p[q][0] - x) < 12:
+                            p[q] = [x + 3, y, 0.0]
+            hands = [np.asarray(J["hand" + d], float) for d in "NF"]
+            k["p"] = [p for p in k["p"] if not (p.get("s") == "handle" or (p["k"] in ("ball", "roller") and min(
+                np.linalg.norm(np.asarray(p["c"], float)[:2] - h[:2]) for h in hands) < 14))]
+            for p in k["p"]:
+                if p["k"] in ("disc", "ball") and "c" in p:
+                    p["c"] = [p["c"][0], p["c"][1], 0.0]       # pulleys sit on the cable's line
+            k["p"].append(dict(k="rod", a=[x + 3, y, -Z - 8], b=[x + 3, y, Z + 8], r=1.6, s="handle"))
+    if ex == "cable-shrug":
+        # the 2D tween folded both arms into the body's middle at the top: arms hang at the shoulders' width
+        for k in e["k"]:
+            J = k["j"]
+            for d in "NF":
+                z = J["shoulder" + d][2]
+                old = J["hand" + d][2]
+                ox = J["hand" + d][0]
+                hx = J["hip"][0] + 13          # the bar hangs in front of the thighs, not in the hips
+                for jn, fx in (("elbow", 0.4), ("wrist", 0.9), ("hand", 1.0)):
+                    if jn + d in J:
+                        J[jn + d] = [round(J[jn + d][0] + fx * (hx - ox), 1), J[jn + d][1], z]
+                for p in k["p"]:
+                    if p["k"] == "rod" and p.get("s") in ("cable", "handle") and d == "N":
+                        for q in ("a", "b"):
+                            if abs(p[q][2] - old) < 1e-6:
+                                p[q] = [round(p[q][0] + hx - ox, 1), p[q][1], z]
+    if ex == "barbell-thruster":
+        # front rack: the bar sat inside the chest below the collarbones; it rests on the front of the shoulders
+        k = e["k"][0]; J = k["j"]
+        for p in k["p"]:
+            if p["k"] == "rod" and abs(p["a"][2] - p["b"][2]) > 100:
+                dx, dy = J["shoulder"][0] + 13 - p["a"][0], J["shoulder"][1] + 1 - p["a"][1]
+                for q in ("a", "b"):
+                    p[q] = [round(p[q][0] + dx, 1), round(p[q][1] + dy, 1), p[q][2]]
+                for d in "NF":
+                    for jn, f in (("hand", 1.0), ("wrist", 1.0), ("elbow", 0.5)):
+                        v = J[jn + d]
+                        J[jn + d] = [round(v[0] + f * dx, 1), round(v[1] + f * dy, 1), v[2]]
+    if ex == "kb-halo":
+        # halfway round the halo the bell is behind the head, not inside it; elbows open to the sides
+        k = e["k"][1]; J = k["j"]
+        hd = J["head"]
+        bell = [round(hd[0] - 24, 1), round(hd[1] - 6, 1), 0.0]
+        for d, sz in (("N", -1), ("F", 1)):
+            J["hand" + d] = [round(bell[0] + 6, 1), bell[1], sz * 5.0]
+            J["wrist" + d] = [round(bell[0] + 10, 1), round(bell[1] - 4, 1), sz * 9.0]
+            J["elbow" + d] = [round(hd[0] - 4, 1), round(hd[1] - 14, 1), sz * 28.0]
+        for p in k["p"]:
+            if p["k"] == "kb":
+                p["c"] = bell
+    if ex == "cable-woodchop":
+        # front view without depth: the arms swept through the belly and the far hand let go. Both hands hold the
+        # one handle in front of the body all the way (#1020)
+        for i, k in enumerate(e["k"]):
+            J = k["j"]
+            fx = (16.0, 28.0, 24.0)[i]
+            m = [(J["handN"][q] + J["handF"][q]) / 2 for q in range(3)]
+            zs = sorted((J["shoulderN"][2], J["shoulderF"][2]))
+            m[2] = min(max(m[2], zs[1] - 44), zs[0] + 44)     # both arms reach the one handle
+            for d, off in (("N", -4.0), ("F", 4.0)):
+                J["hand" + d] = [fx, round(m[1] + off, 1), round(m[2], 1)]
+                w = J["wrist" + d]
+                J["wrist" + d] = [fx - 6, round(m[1] + off * 1.5 + (w[1] - m[1]) * 0.3, 1), round(m[2] + (w[2] - m[2]) * 0.5, 1)]
+                J["elbow" + d] = [round(fx * 0.45, 1), J["elbow" + d][1], J["elbow" + d][2]]
+            for p in k["p"]:
+                if p.get("s") == "handle":
+                    p["a"] = [fx + 1, round(m[1] - 7, 1), round(m[2], 1)]
+                    p["b"] = [fx + 1, round(m[1] + 7, 1), round(m[2], 1)]
+                elif p.get("s") == "cable" and abs(p["b"][1] - J["handF"][1]) < 30 and abs(p["b"][0]) < 1 \
+                        and p["b"][1] > 90 and abs(p["a"][2] + 103.7) < 1:
+                    p["b"] = [fx + 1, round(m[1], 1), round(m[2], 1)]
+    if ex == "archer-pull-up":
+        # the archer pulls up to one hand, the other arm straight out along the bar; the 2D back view drew the
+        # body in the middle with the face against the bar (#1020)
+        for i, k in enumerate(e["k"]):
+            J = k["j"]
+            dz, dx = (0.0, 22.0, 34.0)[i], (0.0, -5.0, -8.0)[i]
+            if not dz:
+                continue
+            for n, v in list(J.items()):
+                if n.startswith("_") or n in ("handN", "handF", "wristN", "wristF"):
+                    continue
+                if n in ("elbowF",):
+                    continue
+                J[n] = [round(v[0] + dx, 1), v[1], round(v[2] + dz, 1)]
+            S, H = np.asarray(J["shoulderF"], float), np.asarray(J["handF"], float)
+            J["elbowF"] = [round(float(x), 1) for x in S + 0.5 * (H - S)]
+            J["wristF"] = [round(float(x), 1) for x in S + 0.88 * (H - S)]
+    if ex in ("cross-body", "side-delt-stretch"):
+        # cross-body shoulder stretch: the near arm straight across in front of the chest at shoulder height, the
+        # other hand pressing just above its elbow. The back view had no depth: both arms ran through the chest
+        for i, k in enumerate(e["k"]):
+            J = k["j"]
+            SN, SF = np.asarray(J["shoulderN"], float), np.asarray(J["shoulderF"], float)
+            across = (SF - SN) / np.linalg.norm(SF - SN)
+            fwd = np.array([1.0, 0.0, 0.0])
+            t = (0.55, 0.85, 1.0)[i]
+            H = SN + across * (46 + 30 * t) + fwd * (16 - 4 * t) + [0.0, -10.0, 0.0]
+            H = SN + (H - SN) / np.linalg.norm(H - SN) * 66
+            E = SN + 0.5 * (H - SN) + fwd * 3
+            J["handN"], J["wristN"], J["elbowN"] = [[round(float(x), 1) for x in v] for v in (H, SN + 0.88 * (H - SN), E)]
+            P = E + fwd * 5 + [0.0, -2.0, 0.0] + across * 4          # the far hand on the arm, above the elbow
+            EF = SF + fwd * 12 + [0.0, -36.0, 0.0] - across * 6
+            J["handF"] = [round(float(x), 1) for x in P]
+            J["wristF"] = [round(float(x), 1) for x in EF + 0.8 * (P - EF)]
+            J["elbowF"] = [round(float(x), 1) for x in EF]
 
 
 NEUTRAL = ("hammer", "neutral", "farmer", "suitcase", "carry", "db-shrug")
@@ -716,9 +928,22 @@ def complete(ex, keys):
             P.append(dict(k="ball", c=[round(float(J["hip"][0]), 1), r, 0.0], r=r))
 
 
+def ceiling_posts(keys):
+    """A pull-up bar the 2D back view hung from posts going up out of the picture stands on uprights to the floor
+    instead (the 3D guide showed posts rising from the bar into the sky, #1020)."""
+    for k in keys:
+        out = []
+        for p in k["p"]:
+            if p["k"] == "rod" and p.get("r", 3) >= 3 and is_vertical(p) and min(p["a"][1], p["b"][1]) > 150 \
+                    and max(p["a"][1], p["b"][1]) > 400:          # thin straps (rings) do hang from above
+                continue
+            out.append(p)
+        k["p"] = out
+
+
 def frames(props):
     """A free-hanging pull-up bar gets two uprights to the floor and feet."""
-    bars = [p for p in props if p["k"] == "rod" and p.get("s") != "cable" and abs(p["a"][1] - p["b"][1]) < 2
+    bars = [p for p in props if p["k"] == "rod" and p.get("s") not in ("cable", "handle") and abs(p["a"][1] - p["b"][1]) < 2
             and min(p["a"][1], p["b"][1]) > 170 and np.linalg.norm(np.asarray(p["a"]) - np.asarray(p["b"])) > 40]
     verts = [p for p in props if p["k"] == "rod" and is_vertical(p) and max(p["a"][1], p["b"][1]) > 150]
     new = []
@@ -776,6 +1001,41 @@ def straps(ex, keys):
 
 
 HANG_CLEAR = 8.0
+
+
+FIXED_BAR = ("muscle-up",)
+BAR_CHEST = 21.0
+
+
+def fixed_bar(ex, keys):
+    """Muscle-up: the 2D scene kept the body still and slid the bar down the picture as the body rose over it. The
+    bar stays where it hangs in the first key; each later key's body (and what it holds) goes up to it (#1020)."""
+    if not any(w in ex for w in FIXED_BAR):
+        return
+
+    def bar_y(k):
+        hands = [np.asarray(k["j"]["hand" + d], float) for d in "NF"]
+        bars = [p for p in k["p"] if p["k"] == "rod" and abs(p["a"][1] - p["b"][1]) < 2
+                and abs(p["a"][2] - p["b"][2]) > 40]
+        if not bars:
+            return None
+        b = min(bars, key=lambda p: min(abs(p["a"][1] - h[1]) for h in hands))
+        return b["a"][1]
+    y0 = bar_y(keys[0])
+    if y0 is None:
+        return
+    for k in keys[1:]:
+        y = bar_y(k)
+        if y is None or abs(y0 - y) < 1:
+            continue
+        dy = y0 - y
+        # the chest passes behind the bar on the way over it (the 2D side view drew them in one plane)
+        dx = -BAR_CHEST if k is keys[len(keys) // 2] else -5.0
+        hands = ("handN", "handF", "wristN", "wristF")
+        for n, v in k["j"].items():
+            if not n.startswith("_"):
+                k["j"][n] = [round(v[0] + (0 if n in hands else dx), 1), round(v[1] + dy, 1), v[2]]
+        k["p"] = [dict(p) for p in keys[0]["p"]]       # same bar and uprights as the hang
 
 
 def lift_hang(ex, keys):
@@ -1743,6 +2003,7 @@ def run(ids=None):
         keys = e["k"]
         lying_scenes(ex, e)
         seated_scenes(ex, e)
+        front_scenes(ex, e)
         complete(ex, keys)
         shrugs(ex, keys, R)
         grip_axes(ex, keys)
@@ -1753,6 +2014,8 @@ def run(ids=None):
         side_levers(ex, keys)
         machine_parts(ex, keys)
         straps(ex, keys)
+        ceiling_posts(keys)
+        fixed_bar(ex, keys)
         lift_hang(ex, keys)
         reach(ex, keys, R)
         on_floor(keys)
