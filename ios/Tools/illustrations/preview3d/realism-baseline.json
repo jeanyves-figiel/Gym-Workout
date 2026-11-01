@@ -5,26 +5,11 @@
 "assisted-pull-up": [
 "through"
 ],
-"barbell-thruster": [
-"through"
-],
 "cable-hip-adduction": [
 "limb",
 "through"
 ],
 "cable-low-high-chop": [
-"limb"
-],
-"cable-shrug": [
-"limb",
-"through"
-],
-"cable-woodchop": [
-"grip",
-"limb",
-"through"
-],
-"cross-body": [
 "limb"
 ],
 "db-side-bend": [
@@ -33,32 +18,14 @@
 "figure-4": [
 "limb"
 ],
-"incline-reverse-fly": [
-"through"
-],
-"kb-halo": [
-"through"
-],
 "med-ball-scoop-toss": [
 "limb"
-],
-"muscle-up": [
-"through"
 ],
 "prone-pulldown": [
 "limb"
 ],
 "rotational-throw": [
 "limb"
-],
-"side-delt-stretch": [
-"limb"
-],
-"side-lying-external-rotation": [
-"through"
-],
-"ski-erg": [
-"through"
 ],
 "sumo-deadlift": [
 "limb"
@@ -69,17 +36,7 @@
 "toes-to-bar": [
 "through"
 ],
-"torso-rotation": [
-"through"
-],
 "turkish-get-up": [
-"limb"
-],
-"weighted-muscle-up": [
-"through"
-],
-"wide-grip-cable-row": [
-"grip",
 "limb"
 ]
 }
