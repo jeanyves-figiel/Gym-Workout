@@ -12,17 +12,11 @@
 "cable-low-high-chop": [
 "limb"
 ],
-"cross-body": [
-"limb"
-],
 "db-side-bend": [
 "limb"
 ],
 "figure-4": [
 "limb"
-],
-"incline-reverse-fly": [
-"through"
 ],
 "med-ball-scoop-toss": [
 "limb"
@@ -32,12 +26,6 @@
 ],
 "rotational-throw": [
 "limb"
-],
-"side-delt-stretch": [
-"limb"
-],
-"ski-erg": [
-"through"
 ],
 "sumo-deadlift": [
 "limb"
