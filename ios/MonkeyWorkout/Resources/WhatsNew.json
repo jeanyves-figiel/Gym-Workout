@@ -6,6 +6,12 @@
       "tint": "warmup",
       "title": "New plan stands out",
       "body": "Plan your week from one bold card on Meal plan, and ✕ now closes a new plan without saving it."
+    },
+    {
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Even cleaner 3D moves",
+      "body": "Another pass on the exercise guide: half the remaining odd positions are fixed, so hands, feet and kit line up."
     }
   ]
 }
