@@ -31,9 +31,9 @@ public enum DrinkKind: String, Codable, CaseIterable, Sendable, Identifiable {
     /// "beer", "2 pints", "prosecco" → a kind (Coach, #1039). Unknown words count as beer: one standard drink.
     public static func from(_ words: String?) -> DrinkKind {
         let w = (words ?? "").lowercased()
-        if ["wine", "prosecco", "champagne", "rosé", "rose", "vino", "sekt", "cava"].contains(where: w.contains) { return .wine }
-        if ["cocktail", "mojito", "spritz", "margarita", "gin tonic", "g&t", "long drink"].contains(where: w.contains) { return .cocktail }
-        if ["shot", "vodka", "tequila", "whisk", "rum", "gin", "schnapps", "jäger", "liquor", "spirit"].contains(where: w.contains) { return .shot }
+        if ["wine", "prosecco", "champagne", "rosé", "rose", "vino", "sekt", "cava"].contains(where: { w.contains($0) }) { return .wine }
+        if ["cocktail", "mojito", "spritz", "margarita", "gin tonic", "g&t", "long drink"].contains(where: { w.contains($0) }) { return .cocktail }
+        if ["shot", "vodka", "tequila", "whisk", "rum", "gin", "schnapps", "jäger", "liquor", "spirit"].contains(where: { w.contains($0) }) { return .shot }
         return .beer
     }
 }
