@@ -13,6 +13,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device, except the meal plan + grocery list when shared with a partner (`HouseholdStore`, #1014) |
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
 | `mind.json` | `MindStore` | Mood check-ins, breathing / relax sessions, daily Mind scores (90 days) | **No**: stays on the device; check-ins and sessions also go to Apple Health (State of Mind, mindful minutes) when connected |
+| `drinks.json` | `DrinkStore` | Drinks tapped in or logged by Coach, good times weeks (60 days, #1039) | **No**: stays on the device; Coach gets a one-line total only with week-review consent |
 | `me-avatar.jpg`, `me-avatar.json` | `MeAvatar` | Your own profile photo and its URL, so the Me pill shows it at launch (#639); wiped on sign-out | Copy of the server photo |
 | `cache/` (`account.json`, `community.json`, `entitlement.json`, `monkeygrade-sessions.json`) | `DeviceCache` | Last server answers per account: account, Community profile and first 30 posts per feed, Pro entitlement, MonkeyGrade sessions; shown at launch and offline (#641); wiped on sign-out and account switch | Copies of server data |
 | `lift-sets.json` | `LiftSets` | Watch lift-sensor sets | Via workouts |

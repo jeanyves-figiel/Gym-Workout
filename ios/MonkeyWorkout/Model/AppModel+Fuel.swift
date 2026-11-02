@@ -102,11 +102,23 @@ extension AppModel {
         // Reading `saved` keeps a view that gets a cached plan observing the Fuel settings.
         _ = FuelStore.shared.saved.prefs
         let key = FuelPlanKey(derived: derivedKey, steps: steps, fuel: FuelStore.shared.version)
-        if !followsClock, let c = derived.fuelPlans[day], c.key == key { return c.value }
-        let plan = makeFuelPlan(day: day, steps: steps, calendar: cal)
-        if !followsClock {
-            if derived.fuelPlans.count > 64 { derived.fuelPlans = [:] }
-            derived.fuelPlans[day] = (key, plan)
+        var plan: FuelPlan
+        if !followsClock, let c = derived.fuelPlans[day], c.key == key {
+            plan = c.value
+        } else {
+            plan = makeFuelPlan(day: day, steps: steps, calendar: cal)
+            if !followsClock {
+                if derived.fuelPlans.count > 64 { derived.fuelPlans = [:] }
+                derived.fuelPlans[day] = (key, plan)
+            }
+        }
+        // Drinks (#1039): more water after a night out and on good times days; outside the cache, it moves by the hour.
+        let extra = drinkWaterBonus(on: day)
+        if extra > 0 {
+            plan.glasses += extra
+            plan.waterMl += extra * FuelStore.shared.prefs.glassMl
+            plan.tips.insert(goodTimes(on: day) != nil ? "Good times day: a glass of water between drinks and a real meal before going out."
+                             : "After last night: water and a salty, protein breakfast help you bounce back.", at: 0)
         }
         return plan
     }

@@ -112,7 +112,8 @@ extension AppModel {
         // HRV: the 7-day average against the 30-day one (#864), the latest reading until a week is known.
         return TuneInputs(hrv: s?.hrvWeek ?? s?.hrv, hrvBaseline: s?.hrvBaseline, restingHR: s?.restingHR, restingHRBaseline: s?.restingHRBaseline,
                           sleepHours: s?.sleepHours, lastRIR: rirs.isEmpty ? nil : Double(rirs.reduce(0, +)) / Double(rirs.count),
-                          daysInARow: inARow, sore: Set(dayTune.sore))
+                          daysInARow: inARow, sore: Set(dayTune.sore),
+                          drinks: drinksLastNight(), hoursSinceDrink: hoursSinceDrink(), goodTimes: goodTimes() != nil)
     }
 
     var tuneVerdict: TuneVerdict { AutoTune.assess(tuneInputs) }
