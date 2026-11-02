@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **What's new 2026-11-02.1** (bundle 97): one card (Good times, then bounce back #1039); 2026-11-01.1 moved to history as build 96.
 - **What's new 2026-11-01.1** (bundle 96): two cards (New plan stands out #1034, ✕ on new meal plan #1032; Even cleaner 3D moves #1020); 2026-10-31.5 moved to history as build 95.
 - **What's new 2026-10-31.5** (bundle 95): one card (Cleaner moves, checked #1020); 2026-10-31.4 moved to history as build 94.
 - **Animation check in CI** (#1020): new workflow "Animation check" runs `check.py` (jumps, stretched limbs, floor, wrong-way bends) and new `kit2d.py` on every 2D frame: hands stay on the grip, feet on the plates, no figure floating off the floor and kit. All 441 pass (9 reviewed as expected: jumps, throws, running, foam rolls, end-on plates).
