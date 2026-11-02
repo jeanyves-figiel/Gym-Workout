@@ -425,6 +425,8 @@ struct AutoTuneSheet: View {
         case "sleep": "bed.double.fill"
         case "effort": "flame.fill"
         case "streak": "calendar"
+        case "drinks": "wineglass.fill"
+        case "goodTimes": "party.popper.fill"
         default: "figure.cooldown"
         }
     }

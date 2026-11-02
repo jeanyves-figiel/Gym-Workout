@@ -389,6 +389,12 @@ describe('Coach can act (#999)', () => {
     expect(cleanDo([{ ...none, kind: 'reminder', on: false }], ctx)).toEqual([{ ...none, kind: 'reminder', on: false }]);
   });
 
+  it('logs drinks (#1039): 1 to 20, drink word kept short', () => {
+    expect(cleanDo([{ ...none, kind: 'drinks', glasses: 8, foods: ' beer ' }], ctx)).toEqual([{ ...none, kind: 'drinks', glasses: 8, foods: 'beer' }]);
+    expect(cleanDo([{ ...none, kind: 'drinks', glasses: 0, foods: 'wine' }, { ...none, kind: 'drinks', glasses: 50, foods: 'wine' }], ctx)).toEqual([]);
+    expect(cleanDo([{ ...none, kind: 'drinks', glasses: 2, foods: null }], ctx)).toEqual([{ ...none, kind: 'drinks', glasses: 2, foods: null }]);
+  });
+
   it('caps at five, null-safe', () => {
     expect(cleanDo(Array(9).fill({ ...none, kind: 'water', glasses: 1 }), {})).toHaveLength(5);
     expect(cleanDo(undefined, {})).toEqual([]);

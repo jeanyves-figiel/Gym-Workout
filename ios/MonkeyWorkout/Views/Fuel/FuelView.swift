@@ -101,6 +101,9 @@ struct FuelView: View {
                     FuelLogButton { justAte = true }
                 }
                 if Calendar.current.isDateInToday(day) { MealIdeasCard(plan: plan, log: log, day: day) }
+                // Drinks (#1039): a good times week running or coming, and tonight's tally.
+                if let gt = model.goodTimes(on: day) { GoodTimesCard(period: gt) }
+                if Calendar.current.isDateInToday(day) { DrinksCard() }
                 FuelNextCard(plan: plan, log: log, day: day, open: { slot = $0 })
                 // Fuel with a partner (#1014): invites to answer and copies friends sent.
                 PartnerCard(invitesOnly: true)

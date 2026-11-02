@@ -28,6 +28,7 @@ Code root: `ios/Packages/GymCore/Sources/WorkoutEngine/`. All generation runs on
 | Starting load | Same-pattern logged lift converted between implements (−10/−15 %), else body weight × pattern ratio × sex × level × age, inverse Epley at target RIR, then −15 % | `StartingLoad.swift:108-156` |
 | Progression | Double progression: all sets at top of range → +1 increment (+2 if all ≥ 4 RIR, not Base); best set under range → −5 %; else hold, +1 rep | `LoadAdvisor.swift:128-246` |
 | Readiness | HRV < 85 % baseline, resting HR > +5 bpm, sleep < 6 h → Ready / Normal / Easy. Easy on a strength day offers a one-tap swap to a recover day (session moves to the next free day, #619) | `MonkeyWorkout/Health/HealthManager.swift:92-124` |
+| Drinks (#1039) | Standard drinks since yesterday noon take readiness points (<3 −5, <5 −10, <8 −15, 8+ −20); a drink in the last 12 h or a good times week makes the day Light (1 RPE easier, a set less, never Push). Water target +1 glass per 2 drinks (max +4), +3 on good times days. Morning-after steps from 3 drinks; support line after 3 heavy weeks (≥15 drinks or 2 nights ≥5) of the last 4 | `WorkoutEngine/Drinks.swift`, `AutoTune.swift` |
 | Generate from muscles | Round-robin per group, prefer uncovered muscles + new patterns, ≤ 2 main lifts, mains → accessories → light; goal dose; grip-light for climbers | `MuscleWorkout.swift:62-205` |
 | Swaps | Same pattern/role, best primary-muscle overlap, same equipment/level | `Swap.swift:58-73` |
 

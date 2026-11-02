@@ -2385,12 +2385,15 @@ private struct VariationUndoCard: View {
 /// recap, the block review, what Monkey noticed and kind streaks. One at a time: the bars show where it is, a swipe or
 /// a tap on the bars shows the next, ✕ puts the current one away. Start workout never moves down for them.
 private struct TrainNoticeSlot: View {
-    enum Kind: Hashable { case setup, review, recover, addOn, variation, taste, block, noticed, kind }
+    enum Kind: Hashable { case setup, review, recover, morningAfter, goodTimes, addOn, variation, taste, block, noticed, kind }
 
     @Environment(AppModel.self) private var model
     @State private var index = 0
     /// Readiness swap kept (#619 B): the day's key, so it stays away until tomorrow.
     @AppStorage("trainRecoverSwapKept") private var recoverKeptDay = ""
+    /// Morning-after and good times cards put away (#1039): the day's key.
+    @AppStorage("trainMorningAfterKept") private var morningKeptDay = ""
+    @AppStorage("trainGoodTimesKept") private var goodTimesKeptDay = ""
     /// Sport add-on suggestion said No to (#620 B): until this time (30 days).
     @AppStorage("trainAddOnNoUntil") private var addOnNoUntil = 0.0
 
@@ -2410,7 +2413,11 @@ private struct TrainNoticeSlot: View {
         // Coach's weekly review (#867), Sunday and Monday until closed.
         if model.weekReview != nil { out.append(.review) }
         // Low readiness on a heavy day (#619 B): swap it for mobility, before anything else.
-        if recoverKeptDay != todayKey, model.recoverSwap != nil { out.append(.recover) }
+        // After drinks (#1039 C): the morning-after steps, in place of the readiness swap.
+        if morningKeptDay != todayKey, model.morningAfter != nil { out.append(.morningAfter) }
+        else if recoverKeptDay != todayKey, model.recoverSwap != nil { out.append(.recover) }
+        // A good times week running or within 14 days (#1039 A).
+        if goodTimesKeptDay != todayKey, model.upcomingGoodTimes != nil { out.append(.goodTimes) }
         // The Coach saw a sport played 3+ times in two weeks (#620 B).
         if Date().timeIntervalSince1970 > addOnNoUntil, model.sportAddOnSuggestion != nil { out.append(.addOn) }
         // New variation (#98): its Undo first.
@@ -2463,6 +2470,10 @@ private struct TrainNoticeSlot: View {
             if let r = model.weekReview { WeekReviewCard(saved: r) }
         case .recover:
             if let swap = model.recoverSwap { RecoverSwapCard(swap: swap) { dismiss(.recover) } }
+        case .morningAfter:
+            if let steps = model.morningAfter { MorningAfterCard(steps: steps) }
+        case .goodTimes:
+            if let p = model.upcomingGoodTimes { GoodTimesCard(period: p) }
         case .addOn:
             if let s = model.sportAddOnSuggestion { SportAddOnSuggestCard(sport: s.sport, count: s.count) { dismiss(.addOn) } }
         case .variation:
@@ -2517,6 +2528,8 @@ private struct TrainNoticeSlot: View {
         case .setup: "Set-up card"
         case .review: "Week review"
         case .recover: "Readiness swap"
+        case .morningAfter: "Morning after"
+        case .goodTimes: "Good times week"
         case .addOn: "Sport add-on"
         case .variation: "Variation undo"
         case .taste: "Taste recap"
@@ -2532,6 +2545,8 @@ private struct TrainNoticeSlot: View {
             case .setup: model.hideSetupCard()
             case .review: model.closeWeekReview()
             case .recover: recoverKeptDay = todayKey
+            case .morningAfter: morningKeptDay = todayKey
+            case .goodTimes: goodTimesKeptDay = todayKey
             case .addOn: addOnNoUntil = Date().addingTimeInterval(30 * 86_400).timeIntervalSince1970
             case .variation: model.variationUndo = nil
             case .taste: model.dismissTasteRecap()

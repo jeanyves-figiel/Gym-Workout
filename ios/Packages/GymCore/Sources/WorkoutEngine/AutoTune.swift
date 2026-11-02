@@ -37,9 +37,16 @@ public struct TuneInputs: Sendable, Hashable {
     public var daysInARow: Int
     /// Muscle groups the member tapped as sore.
     public var sore: Set<MuscleGroup>
+    /// Standard drinks since yesterday noon (#1039).
+    public var drinks: Double
+    /// Hours since the last drink logged; under `Drinks.noTrainingHours` the day is Light.
+    public var hoursSinceDrink: Double?
+    /// Inside a good times week (#1039 A): Light, never Push.
+    public var goodTimes: Bool
 
     public init(hrv: Double? = nil, hrvBaseline: Double? = nil, restingHR: Double? = nil, restingHRBaseline: Double? = nil,
-                sleepHours: Double? = nil, lastRIR: Double? = nil, daysInARow: Int = 0, sore: Set<MuscleGroup> = []) {
+                sleepHours: Double? = nil, lastRIR: Double? = nil, daysInARow: Int = 0, sore: Set<MuscleGroup> = [],
+                drinks: Double = 0, hoursSinceDrink: Double? = nil, goodTimes: Bool = false) {
         self.hrv = hrv
         self.hrvBaseline = hrvBaseline
         self.restingHR = restingHR
@@ -48,6 +55,9 @@ public struct TuneInputs: Sendable, Hashable {
         self.lastRIR = lastRIR
         self.daysInARow = daysInARow
         self.sore = sore
+        self.drinks = drinks
+        self.hoursSinceDrink = hoursSinceDrink
+        self.goodTimes = goodTimes
     }
 
     public var hasRecovery: Bool { hrv != nil || restingHR != nil || sleepHours != nil }
@@ -102,8 +112,17 @@ public enum AutoTune {
             let names = MuscleGroup.allCases.filter { i.sore.contains($0) }.map(\.label).joined(separator: ", ")
             f.append(TuneFactor(id: "sore", title: "Sore", detail: names, points: -min(18, 6 * i.sore.count)))
         }
+        if Drinks.points(i.drinks) < 0 {
+            let n = i.drinks.rounded() == i.drinks ? "\(Int(i.drinks))" : String(format: "%.1f", i.drinks)
+            f.append(TuneFactor(id: "drinks", title: "Drinks", detail: "\(n) since yesterday", points: Drinks.points(i.drinks)))
+        }
+        if i.goodTimes {
+            f.append(TuneFactor(id: "goodTimes", title: "Good times week", detail: "Lighter on purpose", points: -10))
+        }
         let score = clamp(base + f.reduce(0) { $0 + $1.points }, 5, 100)
-        let level: TuneLevel = score < lightBelow ? .light : (score >= pushFrom && i.hasRecovery ? .push : .medium)
+        // Drinks still in the body, or a good times week: Light whatever the score, never Push (#1039).
+        let soon = i.hoursSinceDrink.map { $0 < Drinks.noTrainingHours } ?? false
+        let level: TuneLevel = score < lightBelow || soon || i.goodTimes ? .light : (score >= pushFrom && i.hasRecovery ? .push : .medium)
         let low = f.filter { $0.points < 0 }.sorted { $0.points < $1.points }.map { factor -> String in
             switch factor.id {
             case "hrv": "HRV low"
@@ -111,6 +130,8 @@ public enum AutoTune {
             case "sleep": "short sleep"
             case "effort": "last workout was hard"
             case "streak": "\(i.daysInARow) days in a row"
+            case "drinks": "drinks last night"
+            case "goodTimes": "good times week"
             default: "\(factor.detail.lowercased()) sore"
             }
         }
