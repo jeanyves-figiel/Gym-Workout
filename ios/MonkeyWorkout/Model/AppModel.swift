@@ -398,6 +398,7 @@ final class AppModel {
         HealthManager.clearCache()
         MoveStore.shared.signOut()
         MindStore.shared.signOut()
+        DrinkStore.shared.signOut()
         ReferralStore.shared.signOut()
         WodStore.shared.signOut()
         SwimStore.shared.signOut()

@@ -40,6 +40,9 @@ struct CalendarView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSize
     @State private var editing: AwayPeriod?
     @State private var editingIsNew = false
+    /// Good times week being added or edited (#1039).
+    @State private var goodTimes: GoodTimesPeriod?
+    @State private var goodTimesIsNew = false
     @State private var selected: DaySelection?
     @State private var findingGym = false
 
@@ -67,6 +70,20 @@ struct CalendarView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                // Good times week (#1039 A): planned drinks, the plan stays but runs lighter.
+                Button {
+                    goodTimesIsNew = model.upcomingGoodTimes == nil
+                    goodTimes = model.upcomingGoodTimes ?? .fromToday()
+                } label: {
+                    Label(model.upcomingGoodTimes.map { "Good times · \(goodTimesRange($0))" } ?? "Good times week",
+                          systemImage: "party.popper.fill")
+                        .font(Theme.label(15))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(DrinkPalette.fill(DrinkPalette.party)))
+                }
+                .buttonStyle(.plain)
                 // Away periods live in their week cards as tappable strips; no separate list.
                 if horizontalSize == .regular {
                     // iPad (#824): two weeks side by side instead of one narrow column down the middle.
@@ -107,6 +124,9 @@ struct CalendarView: View {
             }
         }
         .sheet(isPresented: $findingGym) { GymFinderView() }
+        .sheet(item: $goodTimes) { p in
+            GoodTimesEditor(initial: p, isNew: goodTimesIsNew)
+        }
         .sheet(item: $editing) { a in
             AwayEditorView(initial: a, isNew: editingIsNew) { saved in
                 if let saved { model.saveAway(saved) } else { model.deleteAway(a.id) }

@@ -105,6 +105,7 @@ extension AppModel {
                 health.append(r)
             }
             if let m = CoachDigest.mind(MindStore.shared.saved.checkIns, now: now) { health.append(m) }
+            if let d = coachDrinksLine { health.append(d) }
         }
         let lines = Array((extra + CoachDigest.lines(records: history, weights: measurementSeries(.weight), now: now) + health)
             .map { String($0.prefix(CoachDigest.lineLimit)) }.prefix(CoachDigest.maxLines))

@@ -9,6 +9,8 @@ import WorkoutEngine
 struct CoachTask: Identifiable, Equatable {
     enum Kind: Equatable {
         case water(Int)
+        /// Drinks the member had (#1039), logged on the phone only.
+        case drinks(DrinkKind, Int)
         case food([FoodServing], names: String, slot: String)
         case mood(Int)
         /// Today's dose of a supplement in the stack, ticked as in Fuel.
@@ -29,6 +31,7 @@ struct CoachTask: Identifiable, Equatable {
     /// What Undo puts back.
     enum Undo: Equatable {
         case fuel(day: Date, log: FuelDayLog)
+        case drink(UUID)
         case mood(MindCheckIn)
         case moves([SessionMove]?)
         case skip(String)
@@ -48,7 +51,7 @@ struct CoachTask: Identifiable, Equatable {
     /// Logs are done at once (B); plan changes ask first (A).
     var instant: Bool {
         switch kind {
-        case .water, .food, .supplement, .mood: true
+        case .water, .drinks, .food, .supplement, .mood: true
         case .move, .skip, .swap, .done, .reminder, .voice: false
         }
     }
@@ -59,6 +62,7 @@ struct CoachTask: Identifiable, Equatable {
     var symbol: String {
         switch kind {
         case .water: "drop.fill"
+        case .drinks: "wineglass.fill"
         case .food: "fork.knife"
         case .supplement: "pills.fill"
         case .mood: "face.smiling"
@@ -74,6 +78,7 @@ struct CoachTask: Identifiable, Equatable {
     var title: String {
         switch kind {
         case let .water(n): n == 1 ? "1 glass of water" : "\(n) glasses of water"
+        case let .drinks(k, n): n == 1 ? "1 \(k.label.lowercased())" : "\(n) × \(k.label.lowercased())"
         case let .food(_, names, _): names
         case let .supplement(_, name, _): name
         case let .mood(m): "Feeling \(Self.moodWords[max(0, min(4, m - 1))])"
@@ -90,6 +95,7 @@ struct CoachTask: Identifiable, Equatable {
     var value: String {
         switch kind {
         case let .water(n): "+\(n)"
+        case let .drinks(k, n): "\(k.emoji) \(n)"
         case let .food(items, _, _): "\(items.count)"
         case let .supplement(_, _, emoji): emoji
         case let .mood(m): Feel(rawValue: m)?.emoji ?? ""
@@ -105,6 +111,7 @@ struct CoachTask: Identifiable, Equatable {
     var doneLabel: String {
         switch kind {
         case .water: "WATER ADDED"
+        case .drinks: "DRINKS LOGGED"
         case .food: "FOOD LOGGED"
         case .supplement: "TAKEN TODAY"
         case .mood: "MOOD LOGGED"
@@ -151,6 +158,7 @@ extension AppModel {
     static func missedLine(_ d: CoachChatDo) -> String {
         switch d.kind {
         case "water": "Couldn't add the water."
+        case "drinks": "Couldn't log the drinks."
         case "food": "Couldn't find \"\(d.foods ?? "that")\" in foods. Add it in Fuel."
         case "supplement": "No \(d.foods ?? "supplement") left to take today in your stack. Add it in Fuel."
         case "mood": "Couldn't log your mood."
@@ -169,6 +177,9 @@ extension AppModel {
         case "water":
             guard let n = d.glasses, (1...10).contains(n) else { return nil }
             return .water(n)
+        case "drinks":
+            guard let n = d.glasses, (1...20).contains(n) else { return nil }
+            return .drinks(DrinkKind.from(d.foods), n)
         case "food":
             guard let text = d.foods?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
             let own = FuelStore.shared.saved.foods
@@ -225,6 +236,8 @@ extension AppModel {
             let day = Date(), before = FuelStore.shared.log(day)
             FuelStore.shared.addGlasses(n, on: day)
             t.undo = .fuel(day: day, log: before)
+        case let .drinks(k, n):
+            t.undo = .drink(DrinkStore.shared.add(k, count: n).id)
         case let .food(items, _, slotId):
             let day = Date(), plan = fuelPlan(on: day)
             guard let slot = plan.slots.first(where: { $0.id == slotId }) else { t.status = .failed; return t }
@@ -279,6 +292,8 @@ extension AppModel {
         switch u {
         case let .fuel(day, log):
             FuelStore.shared.update(day, plan: fuelPlan(on: day)) { $0 = log }
+        case let .drink(id):
+            DrinkStore.shared.remove(id)
         case let .mood(c):
             MindStore.shared.removeCheckIn(c)
         case let .moves(before):

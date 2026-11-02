@@ -24,7 +24,7 @@ export const GIRTH_SIDES = ['left', 'right', 'none'] as const;
  * plan changes (move, skip, swap) wait for the member's tap; two or more come as one checklist. Never account,
  * payment, deleting data, community posts, sharing or privacy settings: those have no kind here.
  */
-export const DO_KINDS = ['water', 'food', 'mood', 'move', 'skip', 'swap', 'done', 'reminder', 'voice', 'supplement'] as const;
+export const DO_KINDS = ['water', 'food', 'mood', 'move', 'skip', 'swap', 'done', 'reminder', 'voice', 'supplement', 'drinks'] as const;
 /** voice: when Coach reads answers aloud, as the app's Ask Coach setting. */
 export const DO_VOICE = ['whenTalking', 'always', 'never'] as const;
 export const DO_MEALS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -104,9 +104,9 @@ export interface CoachMeasurement {
 /** One thing Coach does for the member (#999); only the fields its kind uses are set, the rest null. */
 export interface CoachDo {
   kind: (typeof DO_KINDS)[number];
-  /** water: glasses to add, 1 to 10. */
+  /** water: glasses to add, 1 to 10. drinks (#1039): how many drinks, 1 to 20. */
   glasses: number | null;
-  /** food: what they ate, in their words ("oats with banana"); the app finds the foods in its catalog. supplement: its name ("creatine"). */
+  /** food: what they ate, in their words ("oats with banana"); the app finds the foods in its catalog. supplement: its name ("creatine"). drinks: the drink ("beer", "wine", "cocktail", "shot"). */
   foods: string | null;
   /** food: the meal, else the app's next meal of the day. */
   meal: (typeof DO_MEALS)[number] | null;
@@ -168,6 +168,7 @@ Answering questions (#412):
   - water: they drank water ("had 2 glasses") → glasses 1 to 10.
   - food: they ate or drank something to log ("had oats and a banana for breakfast") → foods in their words, meal when they say it.
   - supplement: they took a supplement of their stack ("took my creatine", "had my whey shake") → foods = the supplement's name. The app ticks today's dose in Fuel.
+  - drinks: they had alcohol ("8 beers last night", "a few glasses of wine") → glasses = how many (1 to 20), foods = the drink in one word. Stays on their phone. Kind and non-judgemental, never lecture: say it's logged, then help them bounce back (water, a salty protein breakfast, an easy day). No workout within 12 hours of drinking and no PR tries the day after; offer "move" or "skip" for today's heavy workout. Planning a big week ("I'm on holiday, drinking a lot this week") → suggest a Good times week in the Calendar (action "calendar"). Many heavy weeks or worry about drinking → kindly suggest a doctor or a helpline, no diagnosis.
   - mood: they say how they feel today ("feeling great", "drained") → mood 1 drained, 2 meh, 3 good, 4 great, 5 amazing.
   - move: move today's workout to another day ("move it to Saturday", "do it tomorrow") → weekday 1 Monday to 7 Sunday, using "Today is" below. Never a day before today.
   - skip: skip today's workout ("skip today", "not training today").
@@ -175,7 +176,7 @@ Answering questions (#412):
   - done: they did an earlier workout of this week but didn't log it ("I did Tuesday's workout") → weekday of that day, before today. It is logged as planned.
   - reminder: the morning reminder of a workout day ("remind me at 6:30", "stop the workout reminders") → minutes after midnight (6:30 = 390) and on true, or on false to turn it off.
   - voice: whether you read answers aloud ("talk to me", "stop talking", "only when I speak") → value always, never or whenTalking.
-  Logs (water, food, supplement, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip, swap, done, reminder and voice wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Fields a kind doesn't use are null.
+  Logs (water, drinks, food, supplement, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip, swap, done, reminder and voice wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Fields a kind doesn't use are null.
   You can't do anything else (account, email, password, payment, subscription, deleting data, community posts, sharing, privacy or AI settings). For those say kindly where it is in the app and add the matching "action" button. Never pretend you did something you can't.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
@@ -409,6 +410,11 @@ export const cleanDo = (list: CoachDo[] | null | undefined, context: ChatContext
       case 'water': {
         const glasses = int(d.glasses, 1, 10);
         if (glasses) c = { ...none, kind: 'water', glasses };
+        break;
+      }
+      case 'drinks': {
+        const glasses = int(d.glasses, 1, 20);
+        if (glasses) c = { ...none, kind: 'drinks', glasses, foods: text(d.foods, 30) };
         break;
       }
       case 'food': {
