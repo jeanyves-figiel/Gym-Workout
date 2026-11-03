@@ -18,6 +18,23 @@ enum MindPrefs {
     static let onTrainKey = "mindOnTrain"
     /// Card closes, "<day number>:<closes>" like the daily Coach pick: closed today or three times = not shown.
     static let closesKey = "mindCardCloses"
+    /// false = no morning sheet (#1045 B, Explore → Calm switch).
+    static let morningKey = "mindMorningSheet"
+    /// Day number the morning sheet last showed: once a day.
+    static let morningShownKey = "mindMorningShown"
+
+    /// First open of the day, no check-in yet, card not stopped or hidden today (#1045 B). Marks the day as shown.
+    @MainActor static func takeMorningSheet(calendar: Calendar) -> Bool {
+        let d = UserDefaults.standard
+        let today = RoutinePrefs.dayNumber(Date(), calendar: calendar)
+        guard d.object(forKey: morningKey) as? Bool ?? true,
+              d.object(forKey: onTrainKey) as? Bool ?? true,
+              RoutinePrefs.coachOffers(d.string(forKey: closesKey) ?? "", today: today),
+              d.integer(forKey: morningShownKey) != today,
+              MindStore.shared.checkIn() == nil else { return false }
+        d.set(today, forKey: morningShownKey)
+        return true
+    }
 
     static let gradient = LinearGradient(colors: [Color(hex: 0xFF3D9A), Color(hex: 0x7A2CFF), Color(hex: 0x2E8BFF)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -27,7 +44,7 @@ enum MindPrefs {
 
 // MARK: A · Check-in on Train
 
-/// Under the Daily row. No check-in today: mood squares and what it is about. Checked in: the Mind score tile (→ page)
+/// Right under Next up / Start (#1045 A), above the notices. No check-in today: mood squares and what it is about. Checked in: the Mind score tile (→ page)
 /// and Coach's breathing pick (→ player). ✕ hides it for today; the third ✕ stops it (Explore → Calm brings it back).
 struct MindTrainCard: View {
     @Environment(AppModel.self) private var model
@@ -78,6 +95,34 @@ struct MindTrainCard: View {
                                        detail: "Explore → Calm brings it back", symbol: "eye.slash.fill") {
             UserDefaults.standard.set(before, forKey: MindPrefs.closesKey)
         }
+    }
+}
+
+/// Morning sheet (#1045 B): the check-in on the first open of the day until done. Swipe down or ✕ skips it for today;
+/// the card under Start stays. Explore → Calm turns it off.
+struct MindMorningSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ContentTitle(title: greeting, subtitle: "Once a day · swipe down to skip")
+                    MindCheckInCard(onSaved: { dismiss() })
+                }
+                .padding(16)
+            }
+            .background(Theme.bg.ignoresSafeArea())
+            .toolbar { CloseToolbarItem { dismiss() } }
+        }
+        .presentationDetents([.medium, .large])
+        .accessibilityIdentifier("mind.morning")
+    }
+
+    private var greeting: String {
+        let hour = model.planCalendar.component(.hour, from: Date())
+        return (hour < 12 ? "Good morning" : hour < 18 ? "Hi" : "Good evening") + ", how do you feel?"
     }
 }
 
@@ -263,6 +308,7 @@ struct CalmLibrarySection: View {
     @Environment(AppModel.self) private var model
     @AppStorage(MindPrefs.onTrainKey) private var onTrain = true
     @AppStorage(MindPrefs.closesKey) private var closes = ""
+    @AppStorage(MindPrefs.morningKey) private var morning = true
     @State private var playing: Breath?
 
     private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
@@ -291,12 +337,22 @@ struct CalmLibrarySection: View {
             })) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Check-in on Train").font(Theme.label(15))
-                    Text("Mood, Mind score and Coach's breathing pick under Daily").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Mood, Mind score and Coach's breathing pick under Start").font(.caption).foregroundStyle(Theme.muted)
                 }
             }
             .tint(Theme.lime)
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.card))
+            Toggle(isOn: $morning) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Morning check-in").font(Theme.label(15))
+                    Text("Asks how you feel on the first open of the day, until you check in").font(.caption).foregroundStyle(Theme.muted)
+                }
+            }
+            .tint(Theme.lime)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.card))
+            .accessibilityIdentifier("calm.morning")
         }
         .fullScreenCover(item: $playing) { BreathingPlayer(breath: $0) }
         .onAppear { model.recordMindScore() }

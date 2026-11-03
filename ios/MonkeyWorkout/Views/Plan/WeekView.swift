@@ -26,6 +26,8 @@ struct WeekView: View {
     @State private var showingCalendar = false
     /// Week chest opened without its reveal (Watch or logged workout, #476).
     @State private var chestReveal = false
+    /// Mind morning sheet (#1045 B): first open of the day until checked in.
+    @State private var morningCheckIn = false
     /// Height the Train screen shows between the safe areas: short phones get a tighter Next up (#337).
     @State private var visibleHeight: CGFloat = 800
     /// CI screenshots: open in edit mode.
@@ -135,7 +137,8 @@ struct WeekView: View {
         .onChange(of: model.state.history.count) { revealChestIfNeeded() }
         // A pick never outlives its day: back on today after midnight or when the app comes back.
         .onChange(of: pickedDay) { pickedOn = pickedDay == nil ? nil : todayKey }
-        .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick() } }
+        .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick(); askMoodIfDue() } }
+        .sheet(isPresented: $morningCheckIn) { MindMorningSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStalePick() }
         // Start on a Home Screen widget (#537): today's session straight in the player.
         .onChange(of: PlayerLaunch.shared.sessionId, initial: true) { _, id in
@@ -156,6 +159,7 @@ struct WeekView: View {
             model.syncProgramme()
             model.rollWeekIfNeeded()
             if demoEditing { arranging = true }
+            askMoodIfDue()
             // Weekly Coach review (#867): asked once on Sunday or Monday, then kept.
             Task { await model.loadWeekReview() }
             resumeInterruptedOnce()
@@ -185,6 +189,14 @@ struct WeekView: View {
     }
 
     /// Opens the week chest the member hasn't seen open yet (#476); never over the player.
+    private func askMoodIfDue() {
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        guard playing == nil, !chestReveal, !morningCheckIn, !arranging else { return }
+        if MindPrefs.takeMorningSheet(calendar: model.planCalendar) { morningCheckIn = true }
+    }
+
     private func revealChestIfNeeded() {
         #if DEBUG
         if Demo.enabled { return }
@@ -507,6 +519,8 @@ struct WeekView: View {
                     // Train around pain (#870 C): the Protected badge over the day.
                     if !arranging { PainProtectBar() }
                     nextUpCard(plan)
+                    // Mind check-in (#834 A), right under Start (#1045 A): seen without scrolling, above the notices.
+                    if !arranging { MindTrainCard() }
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
                     // Sport prep on a planned sport day (#523), unless today's sport block already has it (#658).
@@ -515,8 +529,6 @@ struct WeekView: View {
                     if !arranging { SkillPracticeBar() }
                     // Daily routines (#689 A): stretch, hangs or mobility with a length, every day.
                     if !arranging { DailyRoutinesRow() }
-                    // Mind check-in (#834 A): mood, Mind score and Coach's breathing pick.
-                    if !arranging { MindTrainCard() }
                     // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
                     if !arranging { RunGoalCard() }
                     if !arranging { notices(plan: plan, profile: profile) }
@@ -527,11 +539,11 @@ struct WeekView: View {
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { start($0) }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
                     // A small Next up gets the slot under its row instead (#538).
+                    if !arranging, !small { MindTrainCard() }
                     if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small, showsToday { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
                     if !arranging, !small { DailyRoutinesRow() }
-                    if !arranging, !small { MindTrainCard() }
                     if !arranging, !small { RunGoalCard() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
                 }
@@ -2383,7 +2395,7 @@ private struct VariationUndoCard: View {
 
 /// One slot under Next up for the cards that only show for a while (#538, design A): a variation's Undo, the taste
 /// recap, the block review, what Monkey noticed and kind streaks. One at a time: the bars show where it is, a swipe or
-/// a tap on the bars shows the next, ✕ puts the current one away. Start workout never moves down for them.
+/// a tap on the bars shows the next, a long press → Hide puts the current one away (#1042, no ✕ under the card). Start workout never moves down for them.
 private struct TrainNoticeSlot: View {
     enum Kind: Hashable { case setup, review, recover, morningAfter, goodTimes, addOn, variation, taste, block, noticed, kind }
 
@@ -2443,10 +2455,15 @@ private struct TrainNoticeSlot: View {
             let i = min(index, cards.count - 1)
             VStack(spacing: 4) {
                 card(cards[i])
+                    // No ✕ under the card (#1042): long press → Hide, like the Train day cards.
+                    .contextMenu {
+                        Button(hideLabel(cards[i]), systemImage: "eye.slash") { dismiss(cards[i]) }
+                    }
+                    .accessibilityAction(named: hideLabel(cards[i])) { dismiss(cards[i]) }
                     .id(cards[i])
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-                // A card with its own ✕ gets no second one here (#823): only the bars, when there are more cards.
-                if cards.count > 1 || !Self.ownClose.contains(cards[i]) { footer(cards, current: i) }
+                // Only the bars, when there are more cards; long press hides a card (#1042).
+                if cards.count > 1 { footer(cards, current: i) }
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24).onEnded { v in
@@ -2489,39 +2506,21 @@ private struct TrainNoticeSlot: View {
         }
     }
 
-    /// Position bars (tap for the next card) and ✕ for the one showing.
+    /// Position bars: tap for the next card.
     private func footer(_ cards: [Kind], current i: Int) -> some View {
-        HStack(spacing: 8) {
-            if cards.count > 1 {
-                Button { withAnimation(.snappy) { index = (i + 1) % cards.count } } label: {
-                    HStack(spacing: 4) {
-                        ForEach(cards.indices, id: \.self) { j in
-                            Capsule().fill(Color.white.opacity(j == i ? 0.95 : 0.3)).frame(width: j == i ? 20 : 10, height: 4)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .contentShape(Rectangle())
+        Button { withAnimation(.snappy) { index = (i + 1) % cards.count } } label: {
+            HStack(spacing: 4) {
+                ForEach(cards.indices, id: \.self) { j in
+                    Capsule().fill(Color.white.opacity(j == i ? 0.95 : 0.3)).frame(width: j == i ? 20 : 10, height: 4)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(title(cards[i])), \(i + 1) of \(cards.count)")
-                .accessibilityHint("Shows the next one")
-            } else {
-                Spacer(minLength: 0)
             }
-            if !Self.ownClose.contains(cards[i]) {
-                Button { dismiss(cards[i]) } label: {
-                    Image(systemName: "xmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color.white.opacity(0.1)))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss \(title(cards[i]))")
-            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title(cards[i])), \(i + 1) of \(cards.count)")
+        .accessibilityHint("Shows the next one")
     }
-
-    /// Cards that carry their own ✕ (#823): the week review, Variation undo, the block review and What Monkey noticed.
-    private static let ownClose: Set<Kind> = [.review, .variation, .block, .noticed]
 
     private func title(_ k: Kind) -> String {
         switch k {
@@ -2536,6 +2535,16 @@ private struct TrainNoticeSlot: View {
         case .block: "Block review"
         case .noticed: "What Monkey noticed"
         case .kind: "Streak news"
+        }
+    }
+
+    /// Long-press menu line (#1042): says for how long the card goes away.
+    private func hideLabel(_ k: Kind) -> String {
+        switch k {
+        case .recover, .morningAfter, .goodTimes: "Hide for today"
+        case .addOn: "Not now · 30 days"
+        case .kind: "Hide this week"
+        default: "Hide"
         }
     }
 
