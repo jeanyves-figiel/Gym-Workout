@@ -2,6 +2,12 @@
   "id": "2026-11-03.1",
   "items": [
     {
+      "symbol": "brain.head.profile",
+      "tint": "stretch",
+      "title": "Mind first",
+      "body": "How do you feel? now sits right under Start on Train, and asks once each morning. Turn it off in Explore → Calm."
+    },
+    {
       "symbol": "hand.tap.fill",
       "tint": "mobility",
       "title": "Tidier Train cards",
