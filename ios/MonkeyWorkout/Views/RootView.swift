@@ -459,6 +459,9 @@ private struct DemoScreen: View {
                 ScrollView { MindTrainCard().padding(16) }
                     .background(Theme.bg.ignoresSafeArea())
             }
+        // Mind morning sheet (#1045 B).
+        case "mind-morning":
+            NavigationStack { Color.clear }.sheet(isPresented: .constant(true)) { MindMorningSheet() }
         // Weekly Coach review (#867): the Train card with Coach's score, summary and changes.
         case "week-review":
             NavigationStack {

@@ -26,6 +26,8 @@ struct WeekView: View {
     @State private var showingCalendar = false
     /// Week chest opened without its reveal (Watch or logged workout, #476).
     @State private var chestReveal = false
+    /// Mind morning sheet (#1045 B): first open of the day until checked in.
+    @State private var morningCheckIn = false
     /// Height the Train screen shows between the safe areas: short phones get a tighter Next up (#337).
     @State private var visibleHeight: CGFloat = 800
     /// CI screenshots: open in edit mode.
@@ -135,7 +137,8 @@ struct WeekView: View {
         .onChange(of: model.state.history.count) { revealChestIfNeeded() }
         // A pick never outlives its day: back on today after midnight or when the app comes back.
         .onChange(of: pickedDay) { pickedOn = pickedDay == nil ? nil : todayKey }
-        .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick() } }
+        .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick(); askMoodIfDue() } }
+        .sheet(isPresented: $morningCheckIn) { MindMorningSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStalePick() }
         // Start on a Home Screen widget (#537): today's session straight in the player.
         .onChange(of: PlayerLaunch.shared.sessionId, initial: true) { _, id in
@@ -156,6 +159,7 @@ struct WeekView: View {
             model.syncProgramme()
             model.rollWeekIfNeeded()
             if demoEditing { arranging = true }
+            askMoodIfDue()
             // Weekly Coach review (#867): asked once on Sunday or Monday, then kept.
             Task { await model.loadWeekReview() }
             resumeInterruptedOnce()
@@ -185,6 +189,14 @@ struct WeekView: View {
     }
 
     /// Opens the week chest the member hasn't seen open yet (#476); never over the player.
+    private func askMoodIfDue() {
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        guard playing == nil, !chestReveal, !morningCheckIn, !arranging else { return }
+        if MindPrefs.takeMorningSheet(calendar: model.planCalendar) { morningCheckIn = true }
+    }
+
     private func revealChestIfNeeded() {
         #if DEBUG
         if Demo.enabled { return }
