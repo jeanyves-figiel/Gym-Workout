@@ -1,11 +1,17 @@
 {
-  "id": "2026-11-02.1",
+  "id": "2026-11-03.1",
   "items": [
     {
-      "symbol": "party.popper.fill",
-      "tint": "power",
-      "title": "Good times, then bounce back",
-      "body": "Log drinks in Fuel or tell Coach; plan a good times week in Calendar. Training goes lighter, water goes up, and a morning-after card helps you recover. Stays on your phone."
+      "symbol": "brain.head.profile",
+      "tint": "stretch",
+      "title": "Mind first",
+      "body": "How do you feel? now sits right under Start on Train, and asks once each morning. Turn it off in Explore → Calm."
+    },
+    {
+      "symbol": "hand.tap.fill",
+      "tint": "mobility",
+      "title": "Tidier Train cards",
+      "body": "Long press a Train tip card to hide it, the same way as day cards. No more floating ✕ under the card."
     }
   ]
 }
