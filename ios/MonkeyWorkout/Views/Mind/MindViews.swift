@@ -27,7 +27,7 @@ enum MindPrefs {
 
 // MARK: A · Check-in on Train
 
-/// Under the Daily row. No check-in today: mood squares and what it is about. Checked in: the Mind score tile (→ page)
+/// Right under Next up / Start (#1045 A), above the notices. No check-in today: mood squares and what it is about. Checked in: the Mind score tile (→ page)
 /// and Coach's breathing pick (→ player). ✕ hides it for today; the third ✕ stops it (Explore → Calm brings it back).
 struct MindTrainCard: View {
     @Environment(AppModel.self) private var model

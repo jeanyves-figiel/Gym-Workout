@@ -507,6 +507,8 @@ struct WeekView: View {
                     // Train around pain (#870 C): the Protected badge over the day.
                     if !arranging { PainProtectBar() }
                     nextUpCard(plan)
+                    // Mind check-in (#834 A), right under Start (#1045 A): seen without scrolling, above the notices.
+                    if !arranging { MindTrainCard() }
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
                     // Sport prep on a planned sport day (#523), unless today's sport block already has it (#658).
@@ -515,8 +517,6 @@ struct WeekView: View {
                     if !arranging { SkillPracticeBar() }
                     // Daily routines (#689 A): stretch, hangs or mobility with a length, every day.
                     if !arranging { DailyRoutinesRow() }
-                    // Mind check-in (#834 A): mood, Mind score and Coach's breathing pick.
-                    if !arranging { MindTrainCard() }
                     // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
                     if !arranging { RunGoalCard() }
                     if !arranging { notices(plan: plan, profile: profile) }
@@ -527,11 +527,11 @@ struct WeekView: View {
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { start($0) }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
                     // A small Next up gets the slot under its row instead (#538).
+                    if !arranging, !small { MindTrainCard() }
                     if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small, showsToday { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
                     if !arranging, !small { DailyRoutinesRow() }
-                    if !arranging, !small { MindTrainCard() }
                     if !arranging, !small { RunGoalCard() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
                 }
