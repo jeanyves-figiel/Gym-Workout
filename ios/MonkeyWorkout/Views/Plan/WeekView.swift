@@ -26,6 +26,8 @@ struct WeekView: View {
     @State private var showingCalendar = false
     /// Week chest opened without its reveal (Watch or logged workout, #476).
     @State private var chestReveal = false
+    /// Mind morning sheet (#1045 B): first open of the day until checked in.
+    @State private var morningCheckIn = false
     /// Height the Train screen shows between the safe areas: short phones get a tighter Next up (#337).
     @State private var visibleHeight: CGFloat = 800
     /// CI screenshots: open in edit mode.
@@ -135,7 +137,8 @@ struct WeekView: View {
         .onChange(of: model.state.history.count) { revealChestIfNeeded() }
         // A pick never outlives its day: back on today after midnight or when the app comes back.
         .onChange(of: pickedDay) { pickedOn = pickedDay == nil ? nil : todayKey }
-        .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick() } }
+        .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick(); askMoodIfDue() } }
+        .sheet(isPresented: $morningCheckIn) { MindMorningSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStalePick() }
         // Start on a Home Screen widget (#537): today's session straight in the player.
         .onChange(of: PlayerLaunch.shared.sessionId, initial: true) { _, id in
@@ -156,6 +159,7 @@ struct WeekView: View {
             model.syncProgramme()
             model.rollWeekIfNeeded()
             if demoEditing { arranging = true }
+            askMoodIfDue()
             // Weekly Coach review (#867): asked once on Sunday or Monday, then kept.
             Task { await model.loadWeekReview() }
             resumeInterruptedOnce()
@@ -185,6 +189,14 @@ struct WeekView: View {
     }
 
     /// Opens the week chest the member hasn't seen open yet (#476); never over the player.
+    private func askMoodIfDue() {
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        guard playing == nil, !chestReveal, !morningCheckIn, !arranging else { return }
+        if MindPrefs.takeMorningSheet(calendar: model.planCalendar) { morningCheckIn = true }
+    }
+
     private func revealChestIfNeeded() {
         #if DEBUG
         if Demo.enabled { return }
@@ -507,6 +519,8 @@ struct WeekView: View {
                     // Train around pain (#870 C): the Protected badge over the day.
                     if !arranging { PainProtectBar() }
                     nextUpCard(plan)
+                    // Mind check-in (#834 A), right under Start (#1045 A): seen without scrolling, above the notices.
+                    if !arranging { MindTrainCard() }
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
                     // Sport prep on a planned sport day (#523), unless today's sport block already has it (#658).
@@ -515,8 +529,6 @@ struct WeekView: View {
                     if !arranging { SkillPracticeBar() }
                     // Daily routines (#689 A): stretch, hangs or mobility with a length, every day.
                     if !arranging { DailyRoutinesRow() }
-                    // Mind check-in (#834 A): mood, Mind score and Coach's breathing pick.
-                    if !arranging { MindTrainCard() }
                     // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
                     if !arranging { RunGoalCard() }
                     if !arranging { notices(plan: plan, profile: profile) }
@@ -527,11 +539,11 @@ struct WeekView: View {
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { start($0) }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
                     // A small Next up gets the slot under its row instead (#538).
+                    if !arranging, !small { MindTrainCard() }
                     if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small, showsToday { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
                     if !arranging, !small { DailyRoutinesRow() }
-                    if !arranging, !small { MindTrainCard() }
                     if !arranging, !small { RunGoalCard() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
                 }
