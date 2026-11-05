@@ -86,6 +86,14 @@ struct MyAppView: View {
                 AppLevelPicker(selected: modules.level) { level in
                     withAnimation(.snappy) { model.setAppLevel(level) }
                 }
+                // Part of a plan (#1052 D).
+                Text("Your plan").eyebrow().padding(.leading, 4).padding(.top, 6)
+                    NavigationLink { PlanFollowView() } label: {
+                        SettingsRow(symbol: model.planFollow.scope.symbol, title: "What you follow",
+                                    value: model.planFollow.summary { WeekSchedule.shortName($0) })
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("app.follow")
                 Text("Modules").eyebrow().padding(.leading, 4).padding(.top, 6)
                 LazyVGrid(columns: columns, spacing: 10) {
                     workoutsTile

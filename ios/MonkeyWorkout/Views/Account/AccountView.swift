@@ -57,7 +57,7 @@ struct AccountView: View {
         static let style = "Style look theme monkey coach watch face home"
         static let widgets = "Home Screen widgets"
         static let tabs = "My tabs hide tab bar Fuel Social Insights Explore"
-        static let app = "My app level simple simpler just workouts follow a plan everything modules Coach game XP Mind sports camera"
+        static let app = "My app level simple simpler just workouts follow a plan everything modules Coach game XP Mind sports camera part of plan some days one workout at a time own workouts lifts only quick"
         static let hd = "HD animations exercise movement download quality storage size wi-fi"
         static let monkeyGrade = "MonkeyGrade climbing connected apps"
         static let password = "Password sign in"

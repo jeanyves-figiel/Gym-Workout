@@ -52,7 +52,8 @@ Design A + B from `usage-levels/a.png` + `b.png`. Engine `AppModules.swift`: `Ap
 - **Sign up:** `OnboardingFlowView(askLevel: true)` opens on **How much app?** (`AppLevelPicker`, Everything preselected), applied after the first plan is made.
 - **Settings → Look & apps → My app** (`MyAppView`): level cards + module grid with switches, Workouts locked on.
 - **What a module hides:** tab (Explore = Plan, Insights, Fuel, Social), Train widgets and Edit Train gallery, notice cards (`TrainNoticeSlot.Kind.module`: review, taste, block, noticed = Coach; add-on = Sports; kind streaks = Game), `CoachHeaderTile` (Coach), Mind card and morning sheet (Mind), chest reveal (Game), Calendar in Plan actions (Plan), Train 🎥 and player Film this set (Camera), player set-talk mic (Coach).
-- Demo screens `onboarding-level`, `my-app`.
+- **What you follow** (#1052 D, engine `PlanFollow.swift`: `PlanScope` whole / someDays / oneAtATime / ownWorkouts, `WorkoutCut` full / lifts / quick, `PlanFollow.applying(to:keep:today:)`): stored in `SyncedProfile.planFollow`, applied last in `AppModel.makePlan` (`followed(_:)`) so Train, reminders, missed check-ins and the Watch all see the same week; done and in-progress sessions and plan inserts are kept. Edited in `PlanFollowView` (`PlanFollowEditor`), from My plan and Settings → My app.
+- Demo screens `onboarding-level`, `my-app`, `plan-follow`.
 
 ## Tabs
 

@@ -75,6 +75,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var placeBook: PlaceBook?
     /// App level and modules (#1052); nil = everything, as before.
     var appModules: AppModules?
+    /// Part of a plan (#1052 D): scope, days and workout cut; nil = the whole plan, full workouts.
+    var planFollow: PlanFollow?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {

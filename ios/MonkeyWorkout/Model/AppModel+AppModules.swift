@@ -33,3 +33,31 @@ extension AppModel {
         Task { await sync() }
     }
 }
+
+/// Part of a plan (#1052 D): only some days, one workout at a time or own workouts, each workout full, lifts only or
+/// quick. Applied last to the plan, so the generated week underneath stays as it is.
+extension AppModel {
+    var planFollow: PlanFollow { state.synced?.planFollow ?? .whole }
+
+    /// The week as the member follows it; sessions done or in progress are kept as they are.
+    func followed(_ p: WeekPlan) -> WeekPlan {
+        guard let f = state.synced?.planFollow, f != .whole else { return p }
+        var keep = Set(state.done.filter { $0.value }.map { $0.key })
+        if let active = state.activeWorkout?.sessionId { keep.insert(active) }
+        return f.applying(to: p, keep: keep, today: todayWeekday)
+    }
+
+    func setPlanFollow(_ f: PlanFollow) {
+        guard state.synced != nil else { return }
+        state.synced?.planFollow = f == .whole ? nil : f
+        state.profileDirty = true
+        persist()
+        Task { await sync() }
+    }
+
+    /// Weekdays of the plan's own sessions (before Some days), for the day picker.
+    var planWeekdays: [Int] {
+        let days = (unguardedPlan()?.sessions ?? []).compactMap { $0.isPlanInsert ? nil : $0.weekday }
+        return Array(Set(days)).sorted()
+    }
+}

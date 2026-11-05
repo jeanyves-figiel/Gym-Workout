@@ -511,6 +511,7 @@ private struct DemoScreen: View {
                                startAt: OnboardingStep(rawValue: String(Demo.screen.dropFirst("onboarding-".count))) ?? .gym)
         case "onboarding-level": OnboardingFlowView(mode: .newMember, profile: nil, askLevel: true)
         case "my-app": NavigationStack { MyAppView() }
+        case "plan-follow": NavigationStack { PlanFollowView() }
         case "app-tour": MainTabView()
         case "train-setup": NavigationStack { WeekView() }
         case "onboarding-hub": NavigationStack { OnboardingHubView() }
