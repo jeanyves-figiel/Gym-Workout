@@ -341,6 +341,20 @@ describe('freestyle: Coach adds exercises (#856)', () => {
     const bad = await chat(t, { turns: [{ role: 'member', text: 'This?' }], photo: Buffer.alloc(200, 1).toString('base64') });
     expect(bad.statusCode).toBe(400);
   });
+
+  it('takes a photo from any screen (#1064), refuses one over 1.5 MB', async () => {
+    start();
+    const t = await signUp('p@example.com');
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(500, 3)]);
+    const ok = await chat(t, { turns: [{ role: 'member', text: "What's this?" }], context: { screen: 'train', exercises: list }, photo: jpeg.toString('base64') });
+    expect(ok.statusCode).toBe(200);
+    expect(calls[0]!.photo?.equals(jpeg)).toBe(true);
+    expect(calls[0]!.context.screen).toBe('train');
+    const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(1_500_100, 3)]);
+    const tooBig = await chat(t, { turns: [{ role: 'member', text: "What's this?" }], photo: big.toString('base64') });
+    expect(tooBig.statusCode).toBe(400);
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe('Coach can act (#999)', () => {
