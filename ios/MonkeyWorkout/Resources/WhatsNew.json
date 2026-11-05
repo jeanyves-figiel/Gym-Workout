@@ -1,17 +1,17 @@
 {
-  "id": "2026-11-03.1",
+  "id": "2026-11-05.1",
   "items": [
     {
-      "symbol": "brain.head.profile",
+      "symbol": "face.smiling",
       "tint": "stretch",
-      "title": "Mind first",
-      "body": "How do you feel? now sits right under Start on Train, and asks once each morning. Turn it off in Explore → Calm."
+      "title": "Morning check-in, cleaner",
+      "body": "One title, big colourful mood squares, no empty space."
     },
     {
-      "symbol": "hand.tap.fill",
-      "tint": "mobility",
-      "title": "Tidier Train cards",
-      "body": "Long press a Train tip card to hide it, the same way as day cards. No more floating ✕ under the card."
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "power",
+      "title": "Coach always in full",
+      "body": "Coach Monkey's card stays open every day, with tips and your week at a glance."
     }
   ]
 }
