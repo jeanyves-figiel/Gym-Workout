@@ -31,7 +31,7 @@ const body = z.object({
       training: z.array(z.string().trim().min(1).max(160)).max(32).optional(),
     })
     .default({}),
-  /** JPEG of the machine in front of the member (#856), base64, sent with the last message. */
+  /** One photo the member sent (#856 machine, #1064 anything from any screen), JPEG base64, with the last message. Passed through, never stored. */
   photo: z.string().min(100).max(Math.ceil((MAX_PHOTO * 4) / 3) + 4).optional(),
 });
 
@@ -70,7 +70,7 @@ export const coachChatRoutes = (
   /** Whether the chat is switched on, and messages left today. */
   r.get('/me/coach-chat', async (req) => ({ available: !!coach, remainingToday: Math.max(0, dailyLimit - usedToday(req.userId!)) }));
 
-  // Room for one machine photo (#856).
+  // Room for one photo (#856, #1064).
   r.post('/me/coach-chat', { bodyLimit: 2_200_000 }, async (req) => {
     if (!coach) throw new ApiError(503, 'coach_unavailable', 'Coach chat is not available right now.');
     if (!hasAccess(req.userId!)) throw new ApiError(402, 'pro_required', 'Coach chat is part of MonkeyWorkout Pro.');

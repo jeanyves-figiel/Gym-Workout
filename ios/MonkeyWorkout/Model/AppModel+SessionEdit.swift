@@ -99,3 +99,33 @@ extension AppModel {
         canSwap(uid: uid) && !isEdited(s.id)
     }
 }
+
+/// An exercise Coach's photo answer added to today's workout (#1064), for taking it out again.
+struct TodayAdd: Equatable {
+    let sessionId: String
+    let uid: String
+}
+
+extension AppModel {
+    /// Today's workout can take one more exercise: planned, not skipped, not started or done.
+    func canAddToToday(_ s: Session) -> Bool {
+        !skippedIds.contains(s.id) && canEditExercises(s)
+    }
+
+    /// Adds `e` at the end of today's main block (strength, else the first that isn't warm-up or cool-down).
+    func addToToday(_ e: Exercise) -> TodayAdd? {
+        guard let s = todaySession, canAddToToday(s), var blocks = editableBlocks(s.id) else { return nil }
+        let kind = blocks.contains { $0.kind == .strength } ? BlockKind.strength
+            : blocks.first { $0.kind != .warmup && $0.kind != .cooldown }?.kind ?? .strength
+        guard let uid = blocks.add(e, to: kind, sessionId: s.id) else { return nil }
+        saveSessionEdit(s.id, blocks: blocks)
+        return TodayAdd(sessionId: s.id, uid: uid)
+    }
+
+    /// Takes it out again; other changes made since stay (the plan as it was clears the edit, `saveSessionEdit`).
+    func undoAddToToday(_ a: TodayAdd) {
+        guard var blocks = editableBlocks(a.sessionId), blocks.flatMap(\.items).contains(where: { $0.uid == a.uid }) else { return }
+        blocks.remove(a.uid)
+        saveSessionEdit(a.sessionId, blocks: blocks)
+    }
+}
