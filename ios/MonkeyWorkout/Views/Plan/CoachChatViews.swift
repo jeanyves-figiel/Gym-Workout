@@ -24,7 +24,7 @@ struct CoachChatMessage: Identifiable, Equatable {
     var seconds: Double?
     /// Exercises to add now (#856, freestyle), as ▶ / + cards.
     var exercises: [Exercise] = []
-    /// The machine photo the member sent (#856), shown in their bubble; never sent again.
+    /// The photo the member sent (#856 machine, #1064 anything), shown in their bubble; never sent again.
     var photo: UIImage?
     /// History question (#868 C): the answer card with its mini chart.
     var history: HistoryAnswer?
@@ -57,8 +57,8 @@ struct CoachChatMessage: Identifiable, Equatable {
 extension AppModel {
     /// What the coach knows about the member: goal, level, method, session length, gym, readiness, today's plan, pronouns,
     /// and what it remembers (#495).
-    /// `focus`: the screen the member asks from (#412).
-    func coachChatContext(readiness: String?, focus: CoachFocus? = nil) -> CoachChatContext {
+    /// `focus`: the screen the member asks from (#412). `photo`: the member sent one (#1064), so Coach may name exercises.
+    func coachChatContext(readiness: String?, focus: CoachFocus? = nil, photo: Bool = false) -> CoachChatContext {
         // How we talk to you (#415): the coach uses the member's pronouns and calls them what they picked.
         // A first name stays on the device: the coach writes {name} and the app fills it in.
         let pronouns = body.pronounsText, call = coachCallIsName ? Self.nameSlot : coachCallName
@@ -71,8 +71,8 @@ extension AppModel {
                                 method: p.trainingMethod.rawValue, screen: focus?.screen, focus: focus?.text, pronouns: pronouns, callName: call,
                                 // What the coach remembers (#495), within the server's limits.
                                 memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) },
-                                // Building as they go (#856): the names Coach may hand back as exercises to add.
-                                exercises: focus?.wantsExercises == true ? Freestyle.coachNames(profile: p) : nil,
+                                // Building as they go (#856), or a photo from any screen (#1064): the names Coach may hand back.
+                                exercises: focus?.wantsExercises == true || photo ? Freestyle.coachNames(profile: p) : nil,
                                 // Coach can act (#999): today's exercises to swap by name, and the day for "move it to Saturday".
                                 todayExercises: coachTodayExercises, weekday: todayWeekday,
                                 // Their own workouts, lift trends and body weight (#1010), so progress questions get real numbers.
@@ -131,7 +131,7 @@ extension AppModel {
         let turns = messages.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.suffix(30).map { m in
             CoachChatTurn(role: m.role.rawValue, text: (m.role == .coach ? Self.slotName(m.text, name) : m.text).trimmingCharacters(in: .whitespacesAndNewlines).utf16Capped(600))
         }
-        var answer = try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus), photo: photo,
+        var answer = try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus, photo: photo != nil), photo: photo,
                                              as: CoachWorkoutSettings.self)
         answer.reply = Self.fillName(answer.reply, name)
         answer.suggestions = answer.suggestions?.map { Self.fillName($0, name) }
@@ -194,6 +194,8 @@ struct CoachChatView: View {
     @State private var photoItem: PhotosPickerItem?
     /// Ids lined up on the start screen, mirrored here so the + marks update in the sheet (#856).
     @State private var linedIds: [String] = []
+    /// Photo answers outside freestyle (#1064): exercises added to today's workout, with what Undo puts back.
+    @State private var addedToday: [String: TodayAdd] = [:]
     @FocusState private var typing: Bool
 
     private var focus: CoachFocus? { ask?.focus }
@@ -258,6 +260,7 @@ struct CoachChatView: View {
                     case let .exercise(id): ExerciseDetailView(exerciseId: id)
                     case .calendar: CalendarView()
                     case .measurements: MeasurementsView()
+                    case let .machine(item): MachineDetailView(item: item)
                     }
                 }
             }
@@ -271,7 +274,7 @@ struct CoachChatView: View {
             guard let ask else { return }
             if let q = ask.question { send(q, spoken: ask.spoken) }
             else if ask.listen { listen() }
-            else if ask.photo { snap() }
+            else if ask.photo { snap(camera: hasCamera) }
         }
         .onDisappear {
             listener.cancel()
@@ -329,7 +332,7 @@ struct CoachChatView: View {
                     Image(uiImage: photo).resizable().scaledToFill()
                         .frame(width: 150, height: 150)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .accessibilityLabel("Your photo of the machine")
+                        .accessibilityLabel("Your photo")
                 }
                 Text(m.text)
                     .font(.subheadline.weight(.semibold))
@@ -345,6 +348,8 @@ struct CoachChatView: View {
                 if m.onDevice { OnDeviceBadge(seconds: m.seconds) }
                 if !m.text.isEmpty { coachBubble(m.text) }
                 if !m.exercises.isEmpty, freestyle != nil { exerciseCards(m.exercises) }
+                // A photo answer anywhere else (#1064, design A): the exercises to open or add to today, then Open machine.
+                if !m.exercises.isEmpty, freestyle == nil { photoCards(m.exercises) }
                 // No button to a tab the member hid (#1004).
                 if let a = m.action, MainTab(rawValue: a.target).map(TabsPref.shared.shows) ?? true { actionButton(a) }
                 if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
@@ -581,6 +586,78 @@ struct CoachChatView: View {
         .padding(.leading, 42)
     }
 
+    /// A photo answer (#1064, design A): each exercise (tap opens it, + adds it to today's workout, ✓ tap again takes it
+    /// out, when there is one that can still change), then Open machine (its page in Explore by machine).
+    private func photoCards(_ list: [Exercise]) -> some View {
+        let today = model.todaySession.flatMap { model.canAddToToday($0) ? $0 : nil }
+        return VStack(spacing: 6) {
+            ForEach(list, id: \.id) { e in
+                let added = addedToday[e.id] != nil
+                HStack(spacing: 8) {
+                    Button { opening = .exercise(e.id) } label: {
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(e.name).font(Theme.label(14)).lineLimit(2).minimumScaleFactor(0.8)
+                                Text(e.primary.first?.group.label ?? e.category.label).font(Theme.label(10)).opacity(0.85).lineLimit(1)
+                            }
+                            Spacer(minLength: 4)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open \(e.name)")
+                    if today != nil {
+                        Button { toggleToday(e) } label: {
+                            Image(systemName: added ? "checkmark" : "plus").font(.system(size: 15, weight: .black))
+                                .foregroundStyle(Theme.ink)
+                                .frame(width: 34, height: 34)
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(added ? .white : Theme.lime))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(added ? "Take \(e.name) out of today's workout" : "Add \(e.name) to today's workout")
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(e.primary.first?.group.gradient ?? WorkoutEngine.Category.strength.gradient))
+            }
+            if let item = Self.machine(of: list) { machineButton(item) }
+        }
+        .padding(.leading, 42)
+    }
+
+    /// Open machine: the lime button under the cards.
+    private func machineButton(_ item: Equipment) -> some View {
+        Button { opening = .machine(item) } label: {
+            Label("Open \(item.label)", systemImage: "arrow.up.right")
+                .labelStyle(.titleOnly)
+                .font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity).padding(.vertical, 11)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.lime))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("askCoach.machine")
+    }
+
+    /// The machine most of Coach's exercises share (not a mat or foam roller); nil for body-weight moves.
+    static func machine(of list: [Exercise]) -> Equipment? {
+        var counts: [Equipment: Int] = [:]
+        for e in list { for q in Set(e.equipment) where !GymArea.floor.contains(q) { counts[q, default: 0] += 1 } }
+        return counts.max { a, b in a.value != b.value ? a.value < b.value : a.key.rawValue > b.key.rawValue }?.key
+    }
+
+    private func toggleToday(_ e: Exercise) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if let a = addedToday[e.id] {
+            model.undoAddToToday(a)
+            addedToday[e.id] = nil
+        } else if let a = model.addToToday(e) {
+            addedToday[e.id] = a
+        }
+    }
+
     /// + on a Coach card: lines it up on the start screen, tapped again takes it out.
     private func line(_ e: Exercise) {
         guard let lined = freestyle?.lined else { return }
@@ -649,9 +726,9 @@ struct CoachChatView: View {
                         .onSubmit { send(draft) }
                         .onChange(of: draft) { if draft.count > 500 { draft = String(draft.prefix(500)) } }
                 }
-                // Freestyle (#856): snap the machine in front of you.
-                if freestyle != nil, draft.isEmpty, !listener.listening {
-                    Button(action: snap) {
+                // Snap the machine in front of you (#856), or send any photo from any Ask Coach (#1064).
+                if draft.isEmpty, !listener.listening {
+                    photoMenu {
                         Image(systemName: "camera.fill").font(.system(size: 15, weight: .black))
                             .foregroundStyle(.white)
                             .frame(width: 34, height: 34)
@@ -659,10 +736,9 @@ struct CoachChatView: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
                     .disabled(!canSnap)
                     .opacity(canSnap ? 1 : 0.4)
-                    .accessibilityLabel("Snap the machine")
+                    .accessibilityLabel("Send Coach a photo")
                     .accessibilityIdentifier("askCoach.photo")
                 }
                 // Empty field: the mic (#412), on-device speech-to-text; tap again to send now.
@@ -722,11 +798,24 @@ struct CoachChatView: View {
     /// A photo needs the server Coach (the on-device one can't see).
     private var canSnap: Bool { !sending && serverOpen }
 
-    private func snap() {
+    private var hasCamera: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
+
+    /// Camera, or the photo library (also where there's no camera).
+    private func snap(camera: Bool) {
         guard canSnap else { return }
         voice.stop()
         typing = false
-        if UIImagePickerController.isSourceTypeAvailable(.camera) { snapping = true } else { picking = true }
+        if camera && hasCamera { snapping = true } else { picking = true }
+    }
+
+    /// Tap takes a photo (the library where there's no camera); long press: Take photo / Choose photo (#1064, design A).
+    private func photoMenu<L: View>(@ViewBuilder label: () -> L) -> some View {
+        Menu {
+            if hasCamera { Button("Take photo", systemImage: "camera") { snap(camera: true) } }
+            Button("Choose photo", systemImage: "photo.on.rectangle") { snap(camera: false) }
+        } label: { label() } primaryAction: { snap(camera: true) }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
     }
 
     private func listen() {
@@ -746,7 +835,7 @@ struct CoachChatView: View {
                 store.messages.append(CoachChatMessage(role: .coach, text: "I couldn't read that photo. Try another one."))
                 return
             }
-            if said.isEmpty { said = "What can I do on this machine?" }
+            if said.isEmpty { said = freestyle != nil || focus?.screen == CoachFocus.pickerScreen ? "What can I do on this machine?" : "What's this?" }
         } else {
             jpeg = nil
         }
@@ -888,6 +977,15 @@ extension Demo {
             """#
             return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
         }
+        // A photo from any screen (#1064): the machine card and its exercises.
+        if text == "What's this?" {
+            let json = #"""
+            {"reply":"That's a seated leg press. Feet shoulder-wide in the middle of the plate, and don't lock your knees at the top.",
+             "workout":null,"action":null,"exercises":["Leg press","Single-leg leg press","Leg press calf raise"],
+             "suggestions":["How many sets?","Is it safe for knees?"],"remainingToday":17}
+            """#
+            return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
+        }
         // Coach can act (#999): water is logged at once, a move asks first, several come as a checklist.
         let said = text.lowercased()
         if said.contains("water") || said.contains("move") || said.contains("oats") {
@@ -937,12 +1035,15 @@ enum CoachOpen: Identifiable {
     case exercise(String)
     case calendar
     case measurements
+    /// Machine page (#1064), from a photo answer.
+    case machine(Equipment)
 
     var id: String {
         switch self {
         case let .exercise(e): "exercise-\(e)"
         case .calendar: "calendar"
         case .measurements: "measurements"
+        case let .machine(m): "machine-\(m.rawValue)"
         }
     }
 }
