@@ -1,17 +1,17 @@
 {
-  "id": "2026-11-05.1",
+  "id": "2026-11-05.2",
   "items": [
     {
-      "symbol": "face.smiling",
-      "tint": "stretch",
-      "title": "Morning check-in, cleaner",
-      "body": "One title, big colourful mood squares, no empty space."
+      "symbol": "slider.horizontal.3",
+      "tint": "mobility",
+      "title": "Make it simpler",
+      "body": "Pick Just workouts, Follow a plan or Everything in Settings → My app, and follow only part of your plan."
     },
     {
-      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "symbol": "camera.viewfinder",
       "tint": "power",
-      "title": "Coach always in full",
-      "body": "Coach Monkey's card stays open every day, with tips and your week at a glance."
+      "title": "Show Coach a photo",
+      "body": "Tap 📷 in Ask Coach on any screen (long press for your library): Coach names the machine or move and adds its exercises to today."
     }
   ]
 }
