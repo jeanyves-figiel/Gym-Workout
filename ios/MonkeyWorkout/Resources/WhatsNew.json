@@ -6,6 +6,12 @@
       "tint": "stretch",
       "title": "Morning check-in, cleaner",
       "body": "One title, big colourful mood squares, no empty space."
+    },
+    {
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "power",
+      "title": "Coach always in full",
+      "body": "Coach Monkey's card stays open every day, with tips and your week at a glance."
     }
   ]
 }

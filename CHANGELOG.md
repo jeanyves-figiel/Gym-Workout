@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **What's new 2026-11-05.1** (bundle 99): one card (Morning check-in, cleaner #1049); 2026-11-03.1 moved to history as build 98.
+- **What's new 2026-11-05.1** (bundle 99): two cards (Morning check-in, cleaner #1049; Coach always in full #1047); 2026-11-03.1 moved to history as build 98.
 - **What's new 2026-11-03.1** (bundle 98): two cards (Mind first #1045, Tidier Train cards #1042); 2026-11-02.1 moved to history as build 97.
 - **Mind check-in higher on Train + morning sheet** (#1045, design A + B from `mind-top/proposals.png`): the *How do you feel?* card sat under notices, sport prep, skill and Daily routines, often below the fold. **A** now right under Next up / Start (both Next up sizes), above the notices; Start never moves; after check-in the Mind score + Coach's breathing pick tiles take the same spot. **B** first open of the day without a check-in: a *Good morning, how do you feel?* sheet (half height, ✕ top right, swipe down skips it for today, Save closes it); once a day, not when the card is hidden or stopped; Explore → Calm → **Morning check-in** switch turns it off. Demo screen `mind-morning`.
 - **What's new 2026-11-02.1** (bundle 97): one card (Good times, then bounce back #1039); 2026-11-01.1 moved to history as build 96.
