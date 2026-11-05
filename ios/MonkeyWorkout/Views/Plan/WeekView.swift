@@ -244,7 +244,6 @@ struct WeekView: View {
             ?? later.map { "\(WeekSchedule.shortName($0.day.weekday)) · \($0.session.displayTitle)" }
         // Today skipped with nothing else on it (#698): a rest day, the skipped workout gone (#849).
         let todaySkipped = skippedOnly(plan, today)
-        let coach: String? = coachMerged ? coachLine : nil
         Group {
             if pickedDay == nil, let live = mirroredLive {
                 // On the Watch now (#822, design 1A): the card goes live, one way into the twin player, no Start.
@@ -254,7 +253,7 @@ struct WeekView: View {
                             backTitle: nextTitle ?? "This week")
             } else if pickedDay == nil, opensToday {
                 if let s = daySession(plan, today) {
-                    NextUpCard(session: s, picked: today, coachLine: coach, onPick: pick, onBack: back, onSelect: select(today)) { start(s) }
+                    NextUpCard(session: s, picked: today, onPick: pick, onBack: back, onSelect: select(today)) { start(s) }
                 } else {
                     RestDayCard(weekday: today, onPick: pick, onBack: back,
                                 onAdd: { addingDay = today; adding = true }, backTitle: nextTitle)
@@ -275,7 +274,7 @@ struct WeekView: View {
             } else if let d = pickedDay {
                 RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
             } else if let next {
-                NextUpCard(session: next, picked: nil, coachLine: coach, onPick: pick, onBack: back, onSelect: select(next.weekday)) { start(next) }
+                NextUpCard(session: next, picked: nil, onPick: pick, onBack: back, onSelect: select(next.weekday)) { start(next) }
             } else if let later = model.nextWeekSession() {
                 // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
                 NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back, onSelect: select(laterDay))
@@ -443,36 +442,10 @@ struct WeekView: View {
         return "\(p.sessionsPerWeek)× · \(p.goal.config.label)"
     }
 
-    /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing,
-    /// and when the Coach folds into Next up (#823): the week card then has its own row again.
+    /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing.
     private var weekInCoach: Bool {
         let w = model.trainLayout.widgets
-        return !arranging && !coachMerged && w.contains { $0.kind == .coach && $0.size != .small } && w.contains { $0.kind == .week && $0.size != .small }
-    }
-
-    /// Coach merges into Next up (#823, design 2C): while today's card has a workout to start, the wide Coach card
-    /// steps aside and its line sits in that card. One Start, and it stays above the tab bar on programme days too.
-    /// Rest days, other picked days and a workout on the Watch keep the Coach card.
-    private var coachMerged: Bool {
-        guard !arranging, pickedDay == nil, mirroredLive == nil,
-              model.trainLayout.widgets.contains(where: { $0.kind == .nextUp && $0.size == .large }),
-              let next = model.nextSession else { return false }
-        return model.startableToday(next)
-    }
-
-    /// The Coach's word for today, in the Next up card (#823): the readiness verdict, else the monkey's mood.
-    private var coachLine: String {
-        if let r = Readiness.assess(health.snapshot)?.0 { return r.title }
-        let target = model.gameTarget
-        let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
-        let mood = MonkeyFace.Mood.from(weekDone: model.weekDone(thisWeek: stats.thisWeek, target: target), readiness: nil,
-                                        streakWeeks: stats.currentStreakWeeks)
-        switch mood {
-        case .fired: return "let's crush it 💥"
-        case .sleepy: return "easy does it, quality reps"
-        case .party: return "bonus round 🏆"
-        case .happy: return "you're good to go 💪"
-        }
+        return !arranging && w.contains { $0.kind == .coach && $0.size != .small } && w.contains { $0.kind == .week && $0.size != .small }
     }
 
     /// A workout running on the Watch right now (#822), as the Watch player shows it.
@@ -499,7 +472,8 @@ struct WeekView: View {
         case .coach:
             if small {
                 CoachSmallWidget()
-            } else if !coachMerged {
+            } else {
+                // Always the full card (#1047): no compact or folded-in variant.
                 MonkeyCoachCard(weekFooter: weekInCoach ? AnyView(WeekTiles(plan: plan, done: model.completedCount)) : nil) { start($0) }
             }
         case .week:
@@ -992,8 +966,6 @@ private struct NextUpCard: View {
     var picked: Int? = nil
     /// Day of a later week (#473): its session is shown (opens the calendar day sheet), not started.
     var later: DaySelection? = nil
-    /// The Coach's line when its card folded in here (#823, design 2C); nil = the Coach card shows its own.
-    var coachLine: String? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
     /// Shows another workout of the same day (#758, the day line).
@@ -1291,11 +1263,6 @@ private struct NextUpCard: View {
                             .lineLimit(1).fixedSize()
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.ink.opacity(0.85)))
-                    }
-                    if let coachLine, isToday, !done {
-                        // The Coach card's line, folded in (#823): one Start on Train.
-                        Text("Coach: \(coachLine)").font(Theme.label(13)).foregroundStyle(Theme.lime)
-                            .lineLimit(1).minimumScaleFactor(0.8)
                     }
                     if !compact {
                         // As many of the top muscles as fit on one line.

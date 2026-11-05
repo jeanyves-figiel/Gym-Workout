@@ -176,7 +176,7 @@ Answering questions (#412):
   - done: they did an earlier workout of this week but didn't log it ("I did Tuesday's workout") → weekday of that day, before today. It is logged as planned.
   - reminder: the morning reminder of a workout day ("remind me at 6:30", "stop the workout reminders") → minutes after midnight (6:30 = 390) and on true, or on false to turn it off.
   - voice: whether you read answers aloud ("talk to me", "stop talking", "only when I speak") → value always, never or whenTalking.
-  Logs (water, drinks, food, supplement, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip, swap, done, reminder and voice wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Fields a kind doesn't use are null.
+  Logs (water, drinks, food, supplement, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip, swap, done, reminder and voice wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Leave out fields a kind doesn't use.
   You can't do anything else (account, email, password, payment, subscription, deleting data, community posts, sharing, privacy or AI settings). For those say kindly where it is in the app and add the matching "action" button. Never pretend you did something you can't.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
@@ -204,7 +204,8 @@ Training around pain (#870): when the member says a joint or spot hurts (knee, s
 - workout null when the member only asks a question.
 - reply: plain text, no markdown, in the member's language. name: 2 to 4 words for the workout.`;
 
-const schema = {
+/** Coach answer schema; at most 16 nullable/union parameters (Claude API limit, #1060). */
+export const chatSchema = {
   type: 'object',
   properties: {
     reply: { type: 'string' },
@@ -294,18 +295,19 @@ const schema = {
         type: 'object',
         properties: {
           kind: { type: 'string', enum: [...DO_KINDS] },
-          glasses: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          foods: { anyOf: [{ type: 'null' }, { type: 'string' }] },
-          meal: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...DO_MEALS] }] },
-          mood: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          weekday: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          from: { anyOf: [{ type: 'null' }, { type: 'string' }] },
-          to: { anyOf: [{ type: 'null' }, { type: 'string' }] },
-          minutes: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          on: { anyOf: [{ type: 'null' }, { type: 'boolean' }] },
-          value: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...DO_VOICE] }] },
+          glasses: { type: 'integer' },
+          foods: { type: 'string' },
+          meal: { type: 'string', enum: [...DO_MEALS] },
+          mood: { type: 'integer' },
+          weekday: { type: 'integer' },
+          from: { type: 'string' },
+          to: { type: 'string' },
+          minutes: { type: 'integer' },
+          on: { type: 'boolean' },
+          value: { type: 'string', enum: [...DO_VOICE] },
         },
-        required: ['kind', 'glasses', 'foods', 'meal', 'mood', 'weekday', 'from', 'to', 'minutes', 'on', 'value'],
+        // Optional, not nullable (#1060): the API allows at most 16 union-typed parameters per schema.
+        required: ['kind'],
         additionalProperties: false,
       },
     },
@@ -539,7 +541,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
       fallbacks: 'default',
       // Same Coach rules for everyone, cached; the member's own lines come after the cache mark (#866).
       system: [{ type: 'text', text: SYSTEM, cache_control: CACHED }, ...(about ? [{ type: 'text' as const, text: `About this member:\n${about}` }] : [])],
-      output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: chatSchema } },
       messages,
     }));
     if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], exercises: [], protect: null, measurement: null, doActions: [] };
