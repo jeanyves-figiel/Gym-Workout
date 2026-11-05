@@ -216,8 +216,6 @@ struct CoachChatView: View {
                             greeting
                             if store.messages.isEmpty {
                                 FormCheckCoachTile(exercise: focusExercise, picking: $formPicking, filming: $formFilming)
-                                // What's this? (#1064, design B): a photo of a machine, a move or anything.
-                                if store.available != false { whatsThisTile }
                             }
                             ForEach(store.messages) { m in message(m).id(m.id) }
                             if sending { typingBubble.id("typing") }
@@ -350,7 +348,7 @@ struct CoachChatView: View {
                 if m.onDevice { OnDeviceBadge(seconds: m.seconds) }
                 if !m.text.isEmpty { coachBubble(m.text) }
                 if !m.exercises.isEmpty, freestyle != nil { exerciseCards(m.exercises) }
-                // A photo answer anywhere else (#1064, design B): the machine card, then the exercises to open or add to today.
+                // A photo answer anywhere else (#1064, design A): the exercises to open or add to today, then Open machine.
                 if !m.exercises.isEmpty, freestyle == nil { photoCards(m.exercises) }
                 // No button to a tab the member hid (#1004).
                 if let a = m.action, MainTab(rawValue: a.target).map(TabsPref.shared.shows) ?? true { actionButton(a) }
@@ -588,12 +586,11 @@ struct CoachChatView: View {
         .padding(.leading, 42)
     }
 
-    /// A photo answer (#1064, design B): the machine card (its page in Explore by machine), then each exercise: tap opens
-    /// it, + adds it to today's workout (✓, tap again to take it out) when there is one that can still change.
+    /// A photo answer (#1064, design A): each exercise (tap opens it, + adds it to today's workout, ✓ tap again takes it
+    /// out, when there is one that can still change), then Open machine (its page in Explore by machine).
     private func photoCards(_ list: [Exercise]) -> some View {
         let today = model.todaySession.flatMap { model.canAddToToday($0) ? $0 : nil }
         return VStack(spacing: 6) {
-            if let item = Self.machine(of: list) { machineCard(item) }
             ForEach(list, id: \.id) { e in
                 let added = addedToday[e.id] != nil
                 HStack(spacing: 8) {
@@ -625,33 +622,20 @@ struct CoachChatView: View {
                 .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(e.primary.first?.group.gradient ?? WorkoutEngine.Category.strength.gradient))
             }
+            if let item = Self.machine(of: list) { machineButton(item) }
         }
         .padding(.leading, 42)
     }
 
-    private func machineCard(_ item: Equipment) -> some View {
-        let area = GymArea.allCases.first { $0.items.contains(item) }
-        let count = Exercise.using(item, custom: .shared).count
-        return Button { opening = .machine(item) } label: {
-            HStack(spacing: 10) {
-                Image(systemName: area?.symbol ?? "dumbbell.fill")
-                    .font(.system(size: 17, weight: .black))
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.2)))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.label).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
-                    Text("Open machine page").font(.caption.weight(.semibold)).opacity(0.9)
-                }
-                Spacer(minLength: 4)
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(count)").font(Theme.display(26))
-                    Text(count == 1 ? "EXERCISE" : "EXERCISES").font(Theme.label(8)).tracking(1)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0xFF9F1C), Color(hex: 0xFF3D5A)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+    /// Open machine: the lime button under the cards.
+    private func machineButton(_ item: Equipment) -> some View {
+        Button { opening = .machine(item) } label: {
+            Label("Open \(item.label)", systemImage: "arrow.up.right")
+                .labelStyle(.titleOnly)
+                .font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity).padding(.vertical, 11)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.lime))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("askCoach.machine")
@@ -824,43 +808,14 @@ struct CoachChatView: View {
         if camera && hasCamera { snapping = true } else { picking = true }
     }
 
-    /// Take photo / Choose photo (#1064).
+    /// Tap takes a photo (the library where there's no camera); long press: Take photo / Choose photo (#1064, design A).
     private func photoMenu<L: View>(@ViewBuilder label: () -> L) -> some View {
         Menu {
             if hasCamera { Button("Take photo", systemImage: "camera") { snap(camera: true) } }
             Button("Choose photo", systemImage: "photo.on.rectangle") { snap(camera: false) }
-        } label: { label() }
+        } label: { label() } primaryAction: { snap(camera: true) }
         .menuStyle(.button)
         .buttonStyle(.plain)
-    }
-
-    /// What's this? (#1064, design B): teal tile under Watch my form.
-    private var whatsThisTile: some View {
-        photoMenu {
-            HStack(spacing: 10) {
-                Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 17, weight: .black))
-                    .frame(width: 38, height: 38)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("What's this?").font(Theme.display(17))
-                    Text(freestyle != nil || focus?.screen == CoachFocus.pickerScreen ? "Snap a machine · I'll find its exercises" : "Snap a machine, a move or anything")
-                        .font(.caption.weight(.semibold)).opacity(0.9).lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.body.weight(.heavy))
-            }
-            .foregroundStyle(.white)
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(
-                LinearGradient(colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)], startPoint: .leading, endPoint: .trailing)))
-            .contentShape(Rectangle())
-        }
-        .disabled(!canSnap)
-        .opacity(canSnap ? 1 : 0.5)
-        .padding(.leading, 42)
-        .accessibilityLabel("What's this? Send Coach a photo")
-        .accessibilityIdentifier("askCoach.whatsThis")
     }
 
     private func listen() {
