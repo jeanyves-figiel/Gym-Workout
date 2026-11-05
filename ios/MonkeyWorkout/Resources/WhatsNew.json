@@ -10,8 +10,8 @@
     {
       "symbol": "camera.viewfinder",
       "tint": "power",
-      "title": "What's this?",
-      "body": "Snap or pick a photo in Ask Coach: Coach names the machine or move and adds its exercises to today."
+      "title": "Show Coach a photo",
+      "body": "Tap 📷 in Ask Coach on any screen (long press for your library): Coach names the machine or move and adds its exercises to today."
     }
   ]
 }
