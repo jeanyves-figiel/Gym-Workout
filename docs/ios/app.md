@@ -45,6 +45,15 @@ The app turns signed-in from the Keychain token before any network call, so ever
 - **Set-up card** (`SetupCard`, first in Train's notice slot): steps not done, each opens the step on its own; long press → Hide hides it (`hideSetupCard`). Every card in the notice slot hides with a long press (#1042: *Hide*, *Hide for today*, *Not now · 30 days*, *Hide this week*); no ✕ under the card. State `SyncedProfile.onboarding` (engine `OnboardingProgress`: `done`, `cardHidden`); nil = member from before #664, no card.
 - Demo screens `onboarding-gym`, `onboarding-machines`, `onboarding-map`, `onboarding-plan`, `onboarding-tour`, `app-tour`, `train-setup`, `onboarding-hub`.
 
+## App level and modules (#1052)
+
+Design A + B from `usage-levels/a.png` + `b.png`. Engine `AppModules.swift`: `AppModule` (plan, coach, insights, game, sports, mind, fuel, social, camera), `AppLevel` (workouts = Insights only, plan = Plan + Coach + Insights, everything = all), `AppModules` (level + names turned off, tolerant of unknown names), `TrainWidgetKind.module`, `TrainLayout.showing(_:)`. Stored in `SyncedProfile.appModules` (nil = everything, so members from before are untouched), kept across profile edits. App: `AppModel+AppModules` (`appModules`, `shows(_:)`, `setAppLevel`, `setModule`), mirrored into `TabsPref.modules` so a tab whose module is off is hidden (`MainTab.module`).
+
+- **Sign up:** `OnboardingFlowView(askLevel: true)` opens on **How much app?** (`AppLevelPicker`, Everything preselected), applied after the first plan is made.
+- **Settings → Look & apps → My app** (`MyAppView`): level cards + module grid with switches, Workouts locked on.
+- **What a module hides:** tab (Explore = Plan, Insights, Fuel, Social), Train widgets and Edit Train gallery, notice cards (`TrainNoticeSlot.Kind.module`: review, taste, block, noticed = Coach; add-on = Sports; kind streaks = Game), `CoachHeaderTile` (Coach), Mind card and morning sheet (Mind), chest reveal (Game), Calendar in Plan actions (Plan), Train 🎥 and player Film this set (Camera), player set-talk mic (Coach).
+- Demo screens `onboarding-level`, `my-app`.
+
 ## Tabs
 
 **My tabs** (#1004, design A + C from `hide-tabs/proposals.png`): a member can hide Explore, Insights, Fuel or Social; Train is always on and the tab bar always shows. `TabsPref` (`Model/TabsPref.swift`, `UserDefaults` `hiddenTabs`, device only) is read by `MainTabView.tabPages`; selecting a hidden tab (widget, Shortcut, deep link) lands on Train. Hidden with the tab: Train's Fuel widget (`AppModel.visibleTrainLayout`; stays in the saved layout, gallery hides it), Coach chat buttons to it, its tour stop. Data is kept. Ways in: **Settings → Look & apps → My tabs** (`MyTabsView`, A: gradient card + switch per tab), the tab's **title menu** (`TabTitleMenu`, C: *Hide <tab> tab* → Train + Undo bar; *My tabs in Settings*), and the onboarding tour step (C).

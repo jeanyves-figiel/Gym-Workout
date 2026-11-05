@@ -182,7 +182,10 @@ struct TrainWidgetGallery: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     // No Fuel widget while Fuel is hidden (#1004).
-                    ForEach(TrainWidgetKind.allCases.filter { $0 != .fuel || TabsPref.shared.shows(.fuel) }) { kind in
+                    // Widgets of modules turned off (#1052) aren't offered.
+                    ForEach(TrainWidgetKind.allCases.filter { kind in
+                        (kind != .fuel || TabsPref.shared.shows(.fuel)) && (kind.module.map { model.shows($0) } ?? true)
+                    }) { kind in
                         let on = layout.contains(kind)
                         Button {
                             withAnimation(.snappy) { model.editTrainLayout { $0.add(kind) } }

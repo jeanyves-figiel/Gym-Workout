@@ -57,6 +57,7 @@ struct AccountView: View {
         static let style = "Style look theme monkey coach watch face home"
         static let widgets = "Home Screen widgets"
         static let tabs = "My tabs hide tab bar Fuel Social Insights Explore"
+        static let app = "My app level simple simpler just workouts follow a plan everything modules Coach game XP Mind sports camera"
         static let hd = "HD animations exercise movement download quality storage size wi-fi"
         static let monkeyGrade = "MonkeyGrade climbing connected apps"
         static let password = "Password sign in"
@@ -77,7 +78,7 @@ struct AccountView: View {
         static let you = [pro, profile, gym, places, body, onboarding]
         static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift, garmin, bike]
-        static let look = [style, tabs, widgets, hd, monkeyGrade]
+        static let look = [app, style, tabs, widgets, hd, monkeyGrade]
         static let account = [password, email, security, devices, lock, ai, export, signOut, delete]
         static let help = [whatsNew, report, privacy, terms, support]
         static let all = you + training + watch + look + account + help
@@ -345,6 +346,14 @@ struct AccountView: View {
 
         if search.any(Find.look) {
             SettingsGroup(chapter: .look) {
+                // My app (#1052 A + B): level and modules.
+                if search.matches(Find.app) {
+                    NavigationLink { MyAppView() } label: {
+                        SettingsRow(symbol: "slider.horizontal.3", title: "My app", value: model.appModules.summary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.app")
+                }
                 // App style (#219, #227): one pick for the iPhone game look and the Watch.
                 if search.matches(Find.style) {
                     NavigationLink { WatchHomeView() } label: {

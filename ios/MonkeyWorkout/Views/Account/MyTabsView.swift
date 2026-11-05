@@ -18,6 +18,7 @@ extension MainTab {
 
 /// Settings › My tabs (A): one gradient card per tab with a switch; Train locked on.
 struct MyTabsView: View {
+    @Environment(AppModel.self) private var model
     @State private var pref = TabsPref.shared
 
     var body: some View {
@@ -53,7 +54,11 @@ struct MyTabsView: View {
                 Image(systemName: "lock.fill").font(.subheadline.weight(.bold))
             } else {
                 Toggle(tab.title, isOn: Binding(get: { on }, set: { v in
-                    withAnimation(.snappy) { pref.set(tab, shown: v) }
+                    withAnimation(.snappy) {
+                        pref.set(tab, shown: v)
+                        // Its module off in My app (#1052): turning the tab on turns the module on.
+                        if v, let module = tab.module, !model.shows(module) { model.setModule(module, on: true) }
+                    }
                 }))
                 .labelsHidden()
                 .tint(.white.opacity(0.9))
