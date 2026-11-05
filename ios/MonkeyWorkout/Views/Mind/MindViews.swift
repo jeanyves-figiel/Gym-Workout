@@ -98,25 +98,48 @@ struct MindTrainCard: View {
     }
 }
 
-/// Morning sheet (#1045 B): the check-in on the first open of the day until done. Swipe down or ✕ skips it for today;
-/// the card under Start stays. Explore → Calm turns it off.
+/// Morning sheet (#1045 B, redesign #1049: design B squares on design A gradient): the check-in on the first open of the
+/// day until done. One title, six big squares (five moods in their own colour + Skip today), sheet as tall as its
+/// content. Swipe down, ✕ or Skip today skips it for today; the card under Start stays. Explore → Calm turns it off.
 struct MindMorningSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
+    @State private var height: CGFloat = 360
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    ContentTitle(title: greeting, subtitle: "Once a day · swipe down to skip")
-                    MindCheckInCard(onSaved: { dismiss() })
-                }
-                .padding(16)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Morning check-in · saved to Health").font(Theme.label(10)).tracking(1.2).textCase(.uppercase)
+                    .opacity(0.9)
+                Text(greeting).font(Theme.display(26)).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
             }
-            .background(Theme.bg.ignoresSafeArea())
-            .toolbar { CloseToolbarItem { dismiss() } }
+            .padding(.trailing, 48)
+            MindCheckInCard(onSaved: { dismiss() }, onSkip: { dismiss() }, big: true)
         }
-        .presentationDetents([.medium, .large])
+        .foregroundStyle(.white)
+        .padding(.horizontal, 18).padding(.top, 26).padding(.bottom, 12)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .topTrailing) {
+            Button { dismiss() } label: {
+                Image(systemName: "xmark").font(.system(size: 15, weight: .heavy))
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(.black.opacity(0.28)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .padding(.top, 18).padding(.trailing, 14)
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier("mind.morning.close")
+        }
+        .presentationBackground(MindPrefs.gradient)
+        .presentationDetents([.height(height)])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(30)
+        .preferredColorScheme(.dark)
         .accessibilityIdentifier("mind.morning")
     }
 
@@ -131,24 +154,36 @@ struct MindCheckInCard: View {
     @Environment(AppModel.self) private var model
     var close: (() -> Void)?
     var onSaved: (() -> Void)?
+    /// Morning sheet (#1049): adds a Skip today square.
+    var onSkip: (() -> Void)?
+    /// Morning sheet (#1049): no header or card fill (the sheet has them), big squares in 3 columns, one colour each.
+    var big = false
     @State private var mood: Feel?
     @State private var feelings: [MindFeeling] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                RoutineIcon(symbol: "sun.horizon.fill", size: 44)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("How do you feel?").font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(subtitle).font(Theme.label(10)).tracking(1.1).textCase(.uppercase).opacity(0.9)
-                        .lineLimit(1).minimumScaleFactor(0.7)
+            if big {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                    ForEach(Feel.allCases, id: \.self) { f in bigSquare(f) }
+                    skipSquare
                 }
-                Spacer(minLength: close == nil ? 0 : 36)
+                .sensoryFeedback(.selection, trigger: mood)
+            } else {
+                HStack(spacing: 12) {
+                    RoutineIcon(symbol: "sun.horizon.fill", size: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("How do you feel?").font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text(subtitle).font(Theme.label(10)).tracking(1.1).textCase(.uppercase).opacity(0.9)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    Spacer(minLength: close == nil ? 0 : 36)
+                }
+                HStack(spacing: 6) {
+                    ForEach(Feel.allCases, id: \.self) { f in moodSquare(f) }
+                }
+                .sensoryFeedback(.selection, trigger: mood)
             }
-            HStack(spacing: 6) {
-                ForEach(Feel.allCases, id: \.self) { f in moodSquare(f) }
-            }
-            .sensoryFeedback(.selection, trigger: mood)
             if mood != nil {
                 // What the chips are for (#859): optional tags Coach reads for patterns, saved with the mood in Health.
                 VStack(alignment: .leading, spacing: 2) {
@@ -178,8 +213,8 @@ struct MindCheckInCard: View {
             }
         }
         .foregroundStyle(.white)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(MindPrefs.gradient))
+        .padding(big ? 0 : 14)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(big ? AnyShapeStyle(.clear) : AnyShapeStyle(MindPrefs.gradient)))
         .overlay(alignment: .topTrailing) {
             if let close { CardClose(label: "Not today", action: close).accessibilityIdentifier("mind.close") }
         }
@@ -208,6 +243,58 @@ struct MindCheckInCard: View {
         .accessibilityLabel(f.label)
         .accessibilityAddTraits(on ? .isSelected : [])
         .accessibilityIdentifier("mind.mood.\(f.rawValue)")
+    }
+
+    /// Big square (#1049): the mood's own colour; picked = white ring, the others fade.
+    private func bigSquare(_ f: Feel) -> some View {
+        let on = mood == f
+        let fill = Self.colors(f)
+        return Button {
+            withAnimation(.snappy) { mood = f }
+        } label: {
+            VStack(spacing: 6) {
+                Text(f.emoji).font(.system(size: 34))
+                Text(f.label).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(f == .good ? Color(hex: 0x2A1A00) : .white)
+            .frame(maxWidth: .infinity).frame(height: 92)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(LinearGradient(colors: fill, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white, lineWidth: on ? 3 : 0))
+            .opacity(mood == nil || on ? 1 : 0.55)
+            .scaleEffect(on ? 1.03 : 1)
+            .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(f.label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityIdentifier("mind.mood.\(f.rawValue)")
+    }
+
+    private var skipSquare: some View {
+        Button { onSkip?() } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "forward.end.fill").font(.system(size: 26, weight: .heavy))
+                Text("Skip today").font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white.opacity(0.9))
+            .frame(maxWidth: .infinity).frame(height: 92)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.28)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("mind.skip")
+    }
+
+    static func colors(_ f: Feel) -> [Color] {
+        switch f {
+        case .drained: [Color(hex: 0x6A6A8E), Color(hex: 0x3A3A55)]
+        case .meh: [Color(hex: 0xFF9A3C), Color(hex: 0xE0552B)]
+        case .good: [Color(hex: 0xFFE14D), Color(hex: 0xF5A316)]
+        case .great: [Color(hex: 0x3CE07A), Color(hex: 0x16A05A)]
+        case .amazing: [Color(hex: 0x00D4FF), Color(hex: 0x2E5BFF)]
+        }
     }
 
     private func save() {
