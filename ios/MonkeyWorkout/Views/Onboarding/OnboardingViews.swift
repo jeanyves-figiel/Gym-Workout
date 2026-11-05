@@ -49,10 +49,15 @@ struct OnboardingFlowView: View {
     @State private var equipmentOpen = false
     @State private var zonesOpen = false
     @State private var floorPlanOpen = false
+    /// App level (#1052 A): asked first on sign up; nil = not asked (rerun, single step, demo steps).
+    @State private var level: AppLevel?
+    @State private var askingLevel: Bool
 
     /// `startAt`: demo screenshots of one step of the guided flow.
-    init(mode: Mode, profile: Profile?, startAt: OnboardingStep = .gym, onClose: @escaping () -> Void = {}) {
+    init(mode: Mode, profile: Profile?, startAt: OnboardingStep = .gym, askLevel: Bool = false, onClose: @escaping () -> Void = {}) {
         self.mode = mode
+        _askingLevel = State(initialValue: askLevel && mode == .newMember)
+        _level = State(initialValue: askLevel && mode == .newMember ? .everything : nil)
         self.onClose = onClose
         if case .single(let s) = mode { _step = State(initialValue: s) } else { _step = State(initialValue: startAt) }
         var draft = profile ?? Profile()
@@ -70,6 +75,52 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         NavigationStack {
+            if askingLevel { levelPage } else { flow }
+        }
+        .onAppear { if isNew, !model.demo { model.onboardingOpen = true } }
+        // Signed out mid-way: the next account starts clean.
+        .onDisappear { if isNew, !model.demo { model.onboardingOpen = false } }
+        .sheet(isPresented: $equipmentOpen) { EquipmentSheet(equipment: $p.equipment) }
+        .sheet(isPresented: $zonesOpen) { EquipmentSheet(equipment: $p.equipment, layout: $p.gymLayout) }
+        .sheet(isPresented: $floorPlanOpen) {
+            FloorPlanSheet(layout: Binding(get: { p.gymLayout ?? .starter }, set: { p.gymLayout = $0 }), equipment: p.equipment)
+        }
+    }
+
+    /// How much app (#1052 A): one tap before the steps. Everything is picked to start with; Settings → My app
+    /// changes it any time.
+    private var levelPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("How much app?").font(Theme.display(32)).foregroundStyle(.white)
+                Text("Pick what you want to see. Change it any time in Settings → My app.")
+                    .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            ScrollView {
+                AppLevelPicker(selected: level) { picked in withAnimation(.snappy) { level = picked } }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .padding(.bottom, 24)
+            }
+            .readableWidth()
+        }
+        .background(Theme.bg.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom) {
+            Button { withAnimation(.snappy) { askingLevel = false } } label: { Text("CONTINUE") }
+                .buttonStyle(LimeButtonStyle())
+                .accessibilityIdentifier("onboarding.level.next")
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .readableColumn()
+                .background(Theme.bg.opacity(0.92).ignoresSafeArea())
+        }
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var flow: some View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 ScrollView {
@@ -98,15 +149,6 @@ struct OnboardingFlowView: View {
                     if let protect { model.setPainProtect(protect) }
                 }
             }
-        }
-        .onAppear { if isNew, !model.demo { model.onboardingOpen = true } }
-        // Signed out mid-way: the next account starts clean.
-        .onDisappear { if isNew, !model.demo { model.onboardingOpen = false } }
-        .sheet(isPresented: $equipmentOpen) { EquipmentSheet(equipment: $p.equipment) }
-        .sheet(isPresented: $zonesOpen) { EquipmentSheet(equipment: $p.equipment, layout: $p.gymLayout) }
-        .sheet(isPresented: $floorPlanOpen) {
-            FloorPlanSheet(layout: Binding(get: { p.gymLayout ?? .starter }, set: { p.gymLayout = $0 }), equipment: p.equipment)
-        }
     }
 
     // MARK: Header and bottom
@@ -427,6 +469,8 @@ struct OnboardingFlowView: View {
     /// The first plan: the profile is saved, the steps done so far recorded, the rest wait on the set-up card.
     private func makeFirstPlan(_ profile: Profile, programme: Programme?, planDone: Bool) {
         model.applyProfile(profile)
+        // The level picked first (#1052 A); Everything keeps the app as it is.
+        if let level, level != .everything { model.setAppLevel(level) }
         if let programme { model.startProgramme(programme) }
         // New accounts start on this release: no "What's new" for them (#183).
         WhatsNew.markSeen()

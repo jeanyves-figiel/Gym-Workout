@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WorkoutEngine
 
 /// My tabs (#1004, design A + C): tabs a member hid. Train is always on. A hidden tab's cards, widgets, Coach links,
 /// tour stop and share prompts go too; its data stays and comes back when the tab is shown again.
@@ -12,13 +13,17 @@ final class TabsPref {
     static let hideable: [MainTab] = [.explore, .progress, .fuel, .community]
 
     private(set) var hidden: Set<MainTab>
+    /// App modules (#1052), set by `AppModel` from the synced profile: a tab whose module is off is hidden too.
+    var modules: AppModules = .everything
 
     private init() {
         let raw = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
         hidden = Set(raw.compactMap(MainTab.init(rawValue:))).subtracting([.train])
     }
 
-    func shows(_ tab: MainTab) -> Bool { !hidden.contains(tab) }
+    func shows(_ tab: MainTab) -> Bool {
+        !hidden.contains(tab) && (tab.module.map(modules.shows) ?? true)
+    }
 
     func set(_ tab: MainTab, shown: Bool) {
         guard tab != .train else { return }
@@ -27,10 +32,21 @@ final class TabsPref {
     }
 
     /// Tab bar summary for the Settings row, e.g. "4 of 5".
-    var summary: String { "\(5 - hidden.count) of 5" }
+    var summary: String { "\(MainTab.allCases.filter(shows).count) of 5" }
 }
 
 extension MainTab {
+    /// The module that holds this tab (#1052); nil = Train, always on.
+    var module: AppModule? {
+        switch self {
+        case .train: nil
+        case .explore: .plan
+        case .progress: .insights
+        case .fuel: .fuel
+        case .community: .social
+        }
+    }
+
     /// Name on the tab bar.
     var title: String {
         switch self {

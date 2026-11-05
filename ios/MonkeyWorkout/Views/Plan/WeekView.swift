@@ -193,7 +193,7 @@ struct WeekView: View {
         #if DEBUG
         if Demo.enabled { return }
         #endif
-        guard playing == nil, !chestReveal, !morningCheckIn, !arranging else { return }
+        guard playing == nil, !chestReveal, !morningCheckIn, !arranging, model.shows(.mind) else { return }
         if MindPrefs.takeMorningSheet(calendar: model.planCalendar) { morningCheckIn = true }
     }
 
@@ -201,7 +201,8 @@ struct WeekView: View {
         #if DEBUG
         if Demo.enabled { return }
         #endif
-        guard playing == nil, !chestReveal, model.chestRevealPending else { return }
+        // Game off (#1052): no chest reveal.
+        guard playing == nil, !chestReveal, model.chestRevealPending, model.shows(.game) else { return }
         model.markChestSeen()
         chestReveal = true
     }
@@ -400,7 +401,7 @@ struct WeekView: View {
                 // Calendar and My plan stay reachable when Quick actions is removed.
                 if !model.trainLayout.contains(.actions) {
                     Menu {
-                        Button("Calendar", systemImage: "calendar") { showingCalendar = true }
+                        if model.shows(.plan) { Button("Calendar", systemImage: "calendar") { showingCalendar = true } }
                         Button("My plan", systemImage: "slider.horizontal.3") { editing = true }
                     } label: {
                         HeaderTile(symbol: "ellipsis")
@@ -494,7 +495,7 @@ struct WeekView: View {
                     if !arranging { PainProtectBar() }
                     nextUpCard(plan)
                     // Mind check-in (#834 A), right under Start (#1045 A): seen without scrolling, above the notices.
-                    if !arranging { MindTrainCard() }
+                    if !arranging, model.shows(.mind) { MindTrainCard() }
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
                     // Sport prep on a planned sport day (#523), unless today's sport block already has it (#658).
@@ -513,7 +514,7 @@ struct WeekView: View {
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { start($0) }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
                     // A small Next up gets the slot under its row instead (#538).
-                    if !arranging, !small { MindTrainCard() }
+                    if !arranging, !small, model.shows(.mind) { MindTrainCard() }
                     if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small, showsToday { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
@@ -1847,8 +1848,8 @@ private struct GymSessionTile: View {
     var body: some View {
         HStack(spacing: 8) {
             sessionButton
-            // Film my workout (#952): the camera builds and logs the workout.
-            Button {
+            // Film my workout (#952): the camera builds and logs the workout. Camera tools off (#1052): gone.
+            if model.shows(.camera) { Button {
                 Haptics.start()
                 choosingFilm = true
             } label: {
@@ -1862,7 +1863,7 @@ private struct GymSessionTile: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Film my workout")
             .accessibilityHint("The camera names each move, counts reps, reads the weight and logs the workout")
-            .accessibilityIdentifier("train.film")
+            .accessibilityIdentifier("train.film") }
         }
         // Step by step (#952) or the whole session hands-free (#957).
         .sheet(isPresented: $choosingFilm) {
@@ -2389,6 +2390,7 @@ private struct TrainNoticeSlot: View {
         var out: [Kind] = []
         // Onboarding steps not done yet (#664), first: a new member's next things to set up.
         if model.onboarding?.showsCard == true { out.append(.setup) }
+        // Modules turned off (#1052) take their cards along (filtered at the end).
         // Coach's weekly review (#867), Sunday and Monday until closed.
         if model.weekReview != nil { out.append(.review) }
         // Low readiness on a heavy day (#619 B): swap it for mobility, before anything else.
@@ -2413,7 +2415,7 @@ private struct TrainNoticeSlot: View {
             || Progression.stats(records: model.state.history, weights: [], targetPerWeek: model.gameTarget).shieldSavedLastWeek {
             out.append(.kind)
         }
-        return out
+        return out.filter { kind in kind.module.map { model.shows($0) } ?? true }
     }
 
     var body: some View {
@@ -2657,5 +2659,17 @@ struct PlannedDayBadge: View {
             .background(Capsule().strokeBorder(Theme.lime.opacity(0.85), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Planned for \(WeekSchedule.name(weekday)). Starts on the day.")
+    }
+}
+
+/// Notice cards a module holds (#1052); nil = always shown.
+extension TrainNoticeSlot.Kind {
+    var module: AppModule? {
+        switch self {
+        case .review, .taste, .block, .noticed: .coach
+        case .addOn: .sports
+        case .kind: .game
+        case .setup, .recover, .morningAfter, .goodTimes, .variation: nil
+        }
     }
 }
