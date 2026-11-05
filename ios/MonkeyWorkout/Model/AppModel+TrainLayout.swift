@@ -13,7 +13,8 @@ extension AppModel {
     var trainLayout: TrainLayout { state.synced?.trainLayout ?? classicTrainLayout }
     /// What Train shows: the layout without widgets of hidden tabs (#1004). Kept in the layout, back when the tab is.
     var visibleTrainLayout: TrainLayout {
-        var l = trainLayout
+        // Widgets of modules turned off (#1052) go too.
+        var l = trainLayout.showing(appModules)
         if !TabsPref.shared.shows(.fuel) { l.widgets.removeAll { $0.kind == .fuel } }
         return l
     }
