@@ -53,8 +53,8 @@ jobs:
       - name: Capture
         run: |
           APP=build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
-          # Order = App Store order (max 10 per size).
-          SCREENS="week session player explore muscle progress calendar library community pr-result"
+          # Order = App Store order (max 10 per size). Launch set #1075: Train, Player, Session, Ask Coach, 3D guide, by machine, Insights, Mind, Fuel, Social.
+          SCREENS="week player session coach-chat exercise explore-machines progress mind fuel community"
           mkdir -p out preview
 
           # $1 = folder name, $2 = device type regex (first match wins)
@@ -82,8 +82,8 @@ jobs:
             local i=1
             for s in $SCREENS; do
               xcrun simctl launch --terminate-running-process "$udid" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s" >/dev/null
-              # iOS 27.1 sims start the player slower (#158): give it longer.
-              case "$s" in player*) sleep 25 ;; *) sleep 10 ;; esac
+              # iOS 27.1 sims start the player slower (#158): give it longer (25 s gave a white iPhone player, #1075).
+              case "$s" in player*) sleep 45 ;; *) sleep 10 ;; esac
               local f
               f=$(printf "%02d-%s" "$i" "$s")
               for d in $displays; do
