@@ -47,6 +47,13 @@ struct TrainingProfileView: View {
             if let p = model.profile {
                 VStack(alignment: .leading, spacing: 12) {
                     PlanSentenceCard(profile: p, locked: model.runningProgramme != nil)
+                    // Part of a plan (#1052 D): whole plan, some days, one at a time or own workouts.
+                    NavigationLink { PlanFollowView() } label: {
+                        SettingsRow(symbol: model.planFollow.scope.symbol, title: "What you follow",
+                                    value: model.planFollow.summary { WeekSchedule.shortName($0) })
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("myplan.follow")
                     // Training programme (#255): sets goal, split and method while it runs.
                     ProgrammeProfileCard()
                     mixItUp(p)

@@ -149,7 +149,7 @@ struct CoachHeaderTile: View {
     @State private var wiggle = false
 
     var body: some View {
-        if shown {
+        if shown, model.shows(.coach) {
             MonkeyFace(mood: .fired, scale: 0.6, gear: model.rank.gear)
                 .frame(width: 40, height: 36)
                 .frame(width: 44, height: 44)
