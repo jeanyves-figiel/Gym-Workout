@@ -57,6 +57,12 @@ jobs:
           SCREENS="week player session coach-chat exercise explore-machines progress mind fuel community"
           mkdir -p out preview
 
+          # Exit 0 when the image is nearly all white or all black.
+          blank() {
+            sips -Z 8 -s format bmp "$1" --out /tmp/px.bmp >/dev/null 2>&1 || return 1
+            python3 -c "import sys;d=open('/tmp/px.bmp','rb').read()[54:];m=sum(d)/max(1,len(d));sys.exit(0 if m<3 or m>250 else 1)"
+          }
+
           # $1 = folder name, $2 = device type regex (first match wins)
           capture() {
             local name="$1" pattern="$2"
@@ -81,11 +87,19 @@ jobs:
             mkdir -p "out/$name"
             local i=1
             for s in $SCREENS; do
-              xcrun simctl launch --terminate-running-process "$udid" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s" >/dev/null
-              # iOS 27.1 sims start the player slower (#158): give it longer (25 s gave a white iPhone player, #1075).
-              case "$s" in player*) sleep 45 ;; *) sleep 10 ;; esac
               local f
               f=$(printf "%02d-%s" "$i" "$s")
+              # A screen can come up all white (the player at 25 s and 45 s, #1075): relaunch and retake, up to 4 tries.
+              local try
+              for try in 1 2 3 4; do
+                xcrun simctl launch --terminate-running-process "$udid" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s" >/dev/null
+                # iOS 27.1 sims start the player slower (#158): give it longer.
+                case "$s" in player*) sleep $((25 + 10 * try)) ;; *) sleep 10 ;; esac
+                xcrun simctl io "$udid" screenshot "/tmp/probe.png" 2>/dev/null || break
+                [ "$name" = iphone-duo ] && break
+                blank "/tmp/probe.png" || break
+                echo "::warning::$name $s blank on try $try, retaking"
+              done
               for d in $displays; do
                 local dir="out/$name" arg=""
                 [ "$d" = default ] || { dir="out/$name-$d"; arg="--display=$d"; }
