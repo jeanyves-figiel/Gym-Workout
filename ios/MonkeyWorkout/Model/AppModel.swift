@@ -35,6 +35,8 @@ final class AppModel {
     var variationUndo: VariationUndo?
     /// Pro offer after the first plan (#126); not persisted, so it shows once.
     var offerPro = false
+    /// Bumped when the first-open What's new sheet closes (#1072): Train's launch sheets wait for it.
+    var whatsNewClosed = 0
     /// Programme just finished (#255): Train shows its finish sheet once; not persisted.
     var finishedProgramme: ProgrammeRecord?
     /// Selected tab, so Train widgets (#260) can open Progress.

@@ -139,6 +139,8 @@ struct WeekView: View {
         .onChange(of: pickedDay) { pickedOn = pickedDay == nil ? nil : todayKey }
         .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick(); askMoodIfDue() } }
         .sheet(isPresented: $morningCheckIn) { MindMorningSheet() }
+        // What's new first (#1072): the morning sheet and chest reveal wait until it closes.
+        .onChange(of: model.whatsNewClosed) { askMoodIfDue(); revealChestIfNeeded() }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStalePick() }
         // Start on a Home Screen widget (#537): today's session straight in the player.
         .onChange(of: PlayerLaunch.shared.sessionId, initial: true) { _, id in
@@ -193,7 +195,8 @@ struct WeekView: View {
         #if DEBUG
         if Demo.enabled { return }
         #endif
-        guard playing == nil, !chestReveal, !morningCheckIn, !arranging, model.shows(.mind) else { return }
+        // Never over the first-open What's new (#1072): two sheets at once closed it in half a second.
+        guard WhatsNew.pending == nil, playing == nil, !chestReveal, !morningCheckIn, !arranging, model.shows(.mind) else { return }
         if MindPrefs.takeMorningSheet(calendar: model.planCalendar) { morningCheckIn = true }
     }
 
@@ -202,7 +205,7 @@ struct WeekView: View {
         if Demo.enabled { return }
         #endif
         // Game off (#1052): no chest reveal.
-        guard playing == nil, !chestReveal, model.chestRevealPending, model.shows(.game) else { return }
+        guard WhatsNew.pending == nil, playing == nil, !chestReveal, model.chestRevealPending, model.shows(.game) else { return }
         model.markChestSeen()
         chestReveal = true
     }
