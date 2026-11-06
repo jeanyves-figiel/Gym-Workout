@@ -1,17 +1,11 @@
 {
-  "id": "2026-11-05.2",
+  "id": "2026-11-06.1",
   "items": [
     {
-      "symbol": "slider.horizontal.3",
-      "tint": "mobility",
-      "title": "Make it simpler",
-      "body": "Pick Just workouts, Follow a plan or Everything in Settings → My app, and follow only part of your plan."
-    },
-    {
-      "symbol": "camera.viewfinder",
+      "symbol": "sparkles",
       "tint": "power",
-      "title": "Show Coach a photo",
-      "body": "Tap 📷 in Ask Coach on any screen (long press for your library): Coach names the machine or move and adds its exercises to today."
+      "title": "What's new stays open",
+      "body": "This page no longer closes by itself when the app opens: the morning check-in and chest reveal wait until you close it."
     }
   ]
 }
