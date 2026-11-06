@@ -162,7 +162,10 @@ struct MainTabView: View {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
         }
         // First open after an update (#183); seen once dismissed, either way.
-        .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
+        .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: {
+            WhatsNew.markSeen()
+            model.whatsNewClosed += 1
+        }) {
             whatsNewSheet($0)
         }
         // Coach's AI consent (#972 A) is presented by AIConsentStore on top of any open sheet (#1000).
