@@ -82,8 +82,8 @@ jobs:
             local i=1
             for s in $SCREENS; do
               xcrun simctl launch --terminate-running-process "$udid" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s" >/dev/null
-              # iOS 27.1 sims start the player slower (#158): give it longer.
-              case "$s" in player*) sleep 25 ;; *) sleep 10 ;; esac
+              # iOS 27.1 sims start the player slower (#158): give it longer (25 s gave a white iPhone player, #1075).
+              case "$s" in player*) sleep 45 ;; *) sleep 10 ;; esac
               local f
               f=$(printf "%02d-%s" "$i" "$s")
               for d in $displays; do
