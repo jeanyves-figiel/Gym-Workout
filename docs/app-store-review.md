@@ -8,7 +8,7 @@
 | Support URL | https://workout.monkeygrade.cloud/support |
 | License Agreement (EULA) | Custom: paste or link https://workout.monkeygrade.cloud/terms (or keep Apple standard EULA and add the Terms link to the description) |
 | App description | Must end with links to Terms of Use and Privacy Policy once subscriptions ship (3.1.2) |
-| Age rating | Answers in `listing.json`. Terms require 16+: set **Age Rating Override → 16+** in App Store Connect so the store rating matches (#975) |
+| Age rating | Answers in `listing.json` (alcohol references: infrequent/mild, drinks log #1039). Terms require 16+: set **Age Rating Override → 16+** in App Store Connect so the store rating matches (#975) |
 | Sign-in required | Yes: give App Review a demo account (email + password) in App Review Information |
 
 Staging copies for checking: https://workout-staging.monkeygrade.cloud/privacy, `/terms`, `/support`.
@@ -16,6 +16,8 @@ Staging copies for checking: https://workout-staging.monkeygrade.cloud/privacy, 
 ## Listing workflow (#882)
 
 Store text lives in `ios/AppStore/listing.json` (name, subtitle, categories, description, keywords, promo text, URLs, age rating answers, App Review notes). Edit it there, then run **App Store listing** (`asc-listing.yml`): dry run first, then `apply`. It writes to the editable iOS version, so create the version in App Store Connect first (+ Version). Secrets read for App Review Information: `REVIEW_DEMO_EMAIL`, `REVIEW_DEMO_PASSWORD` (a production account with a gym, a plan and past workouts), `REVIEW_CONTACT_PHONE`; unset → fill those fields by hand.
+
+App Store build: run **TestFlight (Staging)** with `backend = production` (#1075). It archives the `MonkeyWorkout` scheme in Release (API `workout.monkeygrade.cloud`); select that build on the App Store version. Default `staging` builds stay for testers.
 
 Still by hand (no API): App Privacy labels (table below) and screenshots (`app-store-screenshots` branch).
 
@@ -58,8 +60,11 @@ Data used to track you: **none**. All below: linked to the user, purpose App Fun
 | User Content | Photos or Videos, Other User Content | Exercise photos, profile photo; community captions, bio, shared workouts |
 | Identifiers | User ID | Account ID, community nickname |
 | Purchases | Purchase History | Subscription status (already in the privacy manifest) |
+| User Content | Customer Support | Report a problem / shake to report, optional screenshots (#1075) |
+| Location | Coarse Location | Saved gym's map position stored with the account (#1075) |
+| Diagnostics | Other Diagnostic Data | App version and device model sent with a problem report (#1075) |
 
-Not collected (device only): precise/coarse location (gym search via Apple Maps), biometrics, MonkeyGrade token.
+Not collected (device only): precise location (gym search via Apple Maps), biometrics, audio (speech recognised on device), drinks log, MonkeyGrade token.
 
 AI features send data to Anthropic as a service provider (processing for app functionality, not tracking); the labels above already cover those data types.
 

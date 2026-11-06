@@ -1,6 +1,8 @@
 name: TestFlight (Staging)
 
 # Archives the "MonkeyWorkout Staging" scheme (staging API) and uploads it to App Store Connect → TestFlight.
+# backend=production (#1075) archives the "MonkeyWorkout" scheme, Release config (production API): the build to
+# submit to the App Store. Same TestFlight upload; pick that build on the App Store version.
 # Signing: Xcode automatic/cloud signing driven by an App Store Connect API key (no certificates in the repo).
 # Skips with a warning until the ASC_* secrets exist (see ios/README.md → TestFlight).
 # Manual only: builds ship when all open work streams are merged, not on every merge to main.
@@ -15,6 +17,11 @@ on:
         description: "Rebuild without new release content: keep the last build's What's new page"
         type: boolean
         default: false
+      backend:
+        description: 'API the build talks to: staging (TestFlight testers) or production (App Store submission)'
+        type: choice
+        options: [staging, production]
+        default: staging
 
 concurrency:
   group: testflight
@@ -91,14 +98,18 @@ jobs:
         run: |
           brew install xcodegen
           xcodegen generate --spec ios/project.yml
-      - name: Archive (Staging)
+      - name: Archive (${{ inputs.backend || 'staging' }})
         if: steps.secrets.outputs.ok == 'true'
+        env:
+          SCHEME: ${{ inputs.backend == 'production' && 'MonkeyWorkout' || 'MonkeyWorkout Staging' }}
+          CONFIG: ${{ inputs.backend == 'production' && 'Release' || 'Staging' }}
         run: |
           set -o pipefail
+          echo "Archiving scheme '$SCHEME', configuration $CONFIG"
           xcodebuild archive \
             -project ios/MonkeyWorkout.xcodeproj \
-            -scheme "MonkeyWorkout Staging" \
-            -configuration Staging \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIG" \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/MonkeyWorkout.xcarchive" \
             -skipPackagePluginValidation \
@@ -148,7 +159,7 @@ jobs:
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tail -n 80
-          echo "Uploaded build ${{ github.run_number }} (Staging → workout-staging.monkeygrade.cloud). Appears in TestFlight after Apple processing." >> "$GITHUB_STEP_SUMMARY"
+          echo "Uploaded build ${{ github.run_number }} (${{ inputs.backend == 'production' && 'Release → workout.monkeygrade.cloud, App Store build' || 'Staging → workout-staging.monkeygrade.cloud' }}). Appears in TestFlight after Apple processing." >> "$GITHUB_STEP_SUMMARY"
       - name: Tag build
         if: steps.secrets.outputs.ok == 'true'
         run: |
