@@ -1,6 +1,57 @@
 {
   "releases": [
     {
+      "id": "2026-11-05.1",
+      "build": 99,
+      "date": "2026-11-05",
+      "items": [
+        {
+          "symbol": "face.smiling",
+          "tint": "stretch",
+          "title": "Morning check-in, cleaner",
+          "body": "One title, big colourful mood squares, no empty space."
+        },
+        {
+          "symbol": "bubble.left.and.text.bubble.right.fill",
+          "tint": "power",
+          "title": "Coach always in full",
+          "body": "Coach Monkey's card stays open every day, with tips and your week at a glance."
+        }
+      ]
+    },
+    {
+      "id": "2026-11-03.1",
+      "build": 98,
+      "date": "2026-11-03",
+      "items": [
+        {
+          "symbol": "brain.head.profile",
+          "tint": "stretch",
+          "title": "Mind first",
+          "body": "How do you feel? now sits right under Start on Train, and asks once each morning. Turn it off in Explore → Calm."
+        },
+        {
+          "symbol": "hand.tap.fill",
+          "tint": "mobility",
+          "title": "Tidier Train cards",
+          "body": "Long press a Train tip card to hide it, the same way as day cards. No more floating ✕ under the card."
+        }
+      ]
+    },
+    {
+      "id": "2026-11-02.1",
+      "build": 97,
+      "date": "2026-11-02",
+      "items": [
+        {
+          "symbol": "party.popper.fill",
+          "tint": "power",
+          "title": "Good times, then bounce back",
+          "body": "Log drinks in Fuel or tell Coach; plan a good times week in Calendar. Training goes lighter, water goes up, and a morning-after card helps you recover. Stays on your phone."
+        }
+      ]
+    },
+    {
       "id": "2026-11-01.1",
       "build": 96,
       "date": "2026-11-01",

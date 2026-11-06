@@ -1,11 +1,17 @@
 {
-  "id": "2026-11-02.1",
+  "id": "2026-11-05.2",
   "items": [
     {
-      "symbol": "party.popper.fill",
+      "symbol": "slider.horizontal.3",
+      "tint": "mobility",
+      "title": "Make it simpler",
+      "body": "Pick Just workouts, Follow a plan or Everything in Settings → My app, and follow only part of your plan."
+    },
+    {
+      "symbol": "camera.viewfinder",
       "tint": "power",
-      "title": "Good times, then bounce back",
-      "body": "Log drinks in Fuel or tell Coach; plan a good times week in Calendar. Training goes lighter, water goes up, and a morning-after card helps you recover. Stays on your phone."
+      "title": "Show Coach a photo",
+      "body": "Tap 📷 in Ask Coach on any screen (long press for your library): Coach names the machine or move and adds its exercises to today."
     }
   ]
 }

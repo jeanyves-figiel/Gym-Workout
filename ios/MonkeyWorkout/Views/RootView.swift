@@ -16,7 +16,7 @@ struct RootView: View {
             case .signedIn:
                 // Guided onboarding (#664): stays up after its plan step made the profile, until the tour step.
                 if model.profile == nil || model.onboardingOpen {
-                    OnboardingFlowView(mode: .newMember, profile: nil)
+                    OnboardingFlowView(mode: .newMember, profile: nil, askLevel: true)
                 } else {
                     #if DEBUG
                     if model.demo { DemoScreen() } else { MainTabView() }
@@ -459,6 +459,9 @@ private struct DemoScreen: View {
                 ScrollView { MindTrainCard().padding(16) }
                     .background(Theme.bg.ignoresSafeArea())
             }
+        // Mind morning sheet (#1045 B).
+        case "mind-morning":
+            NavigationStack { Color.clear }.sheet(isPresented: .constant(true)) { MindMorningSheet() }
         // Weekly Coach review (#867): the Train card with Coach's score, summary and changes.
         case "week-review":
             NavigationStack {
@@ -506,6 +509,9 @@ private struct DemoScreen: View {
         case "onboarding-gym", "onboarding-machines", "onboarding-map", "onboarding-plan", "onboarding-tour":
             OnboardingFlowView(mode: .newMember, profile: nil,
                                startAt: OnboardingStep(rawValue: String(Demo.screen.dropFirst("onboarding-".count))) ?? .gym)
+        case "onboarding-level": OnboardingFlowView(mode: .newMember, profile: nil, askLevel: true)
+        case "my-app": NavigationStack { MyAppView() }
+        case "plan-follow": NavigationStack { PlanFollowView() }
         case "app-tour": MainTabView()
         case "train-setup": NavigationStack { WeekView() }
         case "onboarding-hub": NavigationStack { OnboardingHubView() }

@@ -486,7 +486,7 @@ struct WorkoutPlayerView: View {
                                  onSplit: canSplit(step) ? { split(step) } : nil,
                                  onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                  onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
-                                 onFilm: FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
+                                 onFilm: model.shows(.camera) && FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
                                  short: short) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
@@ -719,7 +719,7 @@ struct WorkoutPlayerView: View {
                                      onSplit: canSplit(step) ? { split(step) } : nil,
                                      onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                      onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
-                                     onFilm: FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
+                                     onFilm: model.shows(.camera) && FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
                                      compact: true) { formFor = step.exercise }
                         .id(step.item.uid)
                         .transition(.opacity)
@@ -813,7 +813,7 @@ struct WorkoutPlayerView: View {
                                      onSplit: canSplit(step) ? { split(step) } : nil,
                                      onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                      onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
-                                     onFilm: FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
+                                     onFilm: model.shows(.camera) && FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
                                      compact: true) { formFor = step.exercise }
                         .id(step.item.uid)
                         .transition(.opacity)
@@ -930,11 +930,11 @@ struct WorkoutPlayerView: View {
                               onQueued: { go(queued[$0]) },
                               onPick: { addFree([$0], jump: false) },
                               onMore: { freeBrowse = FreeBrowse(group: nil, jump: false) },
-                              onFilm: { filmingNext = true })
+                              onFilm: model.shows(.camera) ? { filmingNext = true } : nil)
         } else {
             HStack(spacing: 8) {
                 // Talk to Coach (#874 A): hold the mic, ask about this set.
-                if AskCoachPref.playerMic {
+                if AskCoachPref.playerMic, model.shows(.coach) {
                     SetTalkMic(listening: listener.listening, onStart: listenForCommand, onEnd: { listener.finish() })
                 }
                 SmartUpNextBar(next: next,

@@ -21,6 +21,10 @@ final class AppModel {
             if state.customExerciseList != oldValue.customExerciseList {
                 CustomExercises.shared.replaceAll(state.customExerciseList ?? [])
             }
+            // App modules (#1052): tabs read them without the model.
+            if state.synced?.appModules != oldValue.synced?.appModules {
+                TabsPref.shared.modules = state.synced?.appModules ?? .everything
+            }
         }
     }
     var syncError: String?
@@ -450,8 +454,9 @@ final class AppModel {
     }
 
     private func makePlan() -> WeekPlan? {
-        // Train around pain (#870) last: the protected spot wins over every other change.
-        unguardedPlan().map { painGuarded($0) }
+        // Train around pain (#870) last: the protected spot wins over every other change. Then what the member
+        // follows of it (#1052 D).
+        unguardedPlan().map { followed(painGuarded($0)) }
     }
 
     /// The plan before Train around pain (#870): what its preview is made from.
@@ -528,7 +533,8 @@ final class AppModel {
         let outside = (sportAddOn: state.synced?.sportAddOn, skills: state.synced?.skills, bikeFTP: state.synced?.bikeFTP,
                     bikeFTPTestedAt: state.synced?.bikeFTPTestedAt, lifeStage: state.synced?.lifeStage,
                     onboarding: state.synced?.onboarding, pain: state.synced?.pain, insightsFocus: state.synced?.insightsFocus,
-                    placeBook: state.synced?.placeBook)
+                    placeBook: state.synced?.placeBook, appModules: state.synced?.appModules,
+                    planFollow: state.synced?.planFollow)
         let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
         state.synced?.tasteOff = learning.tasteOff
@@ -546,6 +552,8 @@ final class AppModel {
         state.synced?.pain = outside.pain
         state.synced?.insightsFocus = outside.insightsFocus
         state.synced?.placeBook = outside.placeBook
+        state.synced?.appModules = outside.appModules
+        state.synced?.planFollow = outside.planFollow
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })

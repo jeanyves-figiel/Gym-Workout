@@ -143,7 +143,7 @@ export interface CoachAnswer {
   doActions?: CoachDo[];
 }
 
-/** `photo`: a JPEG of the machine in front of the member (#856), with the last message. */
+/** `photo`: a JPEG the member sent with the last message (#856 machine, #1064 anything); never stored. */
 export type CoachModel = (turns: ChatTurn[], context: ChatContext, photo?: Buffer) => Promise<CoachAnswer>;
 
 /** Most exercises Coach hands back at once (#856). */
@@ -162,7 +162,13 @@ Answering questions (#412):
 - action: a button to open a screen when it truly helps ("progress" opens Insights, label it "Open Insights"; "calendar", "explore", "fuel", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
 - suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
 - Food (Fuel, #496): give general pointers on eating around training, using the day's training and the targets in "Looking at" when given (protein, carbs, water, meals). Suggest simple meals. Never prescribe diets, calorie restriction or supplements as treatment; for a medical condition, pregnancy or an eating disorder suggest a doctor or dietitian.
-- Freestyle (#856, Screen "freestyle") and the Add exercises picker (#934, Screen "picker"): the member is building a workout, at the gym as they go or picking exercises for one. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list.
+- Freestyle (#856, Screen "freestyle") and the Add exercises picker (#934, Screen "picker"): the member is building a workout, at the gym as they go or picking exercises for one. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list, except for a photo (below).
+- Photos (#1064): the member can send one photo from any screen (camera or photo library), usually asking "What's this?". In one or two short sentences say what it shows, then help:
+  - gym machine or equipment: name it as gyms call it, one setup tip, and put up to 4 exercises for it in "exercises" (exact names from "Exercises in the app", best first);
+  - an exercise being done (a screenshot, a poster, someone training): name the exercise, one form cue, and put it and up to 3 close alternatives in "exercises";
+  - food or a meal: a rough take for their goal, and point to Fuel's meal scan for real numbers (action "fuel");
+  - anything else: say what it is and link it to training only if it truly fits; otherwise one friendly line back to training.
+  Never identify, name or guess who a person is, and never comment on a person's face, body, weight, body fat or looks, even when asked: talk only about the equipment, movement or form. A blurry or unclear photo: say so and ask for a clearer one, exercises empty. Never read out text from documents, screens or cards that look private (ids, cards, addresses).
 - Logging body measurements (#1000): when the member tells you their body weight, body fat or a tape measurement to save ("weight is now 66", "log my waist 82", "I'm 145 pounds today"), put it in "measurement": weightKg, bodyFatPct, girths (site, side "left"/"right" for one limb, else "none", cm). Convert pounds and inches. Only values the member gave; a bare weight number is kilos. The app saves it on today's entry at once with an Undo button: the reply confirms in one short line ("Logged: 66 kilos.") and may add one encouraging word about the trend in "Looking at". Never say you can't log it. measurement null when they only ask about it.
 - Doing things for the member (#999): you can act, not only advise. Never say "you can do it yourself" or "I can't do that" for anything below; put it in "doActions" instead (one entry per thing, max 5), and the reply says in one short line what you did or will do:
   - water: they drank water ("had 2 glasses") → glasses 1 to 10.
@@ -176,7 +182,7 @@ Answering questions (#412):
   - done: they did an earlier workout of this week but didn't log it ("I did Tuesday's workout") → weekday of that day, before today. It is logged as planned.
   - reminder: the morning reminder of a workout day ("remind me at 6:30", "stop the workout reminders") → minutes after midnight (6:30 = 390) and on true, or on false to turn it off.
   - voice: whether you read answers aloud ("talk to me", "stop talking", "only when I speak") → value always, never or whenTalking.
-  Logs (water, drinks, food, supplement, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip, swap, done, reminder and voice wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Fields a kind doesn't use are null.
+  Logs (water, drinks, food, supplement, mood) are saved at once with Undo, so the reply says "Done" ("Added two glasses."). Move, skip, swap, done, reminder and voice wait for the member's tap on a card, so the reply asks ("Want me to move it to Saturday?"). Only what the member asked for. Leave out fields a kind doesn't use.
   You can't do anything else (account, email, password, payment, subscription, deleting data, community posts, sharing, privacy or AI settings). For those say kindly where it is in the app and add the matching "action" button. Never pretend you did something you can't.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
@@ -204,7 +210,8 @@ Training around pain (#870): when the member says a joint or spot hurts (knee, s
 - workout null when the member only asks a question.
 - reply: plain text, no markdown, in the member's language. name: 2 to 4 words for the workout.`;
 
-const schema = {
+/** Coach answer schema; at most 16 nullable/union parameters (Claude API limit, #1060). */
+export const chatSchema = {
   type: 'object',
   properties: {
     reply: { type: 'string' },
@@ -294,18 +301,19 @@ const schema = {
         type: 'object',
         properties: {
           kind: { type: 'string', enum: [...DO_KINDS] },
-          glasses: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          foods: { anyOf: [{ type: 'null' }, { type: 'string' }] },
-          meal: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...DO_MEALS] }] },
-          mood: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          weekday: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          from: { anyOf: [{ type: 'null' }, { type: 'string' }] },
-          to: { anyOf: [{ type: 'null' }, { type: 'string' }] },
-          minutes: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-          on: { anyOf: [{ type: 'null' }, { type: 'boolean' }] },
-          value: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...DO_VOICE] }] },
+          glasses: { type: 'integer' },
+          foods: { type: 'string' },
+          meal: { type: 'string', enum: [...DO_MEALS] },
+          mood: { type: 'integer' },
+          weekday: { type: 'integer' },
+          from: { type: 'string' },
+          to: { type: 'string' },
+          minutes: { type: 'integer' },
+          on: { type: 'boolean' },
+          value: { type: 'string', enum: [...DO_VOICE] },
         },
-        required: ['kind', 'glasses', 'foods', 'meal', 'mood', 'weekday', 'from', 'to', 'minutes', 'on', 'value'],
+        // Optional, not nullable (#1060): the API allows at most 16 union-typed parameters per schema.
+        required: ['kind'],
         additionalProperties: false,
       },
     },
@@ -523,7 +531,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
     const about = describeMember(context);
     const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t, i) => ({
       role: t.role === 'member' ? 'user' : 'assistant',
-      // The machine photo (#856) goes with the member's last message.
+      // The photo (#856, #1064) goes with the member's last message.
       content:
         photo && i === turns.length - 1
           ? [
@@ -539,7 +547,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
       fallbacks: 'default',
       // Same Coach rules for everyone, cached; the member's own lines come after the cache mark (#866).
       system: [{ type: 'text', text: SYSTEM, cache_control: CACHED }, ...(about ? [{ type: 'text' as const, text: `About this member:\n${about}` }] : [])],
-      output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: chatSchema } },
       messages,
     }));
     if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], exercises: [], protect: null, measurement: null, doActions: [] };
