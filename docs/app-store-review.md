@@ -8,7 +8,7 @@
 | Support URL | https://workout.monkeygrade.cloud/support |
 | License Agreement (EULA) | Custom: paste or link https://workout.monkeygrade.cloud/terms (or keep Apple standard EULA and add the Terms link to the description) |
 | App description | Must end with links to Terms of Use and Privacy Policy once subscriptions ship (3.1.2) |
-| Age rating | Answers in `listing.json`. Terms require 16+: set **Age Rating Override → 16+** in App Store Connect so the store rating matches (#975) |
+| Age rating | Answers in `listing.json` (alcohol references: infrequent/mild, drinks log #1039). Terms require 16+: set **Age Rating Override → 16+** in App Store Connect so the store rating matches (#975) |
 | Sign-in required | Yes: give App Review a demo account (email + password) in App Review Information |
 
 Staging copies for checking: https://workout-staging.monkeygrade.cloud/privacy, `/terms`, `/support`.
@@ -60,8 +60,11 @@ Data used to track you: **none**. All below: linked to the user, purpose App Fun
 | User Content | Photos or Videos, Other User Content | Exercise photos, profile photo; community captions, bio, shared workouts |
 | Identifiers | User ID | Account ID, community nickname |
 | Purchases | Purchase History | Subscription status (already in the privacy manifest) |
+| User Content | Customer Support | Report a problem / shake to report, optional screenshots (#1075) |
+| Location | Coarse Location | Saved gym's map position stored with the account (#1075) |
+| Diagnostics | Other Diagnostic Data | App version and device model sent with a problem report (#1075) |
 
-Not collected (device only): precise/coarse location (gym search via Apple Maps), biometrics, MonkeyGrade token.
+Not collected (device only): precise location (gym search via Apple Maps), biometrics, audio (speech recognised on device), drinks log, MonkeyGrade token.
 
 AI features send data to Anthropic as a service provider (processing for app functionality, not tracking); the labels above already cover those data types.
 
