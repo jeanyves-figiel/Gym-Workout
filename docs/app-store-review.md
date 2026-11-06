@@ -17,6 +17,8 @@ Staging copies for checking: https://workout-staging.monkeygrade.cloud/privacy, 
 
 Store text lives in `ios/AppStore/listing.json` (name, subtitle, categories, description, keywords, promo text, URLs, age rating answers, App Review notes). Edit it there, then run **App Store listing** (`asc-listing.yml`): dry run first, then `apply`. It writes to the editable iOS version, so create the version in App Store Connect first (+ Version). Secrets read for App Review Information: `REVIEW_DEMO_EMAIL`, `REVIEW_DEMO_PASSWORD` (a production account with a gym, a plan and past workouts), `REVIEW_CONTACT_PHONE`; unset → fill those fields by hand.
 
+App Store build: run **TestFlight (Staging)** with `backend = production` (#1075). It archives the `MonkeyWorkout` scheme in Release (API `workout.monkeygrade.cloud`); select that build on the App Store version. Default `staging` builds stay for testers.
+
 Still by hand (no API): App Privacy labels (table below) and screenshots (`app-store-screenshots` branch).
 
 ## Operator details (`[env]` in `backend/fly.*.toml`)
