@@ -512,7 +512,9 @@ private struct DemoScreen: View {
         case "onboarding-gym", "onboarding-machines", "onboarding-map", "onboarding-plan", "onboarding-tour":
             OnboardingFlowView(mode: .newMember, profile: nil,
                                startAt: OnboardingStep(rawValue: String(Demo.screen.dropFirst("onboarding-".count))) ?? .gym)
-        case "onboarding-level": OnboardingFlowView(mode: .newMember, profile: nil, askLevel: true)
+        case "onboarding-level", "onboarding-chat": OnboardingFlowView(mode: .newMember, profile: nil, askLevel: true)
+        // Plan reveal (#1084 C) on the demo plan.
+        case "onboarding-reveal": OnboardingFlowView(mode: .newMember, profile: nil, startAt: .plan, revealed: true)
         case "my-app": NavigationStack { MyAppView() }
         case "plan-follow": NavigationStack { PlanFollowView() }
         case "app-tour": MainTabView()
