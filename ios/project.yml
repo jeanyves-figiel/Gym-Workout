@@ -97,6 +97,9 @@ targets:
         NSSpeechRecognitionUsageDescription: Turns what you say to Coach into text, on your iPhone when it can. Only the words are sent to Coach.
         NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, steps, floors climbed, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness, count daily walking and stairs toward your level, and track progress, and to compute your Mind score.
         NSLocationWhenInUseUsageDescription: Finds gyms near you. Your location is only used for the search and never leaves this device except to Apple Maps.
+        # Invisible Monkey (#1087): gym arrival (opt-in) needs Always for the home gym's region; photo inbox (opt-in) reads new photos on the device.
+        NSLocationAlwaysAndWhenInUseUsageDescription: If you turn on gym arrival, notices when you reach your home gym so today's workout is one tap away. Only that arrival is used, on this iPhone; your location is never stored or sent.
+        NSPhotoLibraryUsageDescription: If you turn on food photos, looks at new photos on this iPhone for food so a meal you photographed is one tap to log. Photos are checked on the device and never uploaded unless you tap to scan one.
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts with how hard they felt (effort), how you feel after them and on your mood check-ins (State of Mind), the minutes of your breathing and relax sessions (mindful minutes), the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
@@ -245,7 +248,7 @@ targets:
         MWDepth: true
         NSHealthShareUsageDescription: Reads heart rate, active energy, swim distance, strokes and water temperature during your workouts.
         NSHealthUpdateUsageDescription: Saves your gym sessions, timers, swims and the sports you track (with their route) as workouts, with their effort and how you feel after them, to Apple Health.
-        NSMotionUsageDescription: Counts your reps, punches and racket swings and measures bar speed during workouts.
+        NSMotionUsageDescription: Counts your reps, punches and racket swings and measures bar speed during workouts. If you turn on sips or meals, notices when you drink or eat from your wrist movement; the movement stays on your Watch, only the times go to your iPhone.
         NSLocationWhenInUseUsageDescription: Records the route, speed and elevation of the sports you track. The route is saved to Apple Health only.
         NSBluetoothAlwaysUsageDescription: Connects your bike power meter, cadence sensor and heart-rate strap during rides.
     settings:
