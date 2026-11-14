@@ -12,10 +12,12 @@ struct AutoTrackCard: View {
     private var store: AutoTrackStore { AutoTrackStore.shared }
 
     var body: some View {
-        Group {
-            if store.prefs.anyOn {
+        // One stable container (#1092): `.sheet` on a `Group` is copied onto each child, so turning the first sense on
+        // swapped the invite (which presented the sheet) for the card under the open sheet and took the sheet with it.
+        VStack(spacing: 0) {
+            if store.prefs.anyOn || store.saved.inviteHidden {
                 card
-            } else if !store.saved.inviteHidden {
+            } else {
                 invite
             }
         }
