@@ -62,7 +62,7 @@
   ],
   "ageRating": {
     "alcoholTobaccoOrDrugUseOrReferences": "INFREQUENT_OR_MILD",
-    "contests": "NONE",
+    "contests": "INFREQUENT_OR_MILD",
     "gamblingSimulated": "NONE",
     "horrorOrFearThemes": "NONE",
     "matureOrSuggestiveThemes": "NONE",
