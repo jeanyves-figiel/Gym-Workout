@@ -49,15 +49,23 @@ struct OnboardingFlowView: View {
     @State private var equipmentOpen = false
     @State private var zonesOpen = false
     @State private var floorPlanOpen = false
-    /// App level (#1052 A): asked first on sign up; nil = not asked (rerun, single step, demo steps).
+    /// App level (#1052 A): asked in the Coach chat on sign up; nil = not asked (rerun, single step, demo steps).
     @State private var level: AppLevel?
-    @State private var askingLevel: Bool
+    /// Coach chat first (#1084 A): goal, days, length, experience, app level and diet, one at a time.
+    @State private var chatting: Bool
+    @State private var answers = CoachIntroAnswers()
+    /// Plan built after the gym steps (#1084 B): the reveal (#1084 C) shows.
+    @State private var built: Bool
+    @State private var fineTuning = false
 
-    /// `startAt`: demo screenshots of one step of the guided flow.
-    init(mode: Mode, profile: Profile?, startAt: OnboardingStep = .gym, askLevel: Bool = false, onClose: @escaping () -> Void = {}) {
+    /// `startAt`: demo screenshots of one step of the guided flow. `askLevel`: a new member starts with the Coach
+    /// chat (#1084, it asks the app level of #1052). `revealed`: demo of the plan reveal.
+    init(mode: Mode, profile: Profile?, startAt: OnboardingStep = .gym, askLevel: Bool = false, revealed: Bool = false,
+         onClose: @escaping () -> Void = {}) {
         self.mode = mode
-        _askingLevel = State(initialValue: askLevel && mode == .newMember)
+        _chatting = State(initialValue: askLevel && mode == .newMember)
         _level = State(initialValue: askLevel && mode == .newMember ? .everything : nil)
+        _built = State(initialValue: revealed)
         self.onClose = onClose
         if case .single(let s) = mode { _step = State(initialValue: s) } else { _step = State(initialValue: startAt) }
         var draft = profile ?? Profile()
@@ -75,7 +83,13 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         NavigationStack {
-            if askingLevel { levelPage } else { flow }
+            if chatting {
+                CoachIntroChat(answers: $answers) { finishChat() }
+            } else if isNew && step == .plan {
+                revealFlow
+            } else {
+                flow
+            }
         }
         .onAppear { if isNew, !model.demo { model.onboardingOpen = true } }
         // Signed out mid-way: the next account starts clean.
@@ -87,37 +101,34 @@ struct OnboardingFlowView: View {
         }
     }
 
-    /// How much app (#1052 A): one tap before the steps. Everything is picked to start with; Settings → My app
-    /// changes it any time.
-    private var levelPage: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("How much app?").font(Theme.display(32)).foregroundStyle(.white)
-                Text("Pick what you want to see. Change it any time in Settings → My app.")
-                    .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
-            ScrollView {
-                AppLevelPicker(selected: level) { picked in withAnimation(.snappy) { level = picked } }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 6)
-                    .padding(.bottom, 24)
-            }
-            .readableWidth()
+    /// Chat answers go on the draft; the level is kept for the first plan.
+    private func finishChat() {
+        answers.apply(to: &p)
+        level = answers.level ?? .everything
+        withAnimation(.snappy) { chatting = false }
+    }
+
+    /// New member's plan step (#1084 B + C): "Building your plan…", then the reveal; Let's go opens the tour step.
+    @ViewBuilder private var revealFlow: some View {
+        if built {
+            PlanRevealView(answers: answers, onGo: { withAnimation(.snappy) { step = .tour } }, onFineTune: { fineTuning = true })
+                .navigationDestination(isPresented: $fineTuning) {
+                    ProfileFormView(initial: model.profile ?? p) { made in
+                        model.updateProfile(made)
+                        p = made
+                        fineTuning = false
+                    }
+                    .navigationTitle("Your training")
+                }
+        } else {
+            PlanBuildView(steps: CoachIntro.buildSteps(answers, gymName: p.gym?.name,
+                                                        machines: AppModel.machineCount(p.equipment))) { buildPlan() }
         }
-        .background(Theme.bg.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom) {
-            Button { withAnimation(.snappy) { askingLevel = false } } label: { Text("CONTINUE") }
-                .buttonStyle(LimeButtonStyle())
-                .accessibilityIdentifier("onboarding.level.next")
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .readableColumn()
-                .background(Theme.bg.opacity(0.92).ignoresSafeArea())
-        }
-        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func buildPlan() {
+        if !model.demo { makeFirstPlan(p, programme: nil, planDone: true) }
+        withAnimation(.snappy) { built = true }
     }
 
     private var flow: some View {
@@ -471,6 +482,12 @@ struct OnboardingFlowView: View {
         model.applyProfile(profile)
         // The level picked first (#1052 A); Everything keeps the app as it is.
         if let level, level != .everything { model.setAppLevel(level) }
+        // Diet from the Coach chat (#1084 A): Fuel's recipes and meal plans follow it.
+        if let diet = answers.diet {
+            var fuel = FuelStore.shared.prefs
+            fuel.diet = diet
+            FuelStore.shared.setPrefs(fuel)
+        }
         if let programme { model.startProgramme(programme) }
         // New accounts start on this release: no "What's new" for them (#183).
         WhatsNew.markSeen()
