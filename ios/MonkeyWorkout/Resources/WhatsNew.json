@@ -2,6 +2,12 @@
   "id": "2026-11-15.1",
   "items": [
     {
+      "symbol": "drop.fill",
+      "tint": "stretch",
+      "title": "Sips fixed",
+      "body": "Turning on Sips no longer closes the app."
+    },
+    {
       "symbol": "location.fill",
       "tint": "power",
       "title": "Gym arrival just works",
