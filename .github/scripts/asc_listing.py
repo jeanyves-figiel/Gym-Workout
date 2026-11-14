@@ -68,7 +68,8 @@ def get_all(path: str):
 
 
 L = json.load(open(os.path.join(os.path.dirname(__file__), "../../ios/AppStore/listing.json")))
-LOC = L["locale"]
+# One locale or a list (#1090: primary en-GB + en-US for the US storefront index); all get the same text.
+LOCS = L["locale"] if isinstance(L["locale"], list) else [L["locale"]]
 EDITABLE = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
             "WAITING_FOR_REVIEW", "INVALID_BINARY"}
 summary = []
@@ -113,19 +114,21 @@ def app_info():
 
     locs, _ = get_all(f"/v1/appInfos/{iid}/appInfoLocalizations")
     wanted = {"name": L["name"], "subtitle": L["subtitle"], "privacyPolicyUrl": L["privacyPolicyUrl"]}
-    loc = next((x for x in locs if x["attributes"]["locale"] == LOC), None)
-    if loc:
-        patch("appInfoLocalizations", loc["id"], diff(loc["attributes"], wanted), f"App info {LOC}")
-    else:
-        create("appInfoLocalizations", {"locale": LOC, **wanted},
-               {"appInfo": {"data": {"type": "appInfos", "id": iid}}}, f"App info {LOC}")
+    for LOC in LOCS:
+        loc = next((x for x in locs if x["attributes"]["locale"] == LOC), None)
+        if loc:
+            patch("appInfoLocalizations", loc["id"], diff(loc["attributes"], wanted), f"App info {LOC}")
+        else:
+            create("appInfoLocalizations", {"locale": LOC, **wanted},
+                   {"appInfo": {"data": {"type": "appInfos", "id": iid}}}, f"App info {LOC}")
 
     age = call("GET", f"/v1/appInfos/{iid}/ageRatingDeclaration")["data"]
     # Only questions Apple's API has for this app (the questionnaire grows over time).
     known = {k: v for k, v in L["ageRating"].items() if k in age["attributes"]}
     for k in sorted(set(L["ageRating"]) - set(known)):
         summary.append(f"! Age rating question {k} not in the API: answer it in App Store Connect.")
-    patch("ageRatingDeclarations", age["id"], diff(age["attributes"], known), "Age rating")
+    # Apple rejects a partial PATCH once new required questions exist: send every answer when anything differs.
+    patch("ageRatingDeclarations", age["id"], known if diff(age["attributes"], known) else {}, "Age rating")
 
 
 def version():
@@ -140,12 +143,13 @@ def version():
     wanted = {"description": "\n".join(L["description"]), "keywords": L["keywords"],
               "promotionalText": L["promotionalText"], "supportUrl": L["supportUrl"], "marketingUrl": L["marketingUrl"]}
     locs, _ = get_all(f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations")
-    loc = next((x for x in locs if x["attributes"]["locale"] == LOC), None)
-    if loc:
-        patch("appStoreVersionLocalizations", loc["id"], diff(loc["attributes"], wanted), f"Version {vname} {LOC}")
-    else:
-        create("appStoreVersionLocalizations", {"locale": LOC, **wanted},
-               {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}, f"Version {vname} {LOC}")
+    for LOC in LOCS:
+        loc = next((x for x in locs if x["attributes"]["locale"] == LOC), None)
+        if loc:
+            patch("appStoreVersionLocalizations", loc["id"], diff(loc["attributes"], wanted), f"Version {vname} {LOC}")
+        else:
+            create("appStoreVersionLocalizations", {"locale": LOC, **wanted},
+                   {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}, f"Version {vname} {LOC}")
 
     r = L["review"]
     wanted = {"contactFirstName": r["contactFirstName"], "contactLastName": r["contactLastName"],
