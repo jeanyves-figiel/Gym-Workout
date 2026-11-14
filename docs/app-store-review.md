@@ -24,7 +24,7 @@ Still by hand (no API): App Privacy labels (table below) and screenshots (`app-s
 ## First submission runbook (#1090)
 
 1. Bundle shipped to prod; run **TestFlight (Staging)** with `backend = production` on the prod commit.
-2. User: Paid Apps agreement + banking + tax Active; App Store Connect → + Version 1.0 (if missing); demo production account (gym, plan, past workouts), then **Free access** grant Pro; secrets `REVIEW_DEMO_EMAIL` / `REVIEW_DEMO_PASSWORD` / `REVIEW_CONTACT_PHONE`.
+2. User: Paid Apps agreement + banking + tax Active; App Store Connect → + Version 1.0 (if missing); secrets `REVIEW_DEMO_EMAIL` / `REVIEW_DEMO_PASSWORD` / `REVIEW_CONTACT_PHONE`; then **Review account** (staging, then production) creates the demo account: email verified, terms accepted, free Pro. Gym and plan come from the Coach setup on first sign-in.
 3. **App Store subscriptions** dry run → apply; paywall review screenshot per product; attach subscriptions to version 1.0.
 4. **App Store listing** dry run → apply.
 5. By hand (Chrome): App Privacy labels (table below), Age Rating Override 16+, screenshots from `/mnt/project-files/app-store-screenshots/`, select the production build, encryption answer (none, `ITSAppUsesNonExemptEncryption` false), pricing Free + availability.

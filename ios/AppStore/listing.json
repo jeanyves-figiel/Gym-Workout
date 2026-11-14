@@ -86,7 +86,7 @@
     "contactEmail": "contact@monkeygrade.cloud",
     "demoAccountRequired": true,
     "notes": [
-      "Sign in with the demo account below (email + password) or with Sign in with Apple. The demo account has a gym, a weekly plan, past workouts and Pro access, and its app level is set to Everything.",
+      "Sign in with the demo account below (email + password) or with Sign in with Apple. The demo account has Pro access. The first sign-in starts a one-minute setup chat with Coach Monkey (goal, days, gym); any answers work and it builds the gym and weekly plan.",
       "Try a workout: Train tab > Start > tap SET 1 DONE > X (top right) > Finish.",
       "Ask Coach: Train tab > Coach tile, or the Ask Coach button on any screen. The first AI use shows a consent sheet; nothing goes to the AI provider before you agree. Try \"I had 2 glasses of water\" (logs it, with Undo) or the camera button to send a photo of a machine.",
       "Apple Watch: install the Watch app, then start from the Watch or from iPhone (Start on Watch).",
