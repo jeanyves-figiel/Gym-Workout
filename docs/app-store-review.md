@@ -21,6 +21,17 @@ App Store build: run **TestFlight (Staging)** with `backend = production` (#1075
 
 Still by hand (no API): App Privacy labels (table below) and screenshots (`app-store-screenshots` branch).
 
+## First submission runbook (#1090)
+
+1. Bundle shipped to prod; run **TestFlight (Staging)** with `backend = production` on the prod commit.
+2. User: Paid Apps agreement + banking + tax Active; App Store Connect → + Version 1.0 (if missing); demo production account (gym, plan, past workouts), then **Free access** grant Pro; secrets `REVIEW_DEMO_EMAIL` / `REVIEW_DEMO_PASSWORD` / `REVIEW_CONTACT_PHONE`.
+3. **App Store subscriptions** dry run → apply; paywall review screenshot per product; attach subscriptions to version 1.0.
+4. **App Store listing** dry run → apply.
+5. By hand (Chrome): App Privacy labels (table below), Age Rating Override 16+, screenshots from `/mnt/project-files/app-store-screenshots/`, select the production build, encryption answer (none, `ITSAppUsesNonExemptEncryption` false), pricing Free + availability.
+6. `SUBSCRIPTIONS = 'enforced'` + `SUBSCRIPTION_SANDBOX = 'on'` (App Review buys in sandbox against production) on production via the normal promote; keep the sandbox flag on (every App Review buys in sandbox against production).
+7. Submit for review only after the owner's explicit OK. Release: manual after approval.
+8. After approval: Cast receiver URL → `https://workout.monkeygrade.cloud/cast/receiver` + Publish (Google Cast console).
+
 ## Operator details (`[env]` in `backend/fly.*.toml`)
 
 | Env | Used for |
@@ -64,7 +75,7 @@ Data used to track you: **none**. All below: linked to the user, purpose App Fun
 | Location | Coarse Location | Saved gym's map position stored with the account (#1075) |
 | Diagnostics | Other Diagnostic Data | App version and device model sent with a problem report (#1075) |
 
-Not collected (device only): precise location (gym search via Apple Maps), biometrics, audio (speech recognised on device), drinks log, MonkeyGrade token.
+Not collected (device only): precise location (gym search via Apple Maps; opt-in gym arrival region check, #1087), photo library (opt-in food photo check on device, #1087), Watch wrist motion for sips and meals (#1087), biometrics, audio (speech recognised on device), drinks log, MonkeyGrade token.
 
 AI features send data to Anthropic as a service provider (processing for app functionality, not tracking); the labels above already cover those data types.
 
