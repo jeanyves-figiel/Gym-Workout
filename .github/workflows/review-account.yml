@@ -1,0 +1,46 @@
+name: Review account
+
+# Manual (#1090): creates or updates the App Review demo account from the REVIEW_DEMO_EMAIL / REVIEW_DEMO_PASSWORD
+# secrets: email verified, terms accepted, password set, free Pro access. Idempotent (re-run after changing the password).
+# The credentials go to the Fly machine on stdin inside the script, never in a command line or log.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target'
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  account:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
+      HOST: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
+      REVIEW_DEMO_EMAIL: ${{ secrets.REVIEW_DEMO_EMAIL }}
+      REVIEW_DEMO_PASSWORD: ${{ secrets.REVIEW_DEMO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
+      - name: Check secrets
+        run: |
+          if [ -z "$REVIEW_DEMO_EMAIL" ] || [ -z "$REVIEW_DEMO_PASSWORD" ]; then echo "::error::REVIEW_DEMO_EMAIL and REVIEW_DEMO_PASSWORD secrets required"; exit 1; fi
+      - name: Wake the machine
+        run: curl -fsS --retry 5 --retry-delay 3 "https://$HOST/healthz"
+      - name: Create or update
+        run: |
+          e=$(printf '%s' "$REVIEW_DEMO_EMAIL" | base64 -w0)
+          p=$(printf '%s' "$REVIEW_DEMO_PASSWORD" | base64 -w0)
+          { printf "const REVIEW_EMAIL = Buffer.from('%s', 'base64').toString('utf8');\n" "$e"
+            printf "const REVIEW_PASSWORD = Buffer.from('%s', 'base64').toString('utf8');\n" "$p"
+            cat .github/scripts/review-account.mjs
+          } > "$RUNNER_TEMP/run.mjs"
+          # The entrypoint drops to the app user so the SQLite files keep their owner.
+          flyctl ssh console -a "$FLY_APP" -C "docker-entrypoint.sh node --disable-warning=ExperimentalWarning --input-type=module" < "$RUNNER_TEMP/run.mjs"
+          rm -f "$RUNNER_TEMP/run.mjs"

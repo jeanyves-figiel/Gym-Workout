@@ -56,6 +56,7 @@ All manual, target `staging` or `production`, run commands on the Fly machine ov
 | Fly logs | Recent logs |
 | Fly undo workout | Remove a wrongly recorded workout for a member (dry run first, then apply) |
 | Free access | Grant / revoke / list free Pro access per account, or grant-all with an end date |
+| Review account | App Review demo account from `REVIEW_DEMO_EMAIL` / `REVIEW_DEMO_PASSWORD`: created or updated with email verified, terms accepted, free Pro (#1090) |
 | Staging testers | Add / remove / list accounts allowed to use Pro test mode (fake purchases) on staging (#924) |
 | Week challenge review | List member challenge suggestions waiting for review, approve (into the member-week vote) or reject one (#748) |
 | CodeQL export | Same CodeQL suite as default setup, no upload: prints every result for one language (Swift default) to the log and summary (#964) |
