@@ -272,45 +272,45 @@ enum PhotoInbox {
 
 // MARK: - Gym arrival
 
-/// The home gym's region (150 m) with Core Location's monitor: arriving posts one "start today's workout" a day.
-/// Needs Always location; asked only when the member turns gym arrival on.
+/// The home gym's region (150 m) watched by Core Location: arriving posts one "start today's workout" a day.
+/// Needs Always location; asked only when the member turns gym arrival on. Region monitoring (not `CLMonitor`, whose
+/// one-instance-per-name rule crashed when two launch tasks opened it at once) relaunches the app for an arrival; the
+/// manager made at launch gets the event.
 @MainActor
-final class GymArrival {
+final class GymArrival: NSObject, CLLocationManagerDelegate {
     static let shared = GymArrival()
-    private var monitor: CLMonitor?
-    private var listening: Task<Void, Never>?
     private let manager = CLLocationManager()
-    private static let name = "monkey-gym"
-    private static let condition = "home-gym"
+    private static let region = "monkey-home-gym"
+
+    override private init() {
+        super.init()
+        manager.delegate = self
+    }
 
     func askAlways() { manager.requestAlwaysAuthorization() }
 
-    /// Starts or stops following the home gym to match the setting. Called at launch too: a relaunch for an
-    /// arrival delivers its event only once the monitor is opened again.
+    /// Starts or stops watching the home gym to match the setting. Called at launch too (makes the manager, so a
+    /// relaunch for an arrival delivers it).
     func follow() async {
         let store = AutoTrackStore.shared
-        let monitor = await current()
-        guard store.prefs.gym else {
-            await monitor.remove(Self.condition)
+        let old = manager.monitoredRegions.filter { $0.identifier == Self.region }
+        guard store.prefs.gym, CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else {
+            old.forEach { manager.stopMonitoring(for: $0) }
             return
         }
-        // Home gym not loaded yet (early at launch): keep what the monitor already follows.
+        // Home gym not loaded yet (early at launch): keep what is already watched.
         guard let g = store.model?.homePlace, let lat = g.latitude, let lng = g.longitude else { return }
-        let region = CLMonitor.CircularGeographicCondition(center: CLLocationCoordinate2D(latitude: lat, longitude: lng), radius: 150)
-        await monitor.add(region, identifier: Self.condition, assuming: .unsatisfied)
+        let center = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+        if let r = old.first as? CLCircularRegion, abs(r.center.latitude - lat) < 0.0001, abs(r.center.longitude - lng) < 0.0001 { return }
+        old.forEach { manager.stopMonitoring(for: $0) }
+        let region = CLCircularRegion(center: center, radius: 150, identifier: Self.region)
+        region.notifyOnEntry = true
+        region.notifyOnExit = false
+        manager.startMonitoring(for: region)
     }
 
-    private func current() async -> CLMonitor {
-        if let monitor { return monitor }
-        let m = await CLMonitor(Self.name)
-        monitor = m
-        listening = Task {
-            do {
-                for try await event in await m.events where event.state == .satisfied {
-                    await AutoTrackStore.shared.arrivedAtGym(now: event.date)
-                }
-            } catch {}
-        }
-        return m
+    nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        guard region.identifier == Self.region else { return }
+        Task { @MainActor in await AutoTrackStore.shared.arrivedAtGym() }
     }
 }
