@@ -16,6 +16,8 @@ struct PlateScanSheet: View {
     /// Magic Snap (#733): the photo and Monkey's answer, already read.
     var preset: PlateScan?
     var presetImage: UIImage?
+    /// Invisible Monkey (#1087): a food photo from the library, scanned as soon as the sheet opens.
+    var autoImage: UIImage?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
@@ -66,6 +68,8 @@ struct PlateScanSheet: View {
                 if let preset, plate == nil {
                     plate = preset
                     image = presetImage
+                } else if let autoImage, plate == nil, image == nil {
+                    scan(autoImage)
                 }
                 #if DEBUG
                 if model.demo, plate == nil { plate = try? await model.scanPlate(jpeg: Data()) }

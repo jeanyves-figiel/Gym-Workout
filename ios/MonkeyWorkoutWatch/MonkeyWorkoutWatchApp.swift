@@ -48,6 +48,27 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
         }
     }
 
+    /// Invisible Monkey (#1087): background refreshes read the recorded wrist motion for sips and meals. Other
+    /// background tasks finish as before (Watch Connectivity ones after a moment, so pending transfers land).
+    func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+        for task in backgroundTasks {
+            switch task {
+            case let refresh as WKApplicationRefreshBackgroundTask:
+                Task { @MainActor in
+                    await IntakeRecorder.shared.process()
+                    IntakeRecorder.scheduleRefresh()
+                    refresh.setTaskCompletedWithSnapshot(false)
+                }
+            case let wc as WKWatchConnectivityRefreshBackgroundTask:
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) { wc.setTaskCompletedWithSnapshot(false) }
+            case let snap as WKSnapshotRefreshBackgroundTask:
+                snap.setTaskCompleted(restoredDefaultState: true, estimatedSnapshotExpiration: .distantFuture, userInfo: nil)
+            default:
+                task.setTaskCompletedWithSnapshot(false)
+            }
+        }
+    }
+
     /// Relaunched after quitting mid-workout: the Health session is still running and must be picked back up.
     func handleActiveWorkoutRecovery() {
         Task { @MainActor in WorkoutManager.shared.recoverActiveWorkout() }
@@ -213,6 +234,8 @@ struct WatchRootView: View {
             .overlay(alignment: .top) { BuddyPingView() }
             .overlay(alignment: .top) { FilmGuessView() }
             .onAppear(perform: startFromActionButton)
+            // Invisible Monkey (#1087): catch up on sips and meals whenever the app comes up.
+            .task { await IntakeRecorder.shared.process() }
             .onChange(of: ActionButton.shared.startRequested) { _, on in if on { startFromActionButton() } }
             .onOpenURL { url in if url.host == "mind" { showMind = true } }
             .sheet(isPresented: $showMind) { WatchMindView() }

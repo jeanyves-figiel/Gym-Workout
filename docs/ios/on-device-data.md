@@ -14,6 +14,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
 | `mind.json` | `MindStore` | Mood check-ins, breathing / relax sessions, daily Mind scores (90 days) | **No**: stays on the device; check-ins and sessions also go to Apple Health (State of Mind, mindful minutes) when connected |
 | `drinks.json` | `DrinkStore` | Drinks tapped in or logged by Coach, good times weeks (60 days, #1039) | **No**: stays on the device; Coach gets a one-line total only with week-review consent |
+| `autotrack.json` | `AutoTrackStore` | Invisible Monkey (#1087): sense switches, finds of the last 14 days (water from Watch sips, meal windows, food photos by local Photos id, gym arrivals) with their state, glasses already added to Fuel per day | **No**: stays on the device |
 | `me-avatar.jpg`, `me-avatar.json` | `MeAvatar` | Your own profile photo and its URL, so the Me pill shows it at launch (#639); wiped on sign-out | Copy of the server photo |
 | `cache/` (`account.json`, `community.json`, `entitlement.json`, `monkeygrade-sessions.json`) | `DeviceCache` | Last server answers per account: account, Community profile and first 30 posts per feed, Pro entitlement, MonkeyGrade sessions; shown at launch and offline (#641); wiped on sign-out and account switch | Copies of server data |
 | `lift-sets.json` | `LiftSets` | Watch lift-sensor sets | Via workouts |
@@ -37,6 +38,8 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 ### Watch
 
 `snapshot.json` in the Watch app's Documents: last snapshot from the phone, so the Watch works with the phone away; logged sets and workouts queue until the phone is reachable.
+
+Invisible Monkey (#1087): while sips or meals are on, `CMSensorRecorder` keeps the raw accelerometer on the Watch (watchOS keeps up to 3 days); `IntakeRecorder` reads it in background refreshes and sends only `WIntakeBatch` (sip times, meal windows) to the phone. `UserDefaults` keys `intake.on`, `intake.recordedUntil`, `intake.readUntil`.
 
 ## Keychain
 

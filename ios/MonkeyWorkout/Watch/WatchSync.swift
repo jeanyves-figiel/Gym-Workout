@@ -505,6 +505,9 @@ final class WatchSync: NSObject {
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,
                          glassMl: fuel.prefs.glassMl)
+        // Invisible Monkey (#1087): the Watch records wrist motion only while sips or meals are on.
+        let auto = AutoTrackStore.shared.prefs
+        s.intake = auto.watchOn ? WIntakeSense(sips: auto.sips, bites: auto.bites) : nil
         s.coachVoiceOff = !CoachPref.on || CoachPref.voice == .off
         s.autoNextSec = UserDefaults.standard.object(forKey: AutoNextPref.key) as? Int ?? AutoNextPref.fallback
         // Smart Stack (#612 A): Next up rises at the home gym.
@@ -598,6 +601,11 @@ extension WatchSync: WCSessionDelegate {
                 guard let model = self.model, let date = PlanCalendar.date(day, Progression.calendar()) else { return }
                 FuelStore.shared.addGlass(dayKey: day, plan: model.fuelPlan(on: date))
             }
+            return
+        }
+        // Invisible Monkey (#1087): sips and meal windows the Watch found.
+        if let data = userInfo[WatchKeys.intake] as? Data, let batch = try? JSONDecoder.watch.decode(WIntakeBatch.self, from: data) {
+            Task { @MainActor in AutoTrackStore.shared.ingest(batch) }
             return
         }
         // Open water buddy alert (#615 B).
