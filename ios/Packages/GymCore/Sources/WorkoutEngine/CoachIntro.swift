@@ -113,14 +113,14 @@ public struct CoachIntroAnswers: Equatable, Sendable {
         if !others.isEmpty { p.sports = others.map { SportPlan(sport: $0, weekdays: sportWeekdays) } }
         if !focus.isEmpty { p.focusMuscles = focus }
     }
+}
 
+public enum CoachIntro {
     /// Toggles a weekday (1…7) in a multi-pick list.
     public static func toggled(_ list: [Int], _ day: Int) -> [Int] {
         list.contains(day) ? list.filter { $0 != day } : (list + [day]).sorted()
     }
-}
 
-public enum CoachIntro {
     public static let dayChoices = [2, 3, 4, 5, 6]
     /// nil = "Let Coach pick" (the goal's own length).
     public static let minuteChoices: [Int?] = [30, 45, 60, 90, nil]
