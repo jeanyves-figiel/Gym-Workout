@@ -65,6 +65,8 @@ struct WatchSnapshot: Codable, Equatable {
     var climbLive: WClimbLive?
     /// Mind (#834): score, check-in, Coach's breathing pick and the Calm sessions; nil from older phone apps.
     var mind: WMind?
+    /// Invisible Monkey (#1087): which wrist senses the member turned on; nil = off or an older phone app.
+    var intake: WIntakeSense?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -572,6 +574,34 @@ struct WWater: Codable, Equatable {
     func today(_ now: Date = Date()) -> Int { day == Self.key(now) ? glasses : 0 }
 }
 
+/// Invisible Monkey (#1087): the wrist senses the iPhone turned on. The Watch records wrist motion only while one is on.
+struct WIntakeSense: Codable, Equatable {
+    var sips: Bool
+    var bites: Bool
+    var on: Bool { sips || bites }
+}
+
+/// Watch → phone (#1087): sips and meal windows found in the recorded wrist motion since `from`, sent with
+/// `transferUserInfo` under `WatchKeys.intake`. Times only, never the motion itself.
+struct WIntakeBatch: Codable, Equatable {
+    struct Sip: Codable, Equatable {
+        var date: Date
+        var confidence: Double
+    }
+
+    struct Meal: Codable, Equatable {
+        var start: Date
+        var end: Date
+        var bites: Int
+        var confidence: Double
+    }
+
+    var from: Date
+    var to: Date
+    var sips: [Sip]
+    var meals: [Meal]
+}
+
 /// Mind (#834) as the Watch shows it: the phone flattens the engine's `MindScore` and `Breath` into plain values.
 struct WMind: Codable, Equatable {
     /// `WWater.key` day the values belong to.
@@ -719,6 +749,8 @@ enum WatchKeys {
     static let filmGuess = "filmGuess"
     /// Climbing live (#829): `WClimbLive` phone → Watch after each change on the iPhone (Watch → phone is a `WatchEvent`).
     static let climbLive = "climbLive"
+    /// Invisible Monkey (#1087): `WIntakeBatch` Watch → phone, sent with `transferUserInfo`.
+    static let intake = "intake"
 }
 
 extension JSONEncoder {

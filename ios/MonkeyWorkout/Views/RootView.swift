@@ -658,6 +658,9 @@ private struct DemoScreen: View {
             NavigationStack {
                 LabelFoodForm(label: NutritionLabel(kcal: 372, protein: 13, carbs: 58, fat: 7.1, fibre: 8, salt: 0.3))
             }
+        // Invisible Monkey (#1087): Fuel with today's auto finds, and the senses' switches.
+        case "fuel-auto": NavigationStack { FuelView() }
+        case "fuel-auto-settings": AutoTrackSettingsView()
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])

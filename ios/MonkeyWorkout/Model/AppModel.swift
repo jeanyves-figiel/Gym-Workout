@@ -405,6 +405,7 @@ final class AppModel {
         MoveStore.shared.signOut()
         MindStore.shared.signOut()
         DrinkStore.shared.signOut()
+        AutoTrackStore.shared.signOut()
         ReferralStore.shared.signOut()
         WodStore.shared.signOut()
         SwimStore.shared.signOut()

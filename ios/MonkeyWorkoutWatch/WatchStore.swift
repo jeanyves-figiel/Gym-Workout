@@ -230,6 +230,8 @@ final class WatchStore: NSObject {
         if let ftp = s.bikeFTP { BikeSensors.shared.setFTP(ftp) }
         // Climbing live (#829): goes tapped on the iPhone while this Watch was out of reach.
         if let c = s.climbLive { SportTracker.shared.climbFromPhone(c) }
+        // Invisible Monkey (#1087): wrist recording follows the phone's switches.
+        IntakeRecorder.shared.apply(s.intake)
     }
 
     fileprivate func receive(message: [String: Any]) {

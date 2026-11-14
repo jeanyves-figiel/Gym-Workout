@@ -97,6 +97,8 @@ struct FuelView: View {
                 }
                 if let e = plan.event { FuelEventCard(event: e) }
                 FuelTankCard(plan: plan, log: log, day: day)
+                // Invisible Monkey (#1087): what the Watch, photos and gym noticed today.
+                if Calendar.current.isDateInToday(day) { AutoTrackCard(plan: plan, day: day) }
                 if Calendar.current.startOfDay(for: day) <= Calendar.current.startOfDay(for: Date()) {
                     FuelLogButton { justAte = true }
                 }

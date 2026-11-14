@@ -35,6 +35,9 @@ struct MonkeyWorkoutApp: App {
                     model.health = health
                     FuelStore.shared.health = health
                     FuelStore.shared.planFor = { [model] in model.fuelPlan(on: $0) }
+                    // Invisible Monkey (#1087): reopen the gym region first, so a relaunch for an arrival gets its event.
+                    AutoTrackStore.shared.model = model
+                    await GymArrival.shared.follow()
                     // Meal plan shared with a partner (#1014): watches Fuel changes from here on.
                     HouseholdStore.shared.api = model.api
                     // Screens reopened by Undo (#285) live outside this tree: give them the same environment.
@@ -52,6 +55,8 @@ struct MonkeyWorkoutApp: App {
                     HomeWidgetSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)
                     await GarminSync.shared.pull()
+                    await GymArrival.shared.follow()
+                    await AutoTrackStore.shared.scanPhotos()
                 }
                 // Over-the-air config and packs (#583), in parallel with sign-in: no account needed.
                 .task { await Remote.shared.refresh(model.api) }
@@ -62,6 +67,7 @@ struct MonkeyWorkoutApp: App {
                         health.snapshot = Demo.health
                         MoveStore.shared.demo()
                         if Demo.screen.hasPrefix("drinks") { DrinkStore.shared.demo() }
+                        if Demo.screen.hasPrefix("fuel-auto") { AutoTrackStore.shared.demo() }
                         MindStore.shared.demo(checkedIn: ["mind-train", "mind", "progress", "progress-mind"].contains(Demo.screen))
                         FuelStore.shared.demo(layout: .dashboard, setUp: Demo.screen != "fuel-setup-card")
                         return
@@ -113,6 +119,8 @@ struct MonkeyWorkoutApp: App {
                             await model.sync()
                             await health.refresh()
                             WatchSync.shared.push()
+                            // Food photos taken since last time (#1087).
+                            await AutoTrackStore.shared.scanPhotos()
                         }
                     default: break
                     }

@@ -6,7 +6,7 @@ import type { Config } from '../config.ts';
  * Same URLs serve App Store Connect (Privacy Policy URL, Support URL, custom EULA) and the app's Account links.
  * Operator, address and contact come from env (`LEGAL_*`); unset values render as a visible placeholder.
  */
-export const LEGAL_UPDATED = '2026-10-31';
+export const LEGAL_UPDATED = '2026-11-14';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -128,6 +128,7 @@ const privacy = (l: Legal) => `
 <h3>Kept on your device only</h3>
 <ul>
 <li>Location for "Gyms near you": used only for the search with Apple Maps, never sent to our server.</li>
+<li>Auto tracking (optional, each part off until you turn it on in Fuel): <b>sips and meals</b> are found from your Apple Watch's wrist movement on the Watch; only the times of sips and bites go to your iPhone, the movement itself never leaves the Watch. <b>Food photos</b>: new photos in your library are checked for food by Apple's classifier on your iPhone; nothing is copied or uploaded unless you tap Scan it, which sends that one photo to Coach's AI like Snap my plate. <b>Gym arrival</b>: iOS tells the app when you reach your home gym; your location is not stored or sent. What it finds stays on your iPhone and is never sent to our server.</li>
 <li>Fuel (food pointers): your food settings, meals and water counted, recipes, what you have at home, meal plan and grocery list stay on your iPhone and are never sent to our server, unless you share them: if you and a partner both say yes to sharing a meal plan, the plan, the own recipes it uses and the grocery list (with who ticked what) are stored on our server for the people sharing it until the last one leaves; a copy you send a friend is kept for them for 30 days. Food logs, macros, weight and what you have at home are never shared. Fridge or receipt scans and meal ideas use Coach's AI (see AI features above). A scanned barcode is looked up on Open Food Facts; only the barcode number is sent. Water you count can be saved to Apple Health if you allow it.</li>
 <li>Ask Coach: the conversation stays on this device (what is sent to answer it: see AI features above). When you talk to Coach, Apple speech recognition turns your voice into text, on your iPhone when it supports it (otherwise by Apple); no audio is sent to us or to Anthropic, only the words.</li>
 <li>Coach voice: if you pick a studio voice and the coach calls you by your name, that first name (letters only) is recorded once by Amazon Polly as a short clip, kept on our server and on your iPhone; no account id or email is sent.</li>
