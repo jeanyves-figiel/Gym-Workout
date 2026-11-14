@@ -1,17 +1,11 @@
 {
-  "id": "2026-11-14.1",
+  "id": "2026-11-14.2",
   "items": [
     {
-      "symbol": "bubble.left.and.bubble.right.fill",
-      "tint": "power",
-      "title": "Meet Coach from the start",
-      "body": "New members chat with Coach Monkey, watch their plan build and see their week pop in."
-    },
-    {
       "symbol": "sparkles",
-      "tint": "stretch",
-      "title": "What's new stays open",
-      "body": "This page no longer closes by itself when the app opens: the morning check-in and chest reveal wait until you close it."
+      "tint": "power",
+      "title": "Track without typing",
+      "body": "Your Watch notices sips and meals, food photos become one-tap meals. Turn it on in Fuel."
     }
   ]
 }

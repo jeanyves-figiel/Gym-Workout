@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026-11-14.1",
+      "build": 101,
+      "date": "2026-11-14",
+      "items": [
+        {
+          "symbol": "bubble.left.and.bubble.right.fill",
+          "tint": "power",
+          "title": "Meet Coach from the start",
+          "body": "New members chat with Coach Monkey, watch their plan build and see their week pop in."
+        },
+        {
+          "symbol": "sparkles",
+          "tint": "stretch",
+          "title": "What's new stays open",
+          "body": "This page no longer closes by itself when the app opens: the morning check-in and chest reveal wait until you close it."
+        }
+      ]
+    },
+    {
       "id": "2026-11-05.2",
       "build": 100,
       "date": "2026-11-05",
