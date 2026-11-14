@@ -83,6 +83,10 @@ public struct AutoTrackPrefs: Codable, Hashable, Sendable {
     public var gym = false
     /// Millilitres one sip counts for.
     public var mlPerSip = AutoTrack.defaultSip
+    /// Gym arrival (#1092): the spot to watch when the home gym has no map position (where the member stood when
+    /// turning it on).
+    public var gymLatitude: Double?
+    public var gymLongitude: Double?
 
     public init() {}
 

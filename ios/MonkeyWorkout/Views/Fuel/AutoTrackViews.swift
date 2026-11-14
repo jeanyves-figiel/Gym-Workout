@@ -259,19 +259,33 @@ struct AutoTrackSettingsView: View {
         .preferredColorScheme(.dark)
     }
 
+    /// Asks what each newly turned-on sense needs. A refusal turns it back off and says why; the notice stays (the
+    /// turn-off re-runs this, which must not wipe it, #1092).
     private func apply(old: AutoTrackPrefs, new: AutoTrackPrefs) async {
         var p = new
-        notice = nil
-        if new.photos, !old.photos, !(await PhotoInbox.ask()) {
-            p.photos = false
-            notice = "Photos is off for MonkeyWorkout. Allow it in iOS Settings › Privacy › Photos."
+        if new.photos, !old.photos {
+            notice = nil
+            if !(await PhotoInbox.ask()) {
+                p.photos = false
+                notice = "Photos is off for MonkeyWorkout. Allow it in iOS Settings › Privacy › Photos."
+            }
         }
         if new.gym, !old.gym {
-            if model.homePlace?.latitude == nil {
-                p.gym = false
-                notice = "Pick your home gym on the map first (Your gym), then turn this on."
-            } else {
+            notice = nil
+            if let g = model.homePlace, let lat = g.latitude, let lng = g.longitude {
+                p.gymLatitude = lat
+                p.gymLongitude = lng
+                notice = "Watching \(g.name)."
                 GymArrival.shared.askAlways()
+            } else if let here = await GymArrival.shared.here() {
+                // No map position for the home gym (#1092): the gym is where the member is now.
+                p.gymLatitude = here.latitude
+                p.gymLongitude = here.longitude
+                notice = "Your gym is set to where you are now. Turn this on at the gym, or pick your gym on the map in Your gym."
+                GymArrival.shared.askAlways()
+            } else {
+                p.gym = false
+                notice = "Location is off for MonkeyWorkout. Allow it in iOS Settings › Privacy › Location Services."
             }
         }
         if p != prefs { prefs = p }
