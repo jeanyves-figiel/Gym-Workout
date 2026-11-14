@@ -3,19 +3,63 @@ import Testing
 @testable import WorkoutEngine
 
 @Suite struct CoachIntroTests {
-    @Test func asksInOrderAndSkipsDietWithoutFuel() {
+    @Test func asksInOrderAndSkipsWhatDoesNotApply() {
         var a = CoachIntroAnswers()
         #expect(a.next == .goal)
         a.goal = .strength; a.answer(.goal)
         a.days = 4; a.answer(.days)
+        a.answer(.weekdays)
         a.minutes = 45; a.answer(.minutes)
         a.experience = .beginner; a.answer(.experience)
-        #expect(a.next == .level)
+        #expect(a.next == .sports)
+        a.answer(.sports)
+        #expect(a.next == .focus)
+        a.answer(.focus)
+        a.answer(.pain)
         a.level = .workouts; a.answer(.level)
+        #expect(a.next == .figure)
+        a.answer(.figure); a.answer(.pronouns); a.answer(.health); a.answer(.reminder)
         #expect(a.next == nil)
         #expect(a.fraction == 1)
         a.level = .everything
         #expect(a.next == .diet)
+        a.sports = [.run]
+        #expect(a.questions.contains(.sportDays))
+    }
+
+    @Test func appliesWeekdaysSportsAndFocus() {
+        var a = CoachIntroAnswers()
+        a.goal = .build; a.answer(.goal)
+        a.days = 4; a.answer(.days)
+        a.weekdays = [5, 1, 3]; a.answer(.weekdays)
+        a.sports = [.climbing, .run]; a.answer(.sports)
+        a.sportDays = [6, 2]; a.answer(.sportDays)
+        a.focus = [.chest]; a.answer(.focus)
+        var p = Profile()
+        p.climbs = false
+        a.apply(to: &p)
+        #expect(p.gymWeekdays == [1, 3, 5])
+        #expect(p.sessionsPerWeek == 3)
+        #expect(p.climbingWeekdays == [2, 6])
+        #expect(p.climbingDaysPerWeek == 2)
+        #expect(p.sports?.map(\.sport) == [.run])
+        #expect(p.sports?.first?.weekdays == [2, 6])
+        #expect(p.focusMuscles == [.chest])
+        #expect(CoachIntro.toggled([1, 3], 3) == [1])
+        #expect(CoachIntro.toggled([3], 1) == [1, 3])
+        #expect(CoachIntro.dayList([3, 1]) == "Mon, Wed")
+        #expect(CoachIntro.clock(17 * 60 + 30) == "17:30")
+    }
+
+    @Test func undoClearsMultiPicks() {
+        var a = CoachIntroAnswers()
+        a.sports = [.swim]; a.answer(.sports)
+        a.sportDays = [2]; a.answer(.sportDays)
+        a.undoLast()
+        #expect(a.sportDays.isEmpty)
+        #expect(a.sports == [.swim])
+        a.undoLast()
+        #expect(a.sports.isEmpty)
     }
 
     @Test func undoClearsLastAnswer() {
@@ -58,11 +102,17 @@ import Testing
 
     @Test func everyAnswerGetsAReaction() {
         var a = CoachIntroAnswers()
+        a.sports = [.run]
+        a.pain = .knee
+        a.reminder = 7 * 60
+        a.allergies = [.nuts]
         for q in CoachIntroQuestion.allCases {
-            #expect(!CoachIntro.question(q).isEmpty)
+            #expect(!CoachIntro.question(q, a).isEmpty)
             #expect(!CoachIntro.reaction(q, a).isEmpty)
         }
         a.days = 2
         #expect(CoachIntro.reaction(.days, a).hasPrefix("2 days"))
+        #expect(CoachIntro.reaction(.reminder, a).contains("7:00"))
+        #expect(CoachIntro.reaction(.allergies, a) == "No nuts in any recipe.")
     }
 }

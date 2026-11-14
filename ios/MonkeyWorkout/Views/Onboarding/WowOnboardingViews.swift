@@ -11,6 +11,7 @@ import WorkoutEngine
 struct CoachIntroChat: View {
     @Binding var answers: CoachIntroAnswers
     let onDone: () -> Void
+    @Environment(HealthManager.self) private var healthManager
     /// Coach "typing" between an answer and its reaction.
     @State private var typing = false
 
@@ -22,7 +23,7 @@ struct CoachIntroChat: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("🐵").font(.system(size: 52)).padding(.top, 4)
                         ForEach(answers.answered) { q in
-                            coachBubble(CoachIntro.question(q))
+                            coachBubble(CoachIntro.question(q, answers))
                             meBubble(answerText(q))
                             if !(typing && q == answers.answered.last) {
                                 coachBubble(CoachIntro.reaction(q, answers))
@@ -31,7 +32,7 @@ struct CoachIntroChat: View {
                         if typing {
                             coachBubble("• • •").accessibilityLabel("Coach is typing")
                         } else if let q = answers.next {
-                            coachBubble(CoachIntro.question(q))
+                            coachBubble(CoachIntro.question(q, answers))
                         } else {
                             coachBubble(CoachIntro.gymPrompt)
                         }
@@ -118,6 +119,17 @@ struct CoachIntroChat: View {
         case .experience: answers.experience.map(Self.experienceTitle) ?? "Skip"
         case .level: answers.level?.title ?? "Skip"
         case .diet: answers.diet.map { "\($0.emoji) \($0.label)" } ?? "Skip for now"
+        case .weekdays: answers.weekdays.flatMap { $0.isEmpty ? nil : CoachIntro.dayList($0) } ?? "Any day"
+        case .sports: answers.sports.isEmpty ? "Just the gym" : CoachIntro.sportList(answers.sports)
+        case .sportDays: answers.sportDays.isEmpty ? "No fixed days" : CoachIntro.dayList(answers.sportDays)
+        case .focus: answers.focus.isEmpty ? "No focus" : answers.focus.map(\.label).joined(separator: " + ")
+        case .pain: answers.pain.map { $0.label.capitalized } ?? "Nothing hurts"
+        case .allergies: answers.allergies.isEmpty ? "I eat anything"
+            : Allergen.allCases.filter { answers.allergies.contains($0) }.map(\.label).joined(separator: ", ")
+        case .figure: answers.figure.map { $0 == .male ? "Male figure" : "Female figure" } ?? "Skip"
+        case .pronouns: answers.pronouns?.label ?? "Skip"
+        case .health: answers.health == true ? "Connect ❤️" : "Not now"
+        case .reminder: answers.reminder.map { "At \(CoachIntro.clock($0))" } ?? "No reminders"
         }
     }
 
@@ -172,6 +184,82 @@ struct CoachIntroChat: View {
                     }
                 case .diet:
                     dietGrid
+                case .weekdays:
+                    dayPicker(selected: answers.weekdays ?? [], toggle: { d in
+                        answers.weekdays = CoachIntro.toggled(answers.weekdays ?? [], d)
+                    }, none: "ANY DAY", noneAction: { pick(.weekdays) { $0.weekdays = nil } }, done: { pick(.weekdays) { _ in } })
+                case .sports:
+                    multiGrid(items: CoachIntro.sportChoices.map { ($0.rawValue, $0.symbol, $0.short, answers.sports.contains($0)) },
+                              toggle: { id in
+                                  guard let s = Sport(rawValue: id) else { return }
+                                  if answers.sports.contains(s) { answers.sports.removeAll { $0 == s } } else { answers.sports.append(s) }
+                              },
+                              none: "JUST THE GYM", noneAction: { pick(.sports) { $0.sports = []; $0.sportDays = [] } },
+                              done: { pick(.sports) { _ in } })
+                case .sportDays:
+                    dayPicker(selected: answers.sportDays, toggle: { d in
+                        answers.sportDays = CoachIntro.toggled(answers.sportDays, d)
+                    }, none: "NO FIXED DAYS", noneAction: { pick(.sportDays) { $0.sportDays = [] } }, done: { pick(.sportDays) { _ in } })
+                case .focus:
+                    multiGrid(items: MuscleGroup.allCases.map { ($0.rawValue, "scope", $0.label, answers.focus.contains($0)) },
+                              toggle: { id in
+                                  guard let m = MuscleGroup(rawValue: id) else { return }
+                                  if answers.focus.contains(m) {
+                                      answers.focus.removeAll { $0 == m }
+                                  } else if answers.focus.count < CoachIntroAnswers.maxFocus {
+                                      answers.focus.append(m)
+                                  }
+                              },
+                              none: "NO FOCUS", noneAction: { pick(.focus) { $0.focus = [] } }, done: { pick(.focus) { _ in } })
+                case .pain:
+                    multiGrid(items: PainArea.allCases.map { ($0.rawValue, "bandage.fill", $0.label.capitalized, false) },
+                              toggle: { id in pick(.pain) { $0.pain = PainArea(rawValue: id) } },
+                              none: "NOTHING HURTS", noneAction: { pick(.pain) { $0.pain = nil } }, done: nil)
+                case .allergies:
+                    multiGrid(items: Allergen.allCases.map { ($0.rawValue, "xmark.circle.fill", $0.label, answers.allergies.contains($0)) },
+                              toggle: { id in
+                                  guard let x = Allergen(rawValue: id) else { return }
+                                  if answers.allergies.contains(x) { answers.allergies.remove(x) } else { answers.allergies.insert(x) }
+                              },
+                              none: "I EAT ANYTHING", noneAction: { pick(.allergies) { $0.allergies = [] } },
+                              done: { pick(.allergies) { _ in } })
+                case .figure:
+                    HStack(spacing: 8) {
+                        ForEach(BodyMapLayout.Figure.allCases) { f in
+                            squareTile(symbol: f == .male ? "figure.stand" : "figure.stand.dress",
+                                       title: f == .male ? "Male" : "Female", category: f == .male ? .strength : .mobility,
+                                       id: "figure.\(f.rawValue)") { pick(.figure) { $0.figure = f } }
+                        }
+                    }
+                    skipButton("Skip", id: "figure.skip") { pick(.figure) { $0.figure = nil } }
+                case .pronouns:
+                    HStack(spacing: 8) {
+                        ForEach(Array([Pronouns.she, .he, .they].enumerated()), id: \.element) { i, pr in
+                            squareTile(symbol: "person.fill", title: pr.label, category: Self.cycle[i % Self.cycle.count],
+                                       id: "pronouns.\(pr.rawValue)") { pick(.pronouns) { $0.pronouns = pr } }
+                        }
+                    }
+                    skipButton("Skip", id: "pronouns.skip") { pick(.pronouns) { $0.pronouns = nil } }
+                case .health:
+                    card(symbol: "heart.fill", title: "Connect Apple Health", number: nil, gradient: WorkoutEngine.Category.power.gradient,
+                         ink: .white, id: "health.connect") {
+                        pick(.health) { $0.health = true }
+                        Task { await healthManager.connect() }
+                    }
+                    skipButton("Not now", id: "health.skip") { pick(.health) { $0.health = false } }
+                case .reminder:
+                    ForEach(Array(CoachIntro.reminderChoices.enumerated()), id: \.offset) { i, m in
+                        if let m {
+                            card(symbol: "bell.fill", title: "At \(CoachIntro.clock(m))", number: nil,
+                                 gradient: Self.cycle[i % Self.cycle.count].gradient, ink: Self.cycle[i % Self.cycle.count].ink,
+                                 id: "reminder.\(m)") {
+                                pick(.reminder) { $0.reminder = m; $0.noReminders = false }
+                                Task { await NotificationManager.shared.requestAuthorization() }
+                            }
+                        } else {
+                            skipButton("No reminders", id: "reminder.none") { pick(.reminder) { $0.reminder = nil; $0.noReminders = true } }
+                        }
+                    }
                 }
             } else {
                 Button { onDone() } label: { Text("FIND MY GYM") }
@@ -268,6 +356,112 @@ struct CoachIntroChat: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(gradient))
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("onboarding.chat.\(id)")
+    }
+
+    /// Mon…Sun square tiles (multi pick) with a Done and a "none" answer.
+    private func dayPicker(selected: [Int], toggle: @escaping (Int) -> Void, none: String, noneAction: @escaping () -> Void,
+                           done: @escaping () -> Void) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 5) {
+                ForEach(1...7, id: \.self) { d in
+                    let on = selected.contains(d)
+                    Button { withAnimation(.snappy) { toggle(d) } } label: {
+                        Text(CoachIntro.weekdayShort[d - 1].uppercased())
+                            .font(Theme.label(12))
+                            .foregroundStyle(on ? Theme.ink : .white)
+                            .frame(maxWidth: .infinity)
+                            .aspectRatio(0.8, contentMode: .fit)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.1))))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(CoachIntro.weekdayShort[d - 1])
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .accessibilityIdentifier("onboarding.chat.day.\(d)")
+                }
+            }
+            doneRow(none: none, noneAction: noneAction, done: selected.isEmpty ? nil : done)
+        }
+        .sensoryFeedback(.selection, trigger: selected)
+    }
+
+    /// Gradient tiles, three a row; `done` nil = one tap answers.
+    private func multiGrid(items: [(id: String, symbol: String, title: String, on: Bool)], toggle: @escaping (String) -> Void,
+                           none: String, noneAction: @escaping () -> Void, done: (() -> Void)?) -> some View {
+        let anyOn = items.contains { $0.on }
+        return VStack(spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 3), spacing: 7) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
+                    let c = Self.cycle[i % Self.cycle.count]
+                    Button { withAnimation(.snappy) { toggle(item.id) } } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Image(systemName: item.symbol).font(.system(size: 14, weight: .bold))
+                                Spacer()
+                                if item.on { Image(systemName: "checkmark.circle.fill").font(.system(size: 15, weight: .bold)) }
+                            }
+                            Text(item.title).font(Theme.display(14)).lineLimit(1).minimumScaleFactor(0.6)
+                        }
+                        .foregroundStyle(c.ink)
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(c.gradient))
+                        .opacity(done == nil || !anyOn || item.on ? 1 : 0.55)
+                        .overlay {
+                            if item.on { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.lime, lineWidth: 3) }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(item.on ? .isSelected : [])
+                    .accessibilityIdentifier("onboarding.chat.pick.\(item.id)")
+                }
+            }
+            doneRow(none: none, noneAction: noneAction, done: anyOn ? done : nil)
+        }
+    }
+
+    private func doneRow(none: String, noneAction: @escaping () -> Void, done: (() -> Void)?) -> some View {
+        HStack(spacing: 8) {
+            Button(action: noneAction) {
+                Text(none).font(Theme.label(13)).tracking(1).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 14)
+                    .background(Capsule().fill(Color.white.opacity(0.1)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("onboarding.chat.none")
+            if let done {
+                Button(action: done) { Text("DONE") }
+                    .buttonStyle(LimeButtonStyle())
+                    .accessibilityIdentifier("onboarding.chat.multiDone")
+            }
+        }
+    }
+
+    private func squareTile(symbol: String, title: String, category: WorkoutEngine.Category, id: String,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: symbol).font(.system(size: 30, weight: .bold))
+                Text(title).font(Theme.display(15)).lineLimit(1).minimumScaleFactor(0.6)
+            }
+            .foregroundStyle(category.ink)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(category.gradient))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("onboarding.chat.\(id)")
+    }
+
+    private func skipButton(_ title: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(Theme.display(16)).foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.1)))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("onboarding.chat.\(id)")

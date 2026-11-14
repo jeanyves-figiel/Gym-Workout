@@ -483,10 +483,27 @@ struct OnboardingFlowView: View {
         // The level picked first (#1052 A); Everything keeps the app as it is.
         if let level, level != .everything { model.setAppLevel(level) }
         // Diet from the Coach chat (#1084 A): Fuel's recipes and meal plans follow it.
-        if let diet = answers.diet {
+        if answers.diet != nil || !answers.allergies.isEmpty {
             var fuel = FuelStore.shared.prefs
-            fuel.diet = diet
+            if let diet = answers.diet { fuel.diet = diet }
+            fuel.avoid.formUnion(answers.allergies)
             FuelStore.shared.setPrefs(fuel)
+        }
+        // Pain to protect (#870), body figure and pronouns (Body & Health), workout-day reminder.
+        if let area = answers.pain { model.setPainProtect(PainProtect(area: area, level: .loaded)) }
+        if answers.figure != nil || answers.pronouns != nil {
+            var body = model.body
+            if let figure = answers.figure { body.figure = figure }
+            if let pronouns = answers.pronouns { body.pronouns = pronouns }
+            model.saveBody(body)
+        }
+        if let minutes = answers.reminder {
+            let n = NotificationManager.shared
+            n.prefs.reminderMinutes = minutes
+            n.prefs.sessionReminders = true
+            Task { await n.reschedule(model) }
+        } else if answers.noReminders {
+            NotificationManager.shared.prefs.sessionReminders = false
         }
         if let programme { model.startProgramme(programme) }
         // New accounts start on this release: no "What's new" for them (#183).
