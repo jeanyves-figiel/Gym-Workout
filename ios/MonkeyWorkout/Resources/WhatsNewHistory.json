@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "id": "2026-11-14.2",
+      "build": 102,
+      "date": "2026-11-14",
+      "items": [
+        {
+          "symbol": "sparkles",
+          "tint": "power",
+          "title": "Track without typing",
+          "body": "Your Watch notices sips and meals, food photos become one-tap meals. Turn it on in Fuel."
+        }
+      ]
+    },
+    {
       "id": "2026-11-14.1",
       "build": 101,
       "date": "2026-11-14",

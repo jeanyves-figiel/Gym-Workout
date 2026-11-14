@@ -1,11 +1,11 @@
 {
-  "id": "2026-11-14.2",
+  "id": "2026-11-15.1",
   "items": [
     {
-      "symbol": "sparkles",
+      "symbol": "location.fill",
       "tint": "power",
-      "title": "Track without typing",
-      "body": "Your Watch notices sips and meals, food photos become one-tap meals. Turn it on in Fuel."
+      "title": "Gym arrival just works",
+      "body": "No gym pin on the map? Turning on Gym arrival now saves where you are as your gym."
     }
   ]
 }
