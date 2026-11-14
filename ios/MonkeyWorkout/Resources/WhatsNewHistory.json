@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026-11-05.2",
+      "build": 100,
+      "date": "2026-11-05",
+      "items": [
+        {
+          "symbol": "slider.horizontal.3",
+          "tint": "mobility",
+          "title": "Make it simpler",
+          "body": "Pick Just workouts, Follow a plan or Everything in Settings → My app, and follow only part of your plan."
+        },
+        {
+          "symbol": "camera.viewfinder",
+          "tint": "power",
+          "title": "Show Coach a photo",
+          "body": "Tap 📷 in Ask Coach on any screen (long press for your library): Coach names the machine or move and adds its exercises to today."
+        }
+      ]
+    },
+    {
       "id": "2026-11-05.1",
       "build": 99,
       "date": "2026-11-05",
