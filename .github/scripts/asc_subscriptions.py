@@ -119,7 +119,7 @@ def territory_of(obj: dict) -> str:
 def base_price_point(sub_id: str, price: str) -> str:
     points, _ = get_all(f"/v1/subscriptions/{sub_id}/pricePoints?filter[territory]={BASE}")
     for p in points:
-        if p["attributes"]["customerPrice"] == price:
+        if abs(float(p["attributes"]["customerPrice"]) - float(price)) < 0.001:
             return p["id"]
     want = float(price)
     near = sorted({p["attributes"]["customerPrice"] for p in points}, key=lambda v: abs(float(v) - want))[:6]
@@ -230,7 +230,7 @@ def ensure_lifetime():
         print("  price schedule exists")
     else:
         points, _ = get_all(f"/v2/inAppPurchases/{iid}/pricePoints?filter[territory]={BASE}")
-        pp = next((p["id"] for p in points if p["attributes"]["customerPrice"] == price), None)
+        pp = next((p["id"] for p in points if abs(float(p["attributes"]["customerPrice"]) - float(price)) < 0.001), None)
         if not pp:
             want = float(price)
             near = sorted({p["attributes"]["customerPrice"] for p in points}, key=lambda v: abs(float(v) - want))[:6]
