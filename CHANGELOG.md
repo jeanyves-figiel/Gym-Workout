@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Gym arrival moved to Your gym** (#1098, design A): the switch is now *Know when I arrive* on You → Your gym, above the gym picker (`GymArrivalCard`). Fuel's Auto tracking keeps only Sips, Meals and Food photos; the Fuel card hides gym arrivals and shows its invite from the food senses (`AutoTrackPrefs.foodOn`).
+
 ### Added
 - **Pro billing grace period and cancel offer** (#1096, set in App Store Connect): failed renewals keep Pro for 16 days (weekly 6) while Apple retries. When a member taps Cancel Subscription, iOS shows *Keep Coach Monkey in your corner* with an offer: Weekly CHF 1/week for 12 weeks, Monthly CHF 3/month for 6 months, Yearly CHF 42 for a year (once per 12 months). Free Pro for friends: Free access workflow, or offer code *Friends - free Lifetime* (codes can be generated once Lifetime is approved). Documented in `docs/subscriptions.md`.
 - **What's new 2026-11-15.1** (bundle 103): two cards (Sips fixed, Gym arrival just works; #1092); 2026-11-14.2 moved to history as build 102.

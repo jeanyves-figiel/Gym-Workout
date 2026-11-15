@@ -15,7 +15,7 @@ struct AutoTrackCard: View {
         // One stable container (#1092): `.sheet` on a `Group` is copied onto each child, so turning the first sense on
         // swapped the invite (which presented the sheet) for the card under the open sheet and took the sheet with it.
         VStack(spacing: 0) {
-            if store.prefs.anyOn || store.saved.inviteHidden {
+            if store.prefs.foodOn || store.saved.inviteHidden {
                 card
             } else {
                 invite
@@ -228,7 +228,6 @@ enum AutoPalette {
 
 /// Which senses are on, each with what it sees in one sentence. Bold tiles, no grey list.
 struct AutoTrackSettingsView: View {
-    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var prefs = AutoTrackStore.shared.prefs
     @State private var notice: String?
@@ -237,13 +236,12 @@ struct AutoTrackSettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Monkey notices what you drink, eat and train, so you don't type it. Sure finds log themselves with Undo; the rest is one tap.")
+                    Text("Monkey notices what you drink and eat, so you don't type it. Sure finds log themselves with Undo; the rest is one tap.")
                         .font(.subheadline.weight(.semibold)).opacity(0.85)
                     toggle("💧", "Sips", "Your Watch feels a cup or bottle tilt to your mouth and logs water.", FuelPalette.water, $prefs.sips)
                     if prefs.sips { sipSize }
                     toggle("🍽️", "Meals", "Your Watch feels a run of bites and asks what you ate.", FuelPalette.carbs, $prefs.bites)
                     toggle("📸", "Food photos", "New photos of food on this iPhone become a one-tap meal.", FuelPalette.hot, $prefs.photos)
-                    toggle("🏋️", "Gym arrival", "Arriving at your home gym puts today's workout one tap away.", FuelPalette.violet, $prefs.gym)
                     if let notice {
                         Text(notice).font(.footnote.weight(.bold)).foregroundStyle(Theme.lime)
                     }
@@ -265,29 +263,14 @@ struct AutoTrackSettingsView: View {
     /// turn-off re-runs this, which must not wipe it, #1092).
     private func apply(old: AutoTrackPrefs, new: AutoTrackPrefs) async {
         var p = new
+        // Gym arrival is set on Your gym (#1098): keep whatever it holds now.
+        let live = AutoTrackStore.shared.prefs
+        (p.gym, p.gymLatitude, p.gymLongitude) = (live.gym, live.gymLatitude, live.gymLongitude)
         if new.photos, !old.photos {
             notice = nil
             if !(await PhotoInbox.ask()) {
                 p.photos = false
                 notice = "Photos is off for MonkeyWorkout. Allow it in iOS Settings › Privacy › Photos."
-            }
-        }
-        if new.gym, !old.gym {
-            notice = nil
-            if let g = model.homePlace, let lat = g.latitude, let lng = g.longitude {
-                p.gymLatitude = lat
-                p.gymLongitude = lng
-                notice = "Watching \(g.name)."
-                GymArrival.shared.askAlways()
-            } else if let here = await GymArrival.shared.here() {
-                // No map position for the home gym (#1092): the gym is where the member is now.
-                p.gymLatitude = here.latitude
-                p.gymLongitude = here.longitude
-                notice = "Your gym is set to where you are now. Turn this on at the gym, or pick your gym on the map in Your gym."
-                GymArrival.shared.askAlways()
-            } else {
-                p.gym = false
-                notice = "Location is off for MonkeyWorkout. Allow it in iOS Settings › Privacy › Location Services."
             }
         }
         if p != prefs { prefs = p }
@@ -323,7 +306,7 @@ struct AutoTrackSettingsView: View {
     private var privacy: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label("Stays on your devices", systemImage: "lock.fill").font(Theme.label(12))
-            Text("Wrist movement is read on your Watch; only the times of sips and bites reach your iPhone. Photos are checked on this iPhone and only sent to Coach's AI when you tap Scan it. Your location is used only for the arrival, never stored. Nothing here is synced or shared.")
+            Text("Wrist movement is read on your Watch; only the times of sips and bites reach your iPhone. Photos are checked on this iPhone and only sent to Coach's AI when you tap Scan it. Nothing here is synced or shared.")
                 .font(.footnote.weight(.semibold)).opacity(0.8)
         }
         .padding(14)

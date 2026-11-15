@@ -209,6 +209,7 @@ struct ProfileFormView: View {
             }
             TrainingMethodSection(profile: $p)
         case .gym:
+            if section == .gym { GymArrivalCard() }
             GymPicker(profile: $p)
         }
     }
