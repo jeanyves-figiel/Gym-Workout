@@ -78,6 +78,16 @@ Set by hand in App Store Connect (2026-11-15), no app or server code:
 
 Then normal price. The retention message goes to App Review with the app version (Add for Review).
 
+## Free Pro for friends (#1096)
+
+Two ways:
+- **Free access** workflow (above): grant by account email, no end date, revocable, works on TestFlight too.
+- **Offer code** "Friends - free Lifetime" on `monkeyworkout.pro.lifetime`: free, all 175 countries, any customer.
+  Apple lets you generate one-time or custom codes only after Lifetime is approved and the app is Ready for
+  Distribution: then Pro Lifetime → Offer Codes → Friends → Create One-Time Use Codes. Friends redeem in the App
+  Store, by link `https://apps.apple.com/redeem?ctx=offercodes&id=6819971090&code=CODE`, or Pro → Redeem code in
+  the app (`offerCodeRedemption`, `Transaction.updates`).
+
 ## Free vs Pro (decided 2026-10-24, replaces the 2026-10-11 split)
 
 Pro is only the AI and "do it now" features. Everything else is free: variations, kept swaps, workout style, building,
