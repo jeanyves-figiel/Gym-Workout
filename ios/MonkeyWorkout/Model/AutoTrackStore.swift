@@ -43,8 +43,8 @@ final class AutoTrackStore {
 
     private var cal: Calendar { model?.planCalendar ?? Progression.calendar() }
 
-    /// Today's finds for the card.
-    var today: [AutoEvent] { AutoTrack.today(saved.events, calendar: cal) }
+    /// Today's water and meal finds for the Fuel card; gym arrivals are not food (#1098).
+    var today: [AutoEvent] { AutoTrack.today(saved.events, calendar: cal).filter { $0.kind != .gym } }
 
     // MARK: Settings
 

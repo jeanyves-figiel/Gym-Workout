@@ -91,6 +91,8 @@ public struct AutoTrackPrefs: Codable, Hashable, Sendable {
     public init() {}
 
     public var anyOn: Bool { sips || bites || photos || gym }
+    /// Fuel's senses (water and meals); Gym arrival lives on Your gym (#1098).
+    public var foodOn: Bool { sips || bites || photos }
     /// The Watch records wrist motion only when one of its senses is on.
     public var watchOn: Bool { sips || bites }
 }
