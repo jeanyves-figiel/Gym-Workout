@@ -36,8 +36,8 @@ enum AppleCredentialCheck {
 
     @MainActor private static var checking = false
 
-    /// Call on launch and when returning to the foreground. Signs out when the Apple credential
-    /// behind the current account is revoked or no longer known to this device.
+    /// Call on launch and when returning to the foreground. Signs out when the member stopped using Sign in with Apple
+    /// for this app (credential revoked).
     @MainActor
     static func verify(_ model: AppModel) async {
         guard !checking, model.phase == .signedIn, !model.demo,
@@ -46,8 +46,10 @@ enum AppleCredentialCheck {
         else { return }
         checking = true
         defer { checking = false }
+        // Only a revoke signs out (#1106): iOS sometimes answers .notFound for a credential that is fine (launch in the
+        // background, Apple's servers slow), which signed members out on a random relaunch.
         switch await credentialState(for: appleUserID) {
-        case .revoked?, .notFound?:
+        case .revoked?:
             forget(accountId: accountId)
             await model.sync() // push unsynced logs while the API session is still valid
             await model.signOut()
