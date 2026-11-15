@@ -21,6 +21,10 @@ primary_region = 'fra'
   LEGAL_EMAIL = 'contact@monkeygrade.cloud'
   LEGAL_LAW = 'Switzerland'
   LEGAL_VENUE = 'Zurich, Switzerland'
+  # MonkeyWorkout Pro on at App Store launch (#1090, user OK 2026-11-15). Sandbox stays on: App Review buys with
+  # sandbox accounts against production (docs/subscriptions.md).
+  SUBSCRIPTIONS = 'enforced'
+  SUBSCRIPTION_SANDBOX = 'on'
 
 # SQLite lives on this volume → exactly one machine.
 [mounts]
