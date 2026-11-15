@@ -38,6 +38,7 @@ Only allow-listed accounts get it (#924): Actions → **Staging testers** → `a
 | `enforced` | Pro features need `pro`: Ask Coach, Generate & do today, gym and food scan (see Free vs Pro). |
 
 Set it in `backend/fly.staging.toml` / `fly.production.toml` `[env]`, merge, deploy.
+Production: `enforced` with `SUBSCRIPTION_SANDBOX=on` since the 1.1 App Store submission (#1090); staging stays `off`.
 
 ## Free access for selected accounts
 
