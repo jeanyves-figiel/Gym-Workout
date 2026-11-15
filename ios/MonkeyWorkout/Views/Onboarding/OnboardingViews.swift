@@ -142,11 +142,14 @@ struct OnboardingFlowView: View {
                 }
                 .readableWidth()
             }
-            .background(Theme.bg.ignoresSafeArea())
+            .background {
+                if let storyCategory { storyCategory.gradient.ignoresSafeArea() } else { Theme.bg.ignoresSafeArea() }
+            }
             .safeAreaInset(edge: .bottom) { bottom }
             .toolbar {
                 if !isNew { CloseToolbarItem { close() } }
             }
+            .toolbar(storyCategory == nil ? .automatic : .hidden, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $building) {
                 ProfileFormView(initial: p, newMember: isNew) { made in finishPlan(made) }
@@ -164,7 +167,66 @@ struct OnboardingFlowView: View {
 
     // MARK: Header and bottom
 
-    private var header: some View {
+    /// New member's gym steps are story cards too (#1103 B): one gradient each, chapter bar on GYM, the chat's stickers.
+    private var storyCategory: WorkoutEngine.Category? {
+        guard isNew, answers.answered.count > 0 || level != nil else { return nil }
+        switch step {
+        case .gym: return .warmup
+        case .machines: return .cardio
+        case .map: return .power
+        case .plan, .tour: return nil
+        }
+    }
+
+    private var storyTitle: String {
+        switch step {
+        case .gym: "Where do you train?"
+        case .machines: "What's in \(p.gym?.name ?? "your gym")?"
+        case .map: "Where's everything?"
+        case .plan, .tour: step.title
+        }
+    }
+
+    @ViewBuilder private var header: some View {
+        if let storyCategory { storyHeader(storyCategory) } else { plainHeader }
+    }
+
+    private func storyHeader(_ c: WorkoutEngine.Category) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Button {
+                    withAnimation(.snappy) {
+                        if let previous { step = previous } else { chatting = true }
+                    }
+                } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 17, weight: .heavy))
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(.black.opacity(0.2)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+                .accessibilityIdentifier("onboarding.back")
+                StoryChapterBar(chapter: .gym, ink: c.ink)
+                Button("Skip") { skip() }
+                    .font(Theme.label(15)).foregroundStyle(c.ink.opacity(0.85))
+                    .accessibilityIdentifier("onboarding.skip")
+            }
+            StoryStickers(stickers: answers.stickers + [p.gym?.name].compactMap { $0 }, ink: c.ink)
+            HStack(alignment: .bottom, spacing: 8) {
+                Text("🐵").font(.system(size: 40))
+                Text(storyTitle).font(Theme.display(30)).lineLimit(3).minimumScaleFactor(0.6)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Text(subtitle.prefix(1).uppercased() + subtitle.dropFirst())
+                .font(.footnote.weight(.bold)).opacity(0.85)
+        }
+        .foregroundStyle(c.ink)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+    }
+
+    private var plainHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(step.title).font(Theme.display(32)).foregroundStyle(.white)
@@ -221,7 +283,19 @@ struct OnboardingFlowView: View {
     }
 
     @ViewBuilder private var bottom: some View {
-        if step != .tour {
+        if storyCategory != nil {
+            Button { next() } label: {
+                Text(nextTitle).font(Theme.label(15)).tracking(1.5).lineLimit(1).minimumScaleFactor(0.7)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 15)
+                    .background(Capsule().fill(Theme.ink))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("onboarding.next")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .readableColumn()
+        } else if step != .tour {
             Button { next() } label: { Text(nextTitle).lineLimit(1).minimumScaleFactor(0.7) }
                 .buttonStyle(LimeButtonStyle())
                 .accessibilityIdentifier("onboarding.next")
