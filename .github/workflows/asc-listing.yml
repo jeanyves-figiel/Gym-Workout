@@ -15,6 +15,11 @@ on:
         description: 'Also replace screenshots from the app-store-screenshots branch (6.9", 6.3", iPad 13", Watch; blank captures skipped)'
         type: boolean
         default: false
+      review:
+        description: 'App Review only, no listing sync: status, or cancel (withdraw the open submission; needs apply)'
+        type: choice
+        options: [none, status, cancel]
+        default: none
 
 permissions:
   contents: read
@@ -41,6 +46,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/asc"
           export ASC_KEY_PATH="$RUNNER_TEMP/asc/key.p8"
           if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"; else printf '%s' "$ASC_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"; fi
+          if [ "${{ inputs.review }}" != none ]; then
+            REVIEW_ACTION="${{ inputs.review }}" python3 .github/scripts/asc_review.py
+            rm -rf "$RUNNER_TEMP/asc"; exit 0
+          fi
           python3 .github/scripts/asc_listing.py
           if [ "${{ inputs.screenshots }}" = true ]; then
             git fetch -q --depth 1 origin app-store-screenshots
