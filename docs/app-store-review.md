@@ -24,8 +24,8 @@ Screenshots: run **App Store listing** with `screenshots` checked (uploads the `
 ## First submission runbook (#1090)
 
 1. Bundle shipped to prod; run **TestFlight (Staging)** with `backend = production` on the prod commit.
-2. User: Paid Apps agreement + banking + tax Active; App Store Connect → + Version 1.0 (if missing); secrets `REVIEW_DEMO_EMAIL` / `REVIEW_DEMO_PASSWORD` / `REVIEW_CONTACT_PHONE`; then **Review account** (staging, then production) creates the demo account: email verified, terms accepted, free Pro. Gym and plan come from the Coach setup on first sign-in.
-3. **App Store subscriptions** dry run → apply; paywall review screenshot per product; attach subscriptions to version 1.0.
+2. User: Paid Apps agreement + banking + tax Active; App Store Connect → + Version 1.1 (if missing; must match `MARKETING_VERSION` in `ios/project.yml`); secrets `REVIEW_DEMO_EMAIL` / `REVIEW_DEMO_PASSWORD` / `REVIEW_CONTACT_PHONE`; then **Review account** (staging, then production) creates the demo account: email verified, terms accepted, free Pro. Gym and plan come from the Coach setup on first sign-in.
+3. **App Store subscriptions** dry run → apply; paywall review screenshot per product; attach subscriptions to version 1.1.
 4. **App Store listing** dry run → apply.
 5. By hand (Chrome): App Privacy labels (table below), Age Rating Override 16+, screenshots from `/mnt/project-files/app-store-screenshots/`, select the production build, encryption answer (none, `ITSAppUsesNonExemptEncryption` false), pricing Free + availability.
 6. `SUBSCRIPTIONS = 'enforced'` + `SUBSCRIPTION_SANDBOX = 'on'` (App Review buys in sandbox against production) on production via the normal promote; keep the sandbox flag on (every App Review buys in sandbox against production).

@@ -1,17 +1,17 @@
 {
-  "id": "2026-11-15.1",
+  "id": "2026-11-15.2",
   "items": [
     {
-      "symbol": "drop.fill",
+      "symbol": "sparkles",
       "tint": "stretch",
-      "title": "Sips fixed",
-      "body": "Turning on Sips no longer closes the app."
+      "title": "Brand new sign up",
+      "body": "Coach asks one question per colourful card, your answers stack up as stickers, then your plan pops out with confetti."
     },
     {
       "symbol": "location.fill",
       "tint": "power",
-      "title": "Gym arrival just works",
-      "body": "No gym pin on the map? Turning on Gym arrival now saves where you are as your gym."
+      "title": "Gym arrival moved to Your gym",
+      "body": "Turn on Know when I arrive in You → Your gym. Fuel keeps only food and drinks."
     }
   ]
 }
