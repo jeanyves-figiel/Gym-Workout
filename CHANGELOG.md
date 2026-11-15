@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Gym arrival moved to Your gym** (#1098, design A): the switch is now *Know when I arrive* on You → Your gym, above the gym picker (`GymArrivalCard`). Fuel's Auto tracking keeps only Sips, Meals and Food photos; the Fuel card hides gym arrivals and shows its invite from the food senses (`AutoTrackPrefs.foodOn`).
 
 ### Added
+- **What's new 2026-11-15.3** (bundle 105): one card (Stay signed in #1106); 2026-11-15.2 moved to history as build 106.
 - **App version 1.1** (bundle 104): `MARKETING_VERSION` 1.0 → 1.1 in `ios/project.yml`; first App Store submission is version 1.1 (App Store Connect version must match).
 - **What's new 2026-11-15.2** (bundle 104): two cards (Brand new sign up #1101 #1103, Gym arrival moved to Your gym #1098); 2026-11-15.1 moved to history as build 104.
 - **Onboarding story cards** (#1103, design B from `onboarding-flow/b.png`): sign-up Coach questions are full-screen gradient cards, one per question, colour changing every step; chapter bar YOU · APP · BODY · GYM; Coach types its reaction then the big question; answers pile up as stickers on top; swipe right or the chevron goes back. Gym, machines and map steps are the same cards (GYM chapter, Back from the gym returns to the last question). *Building your plan* and the reveal sit on gradients; the stickers fly in with confetti.
