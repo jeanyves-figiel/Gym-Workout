@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **App version 1.1** (bundle 104): `MARKETING_VERSION` 1.0 → 1.1 in `ios/project.yml`; first App Store submission is version 1.1 (App Store Connect version must match).
 - **What's new 2026-11-15.2** (bundle 104): two cards (Brand new sign up #1101 #1103, Gym arrival moved to Your gym #1098); 2026-11-15.1 moved to history as build 104.
 - **Pro billing grace period and cancel offer** (#1096, set in App Store Connect): failed renewals keep Pro for 16 days (weekly 6) while Apple retries. When a member taps Cancel Subscription, iOS shows *Keep Coach Monkey in your corner* with an offer: Weekly CHF 1/week for 12 weeks, Monthly CHF 3/month for 6 months, Yearly CHF 42 for a year (once per 12 months). Free Pro for friends: Free access workflow, or offer code *Friends - free Lifetime* (codes can be generated once Lifetime is approved). Documented in `docs/subscriptions.md`.
 - **What's new 2026-11-15.1** (bundle 103): two cards (Sips fixed, Gym arrival just works; #1092); 2026-11-14.2 moved to history as build 102.
