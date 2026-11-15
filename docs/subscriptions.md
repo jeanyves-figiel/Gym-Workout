@@ -61,6 +61,23 @@ Needs the owner first (App Store Connect, can't be done by API):
 Optional later: an In-App Purchase key (App Store Server API) for transaction history lookups and refund requests.
 Not needed for the current flow.
 
+## Billing grace period and cancel offer (#1096)
+
+Set by hand in App Store Connect (2026-11-15), no app or server code:
+- **Billing Grace Period**: 16 days (Apple caps weekly at 6 days), all renewals, production + sandbox. The backend
+  keeps Pro until `grace_expires_at` from the renewal info.
+- **Retention message** "Stay - 50% off 6 months" (en-GB + en-US), shown by iOS when a member taps Cancel
+  Subscription: header *Keep Coach Monkey in your corner*, body lists the Pro features (Apple: no prices in the text).
+- **Retention offers** (175 countries, paid at least 1 month, 12 months between offers):
+
+| Plan | Offer id | Offer |
+|---|---|---|
+| Weekly | `monkeyworkout.pro.weekly.stay50` | CHF 1/week for 12 weeks (Apple max 12 periods) |
+| Monthly | `monkeyworkout.pro.monthly.stay50` | CHF 3/month for 6 months |
+| Yearly | `monkeyworkout.pro.yearly.stay30` | CHF 42 for the first year |
+
+Then normal price. The retention message goes to App Review with the app version (Add for Review).
+
 ## Free vs Pro (decided 2026-10-24, replaces the 2026-10-11 split)
 
 Pro is only the AI and "do it now" features. Everything else is free: variations, kept swaps, workout style, building,
