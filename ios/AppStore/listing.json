@@ -1,5 +1,8 @@
 {
-  "locale": "en-US",
+  "locale": [
+    "en-US",
+    "en-GB"
+  ],
   "name": "MonkeyWorkout: Gym Planner",
   "subtitle": "Gym plans, AI Coach and Watch",
   "primaryCategory": "HEALTH_AND_FITNESS",
@@ -59,7 +62,7 @@
   ],
   "ageRating": {
     "alcoholTobaccoOrDrugUseOrReferences": "INFREQUENT_OR_MILD",
-    "contests": "NONE",
+    "contests": "INFREQUENT_OR_MILD",
     "gamblingSimulated": "NONE",
     "horrorOrFearThemes": "NONE",
     "matureOrSuggestiveThemes": "NONE",
@@ -78,7 +81,9 @@
     "healthOrWellnessTopics": true,
     "parentalControls": false,
     "ageAssurance": false,
-    "lootBox": false
+    "lootBox": false,
+    "gunsOrOtherWeapons": "NONE",
+    "socialMedia": true
   },
   "review": {
     "contactFirstName": "Jean-Yves",
