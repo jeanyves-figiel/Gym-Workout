@@ -89,4 +89,13 @@ final class AutoTrackTests: XCTestCase {
     func testGymOncePerDay() {
         XCTAssertEqual(AutoTrack.gym(at: at(7), calendar: cal).id, AutoTrack.gym(at: at(18), calendar: cal).id)
     }
+
+    func testGymIsNotAFuelSense() {
+        var p = AutoTrackPrefs()
+        p.gym = true
+        XCTAssertTrue(p.anyOn)
+        XCTAssertFalse(p.foodOn)
+        p.sips = true
+        XCTAssertTrue(p.foodOn)
+    }
 }

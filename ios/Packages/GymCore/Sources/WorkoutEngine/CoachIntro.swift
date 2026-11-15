@@ -68,10 +68,15 @@ public struct CoachIntroAnswers: Equatable, Sendable {
         if !answered.contains(q) { answered.append(q) }
     }
 
-    /// Goes back one question, keeping nothing of it.
+    /// Goes back one question, keeping nothing of it, nor the half-picked tiles of the question on screen (#1101).
     public mutating func undoLast() {
         guard let last = answered.popLast() else { return }
-        switch last {
+        if let current = questions.first(where: { !answered.contains($0) && $0 != last }) { clear(current) }
+        clear(last)
+    }
+
+    private mutating func clear(_ q: CoachIntroQuestion) {
+        switch q {
         case .goal: goal = nil
         case .days: days = nil
         case .minutes: minutes = nil

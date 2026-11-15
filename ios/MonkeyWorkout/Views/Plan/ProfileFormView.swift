@@ -209,6 +209,7 @@ struct ProfileFormView: View {
             }
             TrainingMethodSection(profile: $p)
         case .gym:
+            if section == .gym { GymArrivalCard() }
             GymPicker(profile: $p)
         }
     }
@@ -713,6 +714,56 @@ struct GymPicker: View {
         }
     }
 
+    private var addChoices: some View {
+        VStack(spacing: 8) {
+            addChoice("location.magnifyingglass", "Near me", "Gyms around you on the map",
+                      WorkoutEngine.Category.strength.gradient) { findingNearby = true }
+            addChoice("magnifyingglass", "Search by name", "Any gym on the map",
+                      WorkoutEngine.Category.cardio.gradient) {
+                withAnimation(.spring(duration: 0.3)) { searchingByName = true }
+                searchFocused = true
+            }
+            addChoice("house.fill", "Home or hotel", "No map place · set up in a few swipes",
+                      WorkoutEngine.Category.power.gradient) { settingUp = SetupTarget(ref: nil) }
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private var searchPanel: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
+                TextField("Gym name or address", text: $query)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .focused($searchFocused)
+                if searching { ProgressView().controlSize(.small) }
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
+            .padding(.bottom, 6)
+
+            if query.trimmingCharacters(in: .whitespaces).count >= 2 {
+                if results.isEmpty && !searching {
+                    Text("No gyms found").font(.footnote).foregroundStyle(Theme.muted).padding(.vertical, 12)
+                }
+                ForEach(results) { g in row(g, scoped: g.scoped != nil) }
+                if !searching {
+                    AddOwnGymRow(name: query) { owning = OwnGymDraft(name: query) }.padding(.top, 6)
+                }
+            } else {
+                ForEach(suggested) { g in row(g.ref, scoped: true) }
+            }
+        }
+        .card(padding: 12)
+    }
+
     private var selectedId: String { selectedRef.id }
 
     private var selectedRef: GymRef { profile.gym ?? Gym.puls5.ref }
@@ -739,6 +790,13 @@ struct GymPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // New member (#1101): the three ways in come first, always open and with no Close, so the sticky Next
+            // never covers them; the preselected gym follows as the one to keep.
+            if openAdd {
+                addChoices
+                if searchingByName { searchPanel }
+                Text("OR KEEP THIS ONE").font(Theme.label(12)).tracking(1).foregroundStyle(Theme.muted).padding(.top, 6)
+            }
             GymCard(name: selectedRef.name,
                     location: selectedRef.address.isEmpty ? (selectedSaved?.kind?.label ?? "Your gym") : selectedRef.address,
                     symbol: selectedSaved?.kind?.symbol ?? "building.2.fill", count: profile.equipment.count,
@@ -775,68 +833,23 @@ struct GymPicker: View {
             }
 
             // One way in to another gym (#273): near me, search by name, or home / hotel set up in swipes.
-            Button {
-                withAnimation(.spring(duration: 0.3)) {
-                    adding.toggle()
-                    if !adding { searchingByName = false; query = "" }
-                }
-            } label: {
-                Label(adding ? "Close" : "Add a gym", systemImage: adding ? "xmark" : "plus")
-                    .font(Theme.label(14)).foregroundStyle(Theme.ink)
-                    .frame(maxWidth: .infinity).padding(.vertical, 12)
-                    .background(Capsule().fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
-
-            if adding {
-                VStack(spacing: 8) {
-                    addChoice("location.magnifyingglass", "Near me", "Gyms around you on the map",
-                              WorkoutEngine.Category.strength.gradient) { findingNearby = true }
-                    addChoice("magnifyingglass", "Search by name", "Any gym on the map",
-                              WorkoutEngine.Category.cardio.gradient) {
-                        withAnimation(.spring(duration: 0.3)) { searchingByName = true }
-                        searchFocused = true
+            if !openAdd {
+                Button {
+                    withAnimation(.spring(duration: 0.3)) {
+                        adding.toggle()
+                        if !adding { searchingByName = false; query = "" }
                     }
-                    addChoice("house.fill", "Home or hotel", "No map place · set up in a few swipes",
-                              WorkoutEngine.Category.power.gradient) { settingUp = SetupTarget(ref: nil) }
+                } label: {
+                    Label(adding ? "Close" : "Add a gym", systemImage: adding ? "xmark" : "plus")
+                        .font(Theme.label(14)).foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .background(Capsule().fill(Theme.lime))
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
 
-            if adding && searchingByName {
-                VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
-                        TextField("Gym name or address", text: $query)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
-                            .submitLabel(.search)
-                            .focused($searchFocused)
-                        if searching { ProgressView().controlSize(.small) }
-                        if !query.isEmpty {
-                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Clear search")
-                        }
-                    }
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
-                    .padding(.bottom, 6)
-
-                    if query.trimmingCharacters(in: .whitespaces).count >= 2 {
-                        if results.isEmpty && !searching {
-                            Text("No gyms found").font(.footnote).foregroundStyle(Theme.muted).padding(.vertical, 12)
-                        }
-                        ForEach(results) { g in row(g, scoped: g.scoped != nil) }
-                        if !searching {
-                            AddOwnGymRow(name: query) { owning = OwnGymDraft(name: query) }.padding(.top, 6)
-                        }
-                    } else {
-                        ForEach(suggested) { g in row(g.ref, scoped: true) }
-                    }
-                }
-                .card(padding: 12)
+                if adding { addChoices }
+                if adding && searchingByName { searchPanel }
             }
 
             Text(note).font(.footnote).foregroundStyle(Theme.muted)
