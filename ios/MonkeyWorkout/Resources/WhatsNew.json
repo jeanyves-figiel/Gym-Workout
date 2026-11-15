@@ -1,17 +1,11 @@
 {
-  "id": "2026-11-15.2",
+  "id": "2026-11-15.3",
   "items": [
     {
-      "symbol": "sparkles",
+      "symbol": "person.badge.key.fill",
       "tint": "stretch",
-      "title": "Brand new sign up",
-      "body": "Coach asks one question per colourful card, your answers stack up as stickers, then your plan pops out with confetti."
-    },
-    {
-      "symbol": "location.fill",
-      "tint": "power",
-      "title": "Gym arrival moved to Your gym",
-      "body": "Turn on Know when I arrive in You → Your gym. Fuel keeps only food and drinks."
+      "title": "Stay signed in",
+      "body": "Sign in with Apple no longer signs you out at random, and sign up doesn't start over after you sign in."
     }
   ]
 }
