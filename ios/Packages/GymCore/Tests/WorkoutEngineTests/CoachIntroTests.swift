@@ -72,6 +72,17 @@ import Testing
         #expect(a.goal == .build)
     }
 
+    @Test func undoDropsHalfPickedTiles() {
+        var a = CoachIntroAnswers()
+        a.goal = .build; a.answer(.goal)
+        a.days = 4; a.answer(.days)
+        a.weekdays = [1, 3]
+        a.undoLast()
+        #expect(a.next == .days)
+        #expect(a.weekdays == nil)
+        #expect(a.goal == .build)
+    }
+
     @Test func appliesToProfile() {
         var a = CoachIntroAnswers()
         a.goal = .strength; a.answer(.goal)

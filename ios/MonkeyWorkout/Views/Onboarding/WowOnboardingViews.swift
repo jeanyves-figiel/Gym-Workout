@@ -12,8 +12,13 @@ struct CoachIntroChat: View {
     @Binding var answers: CoachIntroAnswers
     let onDone: () -> Void
     @Environment(HealthManager.self) private var healthManager
-    /// Coach "typing" between an answer and its reaction.
-    @State private var typing = false
+    /// Chat rhythm (#1101): after an answer Coach types its reaction, then types the next question.
+    @State private var beat: Beat = .idle
+    @State private var beatTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    enum Beat { case idle, reacting, asking }
+    private var typing: Bool { beat != .idle }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,12 +30,12 @@ struct CoachIntroChat: View {
                         ForEach(answers.answered) { q in
                             coachBubble(CoachIntro.question(q, answers))
                             meBubble(answerText(q))
-                            if !(typing && q == answers.answered.last) {
+                            if !(beat == .reacting && q == answers.answered.last) {
                                 coachBubble(CoachIntro.reaction(q, answers))
                             }
                         }
                         if typing {
-                            coachBubble("• • •").accessibilityLabel("Coach is typing")
+                            TypingBubble()
                         } else if let q = answers.next {
                             coachBubble(CoachIntro.question(q, answers))
                         } else {
@@ -44,7 +49,7 @@ struct CoachIntroChat: View {
                 }
                 .readableWidth()
                 .onChange(of: answers.answered.count) { scrollEnd(proxy) }
-                .onChange(of: typing) { scrollEnd(proxy) }
+                .onChange(of: beat) { scrollEnd(proxy) }
             }
             choices
         }
@@ -60,7 +65,7 @@ struct CoachIntroChat: View {
     private var header: some View {
         HStack(spacing: 10) {
             if !answers.answered.isEmpty {
-                Button { withAnimation(.snappy) { typing = false; answers.undoLast() } } label: {
+                Button { withAnimation(.snappy) { stopBeat(); answers.undoLast() } } label: {
                     Text("‹ Back").font(Theme.label(15)).foregroundStyle(Theme.lime)
                 }
                 .buttonStyle(.plain)
@@ -292,13 +297,16 @@ struct CoachIntroChat: View {
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
             ForEach(Array(CoachIntro.dayChoices.enumerated()), id: \.element) { i, d in
                 Button { pick(.days) { $0.days = d } } label: {
+                    // Large text (#1101): number and label shrink to fit instead of clipping "BEST".
                     VStack(spacing: 2) {
-                        Text("\(d)").font(Theme.display(34)).monospacedDigit()
-                        Text(d == recommended ? "★ BEST" : "DAYS").font(Theme.label(9)).tracking(1)
+                        Text("\(d)").font(Theme.display(34)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
+                        Text(d == recommended ? "BEST" : "DAYS").font(Theme.label(9)).tracking(0.5)
+                            .lineLimit(1).minimumScaleFactor(0.5)
                     }
                     .foregroundStyle(Self.cycle[i % Self.cycle.count].ink)
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(1, contentMode: .fit)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: 62)
                     .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Self.cycle[i % Self.cycle.count].gradient))
                     .overlay {
                         if d == recommended { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.lime, lineWidth: 3) }
@@ -369,11 +377,14 @@ struct CoachIntroChat: View {
                 ForEach(1...7, id: \.self) { d in
                     let on = selected.contains(d)
                     Button { withAnimation(.snappy) { toggle(d) } } label: {
-                        Text(CoachIntro.weekdayShort[d - 1].uppercased())
-                            .font(Theme.label(12))
+                        // Large text showed "…" (#1101): two letters, shrink to fit, tile grows with the text.
+                        Text(CoachIntro.weekdayShort[d - 1].prefix(2).uppercased())
+                            .font(Theme.label(14))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                             .foregroundStyle(on ? Theme.ink : .white)
-                            .frame(maxWidth: .infinity)
-                            .aspectRatio(0.8, contentMode: .fit)
+                            .padding(.horizontal, 2)
+                            .frame(maxWidth: .infinity, minHeight: 50)
                             .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.1))))
                     }
@@ -469,24 +480,60 @@ struct CoachIntroChat: View {
 
     // MARK: Actions
 
+    /// Answer, then Coach types its reaction, then types the next question (#1101): one bubble at a time.
     private func pick(_ q: CoachIntroQuestion, _ set: (inout CoachIntroAnswers) -> Void) {
+        guard !typing else { return }
         withAnimation(.snappy) {
             set(&answers)
             answers.answer(q)
-            typing = true
+            beat = .reacting
         }
-        Task {
-            try? await Task.sleep(for: .milliseconds(550))
-            withAnimation(.snappy) { typing = false }
+        let pause: Duration = reduceMotion ? .milliseconds(200) : .milliseconds(700)
+        beatTask = Task {
+            try? await Task.sleep(for: pause)
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) { beat = .asking }
+            try? await Task.sleep(for: pause)
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) { beat = .idle }
         }
+    }
+
+    private func stopBeat() {
+        beatTask?.cancel()
+        beatTask = nil
+        beat = .idle
     }
 
     /// Skip: the rest keep their defaults (goal's own days and length, everything on, Fuel later).
     private func skipAll() {
         withAnimation(.snappy) {
-            typing = false
+            stopBeat()
             while let q = answers.next { answers.answer(q) }
         }
+    }
+}
+
+/// Coach "typing": three dots that bounce in turn (#1101).
+private struct TypingBubble: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle().fill(.white).frame(width: 8, height: 8)
+                    .phaseAnimator(reduceMotion ? [0.6] : [0.35, 1, 0.35]) { dot, phase in
+                        dot.opacity(phase).offset(y: phase == 1 ? -3 : 0)
+                    } animation: { _ in .easeInOut(duration: 0.3).delay(Double(i) * 0.12) }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 15)
+        .background(UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 5, bottomTrailingRadius: 18,
+                                           topTrailingRadius: 18, style: .continuous).fill(Color.white.opacity(0.09)))
+        .transition(.scale(scale: 0.6, anchor: .bottomLeading).combined(with: .opacity))
+        .accessibilityElement()
+        .accessibilityLabel("Coach is typing")
     }
 }
 
