@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **No more random sign-outs with Sign in with Apple** (#1106): the launch check now signs out only when the Apple credential is revoked; iOS sometimes answers *not found* for a valid credential, which signed members out on a relaunch (`AppleCredentialCheck.verify`).
+- **Onboarding no longer runs again after signing back in** (#1106): with no plan on the device (after a sign-out, new phone), sign-in now loads the account's plan before leaving the sign-in screen; before, onboarding opened at once and stayed open after the plan arrived (`AppModel.didAuthenticate`).
+
 ### Changed
 - **Gym arrival moved to Your gym** (#1098, design A): the switch is now *Know when I arrive* on You → Your gym, above the gym picker (`GymArrivalCard`). Fuel's Auto tracking keeps only Sips, Meals and Food photos; the Fuel card hides gym arrivals and shows its invite from the food senses (`AutoTrackPrefs.foodOn`).
 

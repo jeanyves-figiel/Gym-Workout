@@ -295,10 +295,14 @@ final class AppModel {
             restoreDeviceOnlyData(user.id)
         }
         self.user = user
+        // No plan on this device (sign-in after a sign-out, new phone): fetch the account's plan before leaving the
+        // sign-in screen, so onboarding never opens for a member the server already has (#1106).
+        let fresh = state.synced == nil
+        if fresh { await pullProfile() }
         phase = .signedIn
         persist()
         startConnectivityWatch()
-        await pullProfile()
+        if !fresh { await pullProfile() }
         await sync()
         await ProStore.shared.start(api: api, userId: user.id)
     }
