@@ -298,8 +298,10 @@ final class GymArrival: NSObject, CLLocationManagerDelegate {
             old.forEach { manager.stopMonitoring(for: $0) }
             return
         }
-        // Home gym not loaded yet (early at launch): keep what is already watched.
-        guard let g = store.model?.homePlace, let lat = g.latitude, let lng = g.longitude else { return }
+        // The home gym's map position, else the spot saved when it was turned on (#1092); neither loaded yet (early at
+        // launch): keep what is already watched.
+        let g = store.model?.homePlace
+        guard let lat = g?.latitude ?? store.prefs.gymLatitude, let lng = g?.longitude ?? store.prefs.gymLongitude else { return }
         let center = CLLocationCoordinate2D(latitude: lat, longitude: lng)
         if let r = old.first as? CLCircularRegion, abs(r.center.latitude - lat) < 0.0001, abs(r.center.longitude - lng) < 0.0001 { return }
         old.forEach { manager.stopMonitoring(for: $0) }
@@ -307,6 +309,40 @@ final class GymArrival: NSObject, CLLocationManagerDelegate {
         region.notifyOnEntry = true
         region.notifyOnExit = false
         manager.startMonitoring(for: region)
+    }
+
+    private var waiting: [CheckedContinuation<CLLocationCoordinate2D?, Never>] = []
+
+    /// Where the member is now (asks When In Use first), nil when location is off or no fix comes within 15 s.
+    func here() async -> CLLocationCoordinate2D? {
+        if manager.authorizationStatus == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+            for _ in 0..<60 where manager.authorizationStatus == .notDetermined { try? await Task.sleep(for: .milliseconds(500)) }
+        }
+        guard [.authorizedWhenInUse, .authorizedAlways].contains(manager.authorizationStatus) else { return nil }
+        return await withCheckedContinuation { cont in
+            waiting.append(cont)
+            if waiting.count == 1 { manager.requestLocation() }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(15))
+                self.finish(nil)
+            }
+        }
+    }
+
+    private func finish(_ c: CLLocationCoordinate2D?) {
+        let all = waiting
+        waiting = []
+        all.forEach { $0.resume(returning: c) }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        let c = locations.last?.coordinate
+        Task { @MainActor in self.finish(c) }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in self.finish(nil) }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
