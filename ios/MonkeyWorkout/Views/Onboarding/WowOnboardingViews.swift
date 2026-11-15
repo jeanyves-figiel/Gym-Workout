@@ -776,8 +776,16 @@ struct PlanRevealView: View {
 struct ConfettiBurst: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var fallen = false
-    private static let pieces: [(String, CGFloat, CGFloat, Double)] = (0..<18).map { i in
-        (["🎉", "✨", "🎊", "💪", "⭐️", "🍌"][i % 6], CGFloat((i * 37) % 100) / 100, CGFloat(14 + (i * 7) % 14), Double(i % 6) * 0.08)
+    private static let emoji = ["🎉", "✨", "🎊", "💪", "⭐️", "🍌"]
+    private static let pieces: [(String, CGFloat, CGFloat, Double)] = (0..<18).map(piece)
+
+    private static func stop(_ i: Int) -> CGFloat { 0.25 + CGFloat(i % 5) * 0.15 }
+
+    private static func piece(_ i: Int) -> (String, CGFloat, CGFloat, Double) {
+        let x = CGFloat((i * 37) % 100) / 100
+        let size = CGFloat(14 + (i * 7) % 14)
+        let delay = Double(i % 6) * 0.08
+        return (emoji[i % emoji.count], x, size, delay)
     }
 
     var body: some View {
@@ -785,7 +793,7 @@ struct ConfettiBurst: View {
             ForEach(Array(Self.pieces.enumerated()), id: \.offset) { i, p in
                 Text(p.0).font(.system(size: p.2))
                     .rotationEffect(.degrees(fallen ? Double(i * 47) : 0))
-                    .position(x: g.size.width * p.1, y: fallen ? g.size.height * (0.25 + CGFloat(i % 5) * 0.15) : -30)
+                    .position(x: g.size.width * p.1, y: fallen ? g.size.height * Self.stop(i) : -30)
                     .opacity(fallen ? 0 : 1)
                     .animation(.easeIn(duration: 2.2).delay(p.3), value: fallen)
             }
