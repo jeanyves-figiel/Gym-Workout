@@ -11,6 +11,10 @@ on:
         description: 'Apply changes (unchecked = dry run, read-only)'
         type: boolean
         default: false
+      screenshots:
+        description: 'Also replace screenshots from the app-store-screenshots branch (6.9", 6.3", iPad 13"; blank captures skipped)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,4 +42,9 @@ jobs:
           export ASC_KEY_PATH="$RUNNER_TEMP/asc/key.p8"
           if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"; else printf '%s' "$ASC_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"; fi
           python3 .github/scripts/asc_listing.py
+          if [ "${{ inputs.screenshots }}" = true ]; then
+            git fetch -q --depth 1 origin app-store-screenshots
+            mkdir -p "$RUNNER_TEMP/shots" && git --work-tree="$RUNNER_TEMP/shots" checkout FETCH_HEAD -- full
+            SHOTS_DIR="$RUNNER_TEMP/shots/full" python3 .github/scripts/asc_screenshots.py
+          fi
           rm -rf "$RUNNER_TEMP/asc"

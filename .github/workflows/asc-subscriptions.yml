@@ -15,6 +15,13 @@ on:
         description: 'Set App Store Server Notifications V2 URLs (prod + sandbox)'
         type: boolean
         default: true
+      review_screenshot:
+        description: 'Only upload the paywall App Review screenshot to products missing one (from review_screenshot_ref)'
+        type: boolean
+        default: false
+      review_screenshot_ref:
+        description: 'Branch with paywall.png (UI test screenshots, scaled up 2x)'
+        default: 'screenshots/pr-1061'
 
 permissions:
   contents: read
@@ -32,12 +39,19 @@ jobs:
       NOTIFICATION_URLS: ${{ inputs.notification_urls }}
     steps:
       - uses: actions/checkout@v7
-      - run: pip install --quiet 'pyjwt[crypto]==2.9.0'
+      - run: pip install --quiet 'pyjwt[crypto]==2.9.0' 'pillow==12.0.0'
       - name: Sync subscriptions
         run: |
           if [ -z "$ASC_KEY_ID" ]; then echo "::warning::ASC_* secrets not set; skipping."; exit 0; fi
           mkdir -p "$RUNNER_TEMP/asc"
           export ASC_KEY_PATH="$RUNNER_TEMP/asc/key.p8"
           if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"; else printf '%s' "$ASC_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"; fi
-          python3 .github/scripts/asc_subscriptions.py
+          if [ "${{ inputs.review_screenshot }}" = true ]; then
+            git fetch -q --depth 1 origin "${{ inputs.review_screenshot_ref }}"
+            git show FETCH_HEAD:paywall.png > "$RUNNER_TEMP/paywall-src.png"
+            python3 -c "from PIL import Image; i=Image.open('$RUNNER_TEMP/paywall-src.png').convert('RGB'); i.resize((i.width*2, i.height*2), Image.LANCZOS).save('$RUNNER_TEMP/paywall.png')"
+            SHOT="$RUNNER_TEMP/paywall.png" python3 .github/scripts/asc_review_screenshot.py
+          else
+            python3 .github/scripts/asc_subscriptions.py
+          fi
           rm -rf "$RUNNER_TEMP/asc"
