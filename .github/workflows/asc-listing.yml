@@ -12,7 +12,7 @@ on:
         type: boolean
         default: false
       screenshots:
-        description: 'Also replace screenshots from the app-store-screenshots branch (6.9", 6.3", iPad 13"; blank captures skipped)'
+        description: 'Also replace screenshots from the app-store-screenshots branch (6.9", 6.3", iPad 13", Watch; blank captures skipped)'
         type: boolean
         default: false
 

@@ -16,11 +16,11 @@ on:
         type: boolean
         default: true
       review_screenshot:
-        description: 'Only upload the paywall App Review screenshot to products missing one (from review_screenshot_ref)'
+        description: 'Only upload the paywall App Review screenshot to every product, replacing any (from review_screenshot_ref)'
         type: boolean
         default: false
       review_screenshot_ref:
-        description: 'Branch with paywall.png (UI test screenshots, scaled up 2x)'
+        description: 'Branch with paywall.png (UI test screenshot, scaled to 1290 x 2796)'
         default: 'screenshots/pr-1061'
 
 permissions:
@@ -49,8 +49,9 @@ jobs:
           if [ "${{ inputs.review_screenshot }}" = true ]; then
             git fetch -q --depth 1 origin "${{ inputs.review_screenshot_ref }}"
             git show FETCH_HEAD:paywall.png > "$RUNNER_TEMP/paywall-src.png"
-            python3 -c "from PIL import Image; i=Image.open('$RUNNER_TEMP/paywall-src.png').convert('RGB'); i.resize((i.width*2, i.height*2), Image.LANCZOS).save('$RUNNER_TEMP/paywall.png')"
-            SHOT="$RUNNER_TEMP/paywall.png" python3 .github/scripts/asc_review_screenshot.py
+            # Apple only takes real screen sizes: scale onto a 1290 x 2796 (6.7" iPhone) canvas, edge colour fills the rest.
+            python3 -c "from PIL import Image; i=Image.open('$RUNNER_TEMP/paywall-src.png').convert('RGB'); W,H=1290,2796; r=min(W/i.width,H/i.height); j=i.resize((round(i.width*r),round(i.height*r)),Image.LANCZOS); c=Image.new('RGB',(W,H),i.getpixel((0,0))); c.paste(j,((W-j.width)//2,(H-j.height)//2)); c.save('$RUNNER_TEMP/paywall.png')"
+            SHOT="$RUNNER_TEMP/paywall.png" REPLACE=true python3 .github/scripts/asc_review_screenshot.py
           else
             python3 .github/scripts/asc_subscriptions.py
           fi
