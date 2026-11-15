@@ -6,6 +6,12 @@
       "tint": "power",
       "title": "Gym arrival moved to Your gym",
       "body": "Turn on Know when I arrive in You → Your gym. Fuel keeps only food and drinks."
+    },
+    {
+      "symbol": "bubble.left.and.bubble.right.fill",
+      "tint": "stretch",
+      "title": "Smoother sign up",
+      "body": "Coach types each reply, and gym picking comes first."
     }
   ]
 }
