@@ -1,6 +1,7 @@
 """App Review submission status / cancel (#1090).
 
-Env: as asc_listing.py, plus REVIEW_ACTION (status | cancel). `cancel` withdraws the open iOS review
+Env: as asc_listing.py, plus REVIEW_ACTION (status | cancel | release). `release` releases an approved version
+(Pending Developer Release) to the App Store when APPLY=true. `cancel` withdraws the open iOS review
 submission (Waiting for Review / In Review) when APPLY=true; the version goes back to editable.
 """
 import os, sys
@@ -18,6 +19,15 @@ for s in subs:
 vs, _ = get_all(f"/v1/apps/{APP}/appStoreVersions?filter[platform]=IOS")
 for v in vs:
     print(f"version {v['attributes']['versionString']}: {v['attributes'].get('appStoreState')}")
+if ACTION == "release":
+    todo = [v for v in vs if v["attributes"].get("appStoreState") == "PENDING_DEVELOPER_RELEASE"]
+    if not todo: sys.exit("No version pending developer release")
+    for v in todo:
+        print(f"{'release' if APPLY else 'would release'} {v['attributes']['versionString']}")
+        if APPLY:
+            call("POST", "/v1/appStoreVersionReleaseRequests", {"data": {"type": "appStoreVersionReleaseRequests",
+                 "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": v["id"]}}}}})
+            print("  release requested")
 if ACTION == "cancel":
     todo = [s for s in subs if s["attributes"].get("state") in OPEN]
     if not todo:

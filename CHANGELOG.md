@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Release an approved App Store version by API** (#1090): workflow *App Store listing* → review `release` (with apply) releases a version in *Pending Developer Release*; `asc_review.py` posts an `appStoreVersionReleaseRequest`.
+
 ### Fixed
 - **No more random sign-outs with Sign in with Apple** (#1106): the launch check now signs out only when the Apple credential is revoked; iOS sometimes answers *not found* for a valid credential, which signed members out on a relaunch (`AppleCredentialCheck.verify`).
 - **Onboarding no longer runs again after signing back in** (#1106): with no plan on the device (after a sign-out, new phone), sign-in now loads the account's plan before leaving the sign-in screen; before, onboarding opened at once and stayed open after the plan arrived (`AppModel.didAuthenticate`).
