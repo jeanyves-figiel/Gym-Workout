@@ -23,7 +23,7 @@ Table columns: **Method**, **Path**, **Auth** (`–` public, `Bearer` access tok
 
 ## Share previews (#1113)
 
-The App Store's own link card shows only the icon, so the app shares `/app`. Invite and public post pages carry the same preview image. Art is rendered by `backend/scripts/share-art/render.mjs` into `backend/content/share/` (A: link preview; C: Instagram story/post, In-App Event). App ID: `APP_STORE_ID` (default `6819971090`).
+The App Store's own link card shows only the icon, so the app shares `/app`. Invite and public post pages carry the same preview image. Art is rendered by `backend/scripts/share-art/render.mjs` into `backend/content/share/` (A: link preview; C: Instagram story/post, In-App Event). App ID: `APP_STORE_ID` (default `6819971090`). In the app, *Share MonkeyWorkout* (Invite + You hub, `ShareAppViews.swift`) sends Story/Post art (bundled copies of `story.jpg`/`post.jpg`) or the `/app` link; re-copy the art into `share-story`/`share-post` imagesets after re-rendering.
 
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
