@@ -6,6 +6,11 @@ name: App Store screenshots
 
 on:
   workflow_dispatch:
+    inputs:
+      duo:
+        description: 'Also capture iPhone Duo (outer + inner; slow, not uploaded to App Store Connect)'
+        type: boolean
+        default: false
   pull_request:
     paths: ['.github/workflows/app-store-screenshots.yml']
 
@@ -20,7 +25,7 @@ jobs:
   capture:
     runs-on: xcode-27
     # 75: iOS 27.1 runtime download + three Duo displays (#158).
-    timeout-minutes: 75
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@v7
       - name: Select newest Xcode
@@ -117,7 +122,8 @@ jobs:
           capture iphone-6.9 "iPhone 18 Pro Max|iPhone 17 Pro Max|iPhone 16 Pro Max"
           capture iphone-6.3 "iPhone 18 Pro \(|iPhone 17 Pro \(|iPhone 16 Pro \("
           capture ipad-13 "iPad Pro 13-inch"
-          capture iphone-duo "iPhone Duo"
+          # Duo is opt-in (#1111): its display probing ran the job past its timeout with 15 screens.
+          if [ "${{ inputs.duo }}" = true ]; then capture iphone-duo "iPhone Duo"; fi
           # Black (screen off) and white (app not drawn) captures are dropped and listed.
           python3 - <<'PY'
           import glob, os, subprocess
