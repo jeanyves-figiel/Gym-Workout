@@ -114,6 +114,8 @@ struct FilmModeSheet: View {
 
 struct FilmSessionView: View {
     let onSave: ([FilmedMove], Date) -> Void
+    /// Demo mode (`-demoScreen film-session`, App Store screenshots #1111): a made-up member, no camera, no voice.
+    var demo = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
@@ -199,7 +201,12 @@ struct FilmSessionView: View {
             if dark && !setup {
                 Color.black.ignoresSafeArea()
             } else if !denied {
-                FormCameraPreview(session: camera.session).ignoresSafeArea()
+                if demo {
+                    LinearGradient(colors: [Color(hex: 0x2D3440), Color(hex: 0x1B1F27), Color(hex: 0x2A241D)], startPoint: .top, endPoint: .bottom)
+                        .ignoresSafeArea()
+                } else {
+                    FormCameraPreview(session: camera.session).ignoresSafeArea()
+                }
                 FormSkeleton(pose: pose, aspect: aspect, warn: session.live.warn, bad: session.live.bad).ignoresSafeArea()
             } else {
                 LinearGradient(colors: [Color(hex: 0x2D3440), Color(hex: 0x1B1F27)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
@@ -676,6 +683,10 @@ struct FilmSessionView: View {
     // MARK: Flow
 
     private func begin() async {
+        if demo {
+            await playDemo()
+            return
+        }
         guard await FormCamera.allowed() else {
             denied = true
             return
@@ -761,6 +772,7 @@ struct FilmSessionView: View {
     }
 
     private func say(_ text: String) {
+        guard !demo else { return }
         voice.speak(text, style: CoachPref.style)
     }
 
@@ -804,6 +816,7 @@ struct FilmSessionView: View {
     // MARK: Clips
 
     private func startClip() {
+        guard !demo else { return }
         clip?.discard()
         let c = ClipRecorder()
         camera.clip = c
@@ -819,6 +832,49 @@ struct FilmSessionView: View {
             if let old = clips[move], old != url { try? FileManager.default.removeItem(at: old) }
             clips[move] = url
         }
+    }
+
+    /// Demo: squats and a bench set found at once, then a bench set counted live, the way the camera would see them.
+    private func playDemo() async {
+        aspect = 9.0 / 16
+        setup = false
+        issue = nil
+        rawIssue = nil
+        started = Date().addingTimeInterval(-14 * 60)
+        var t = 0.0
+        func play(_ id: String, reps: Int, live: Bool) async {
+            guard let m = FormModel(exercise: Exercise.get(id)) else { return }
+            let still = FormDemo.pose(m, progress: 0)
+            for k in 0..<36 { add(still, at: t + Double(k) / 30) }
+            t += 1.2
+            var named = false
+            let t0 = t
+            for (dt, p) in FormDemo.frames(m, reps: reps) {
+                if live {
+                    try? await Task.sleep(for: .milliseconds(33))
+                    if Task.isCancelled { return }
+                }
+                t = t0 + dt
+                add(p, at: t)
+                if !named, session.needsGuess, dt > 2.4 + 0.5 {
+                    if let e = session.accept(FilmWorkout.guess(session.pending, models: FilmWorkout.models,
+                                                                current: session.moves.last?.exerciseId)) { handle(e) }
+                    named = session.inSet
+                }
+            }
+            if live { return }
+            for k in 1...240 { add(still, at: t + Double(k) / 30) }
+            t += 8
+        }
+        await play("back-squat", reps: 5, live: false)
+        await play("back-squat", reps: 5, live: false)
+        await play("bench-press", reps: 6, live: false)
+        await play("bench-press", reps: 8, live: true)
+    }
+
+    private func add(_ p: FormPose, at t: Double) {
+        pose = p
+        if let e = session.add(p, at: t) { handle(e) }
     }
 
     private func dropClips() {

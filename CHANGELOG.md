@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **App Store listing for 1.2** (#1111, pending approval): description leads with Apple Watch rep counting (auto-logged sets, bar speed, machine mode) and *Film my workout* (camera names moves, counts reps, reads weight, video never saved), then the one-minute Coach setup chat and tracking without typing; new subtitle and promotional text (`ios/AppStore/listing.json`). Screenshot set: Train, Film my workout, Ask Coach, Coach setup chat, Session, 3D guide, Insights, Fuel, Mind, Social; extra review captures after the first 10.
+
+### Added
+- **Film my workout demo screen** (#1111): `-demoScreen film-session` plays a made-up member (squats and bench found, a bench set counted live) with no camera or voice, for App Store screenshots (`FilmSessionView(demo:)`).
+
 ### Fixed
 - **No more random sign-outs with Sign in with Apple** (#1106): the launch check now signs out only when the Apple credential is revoked; iOS sometimes answers *not found* for a valid credential, which signed members out on a relaunch (`AppleCredentialCheck.verify`).
 - **Onboarding no longer runs again after signing back in** (#1106): with no plan on the device (after a sign-out, new phone), sign-in now loads the account's plan before leaving the sign-in screen; before, onboarding opened at once and stayed open after the plan arrived (`AppModel.didAuthenticate`).
