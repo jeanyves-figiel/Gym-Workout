@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Rich share previews** (#1113, designs A + C from `share-preview/proposals.png`): new `/app` share page shows a big pink→orange preview (headline, Train screen, *Free on the App Store*) in iMessage, WhatsApp, Slack and Instagram DMs instead of the App Store's icon-only card; Smart App Banner + App Store button (`APP_STORE_ID`). Invite (`/i/:code`) and public post (`/share/:id`) links get the same image. Share art at `/og/*.jpg`: link 1200×630, Instagram story 1080×1920 and post 1080×1080, App Store In-App Event 1920×1080 (violet→teal phone fan); regenerate with `backend/scripts/share-art/render.mjs`.
+
 ### Fixed
 - **No more random sign-outs with Sign in with Apple** (#1106): the launch check now signs out only when the Apple credential is revoked; iOS sometimes answers *not found* for a valid credential, which signed members out on a relaunch (`AppleCredentialCheck.verify`).
 - **Onboarding no longer runs again after signing back in** (#1106): with no plan on the device (after a sign-out, new phone), sign-in now loads the account's plan before leaving the sign-in screen; before, onboarding opened at once and stayed open after the plan arrived (`AppModel.didAuthenticate`).

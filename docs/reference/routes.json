@@ -5,6 +5,10 @@
   },
   {
     "method": "GET",
+    "path": "/app"
+  },
+  {
+    "method": "GET",
     "path": "/cast/motion/:file"
   },
   {
@@ -18,6 +22,10 @@
   {
     "method": "GET",
     "path": "/i/:code"
+  },
+  {
+    "method": "GET",
+    "path": "/og/:file"
   },
   {
     "method": "GET",

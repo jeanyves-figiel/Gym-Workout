@@ -27,6 +27,9 @@
       "name": "Legal pages"
     },
     {
+      "name": "Share previews (#1113)"
+    },
+    {
       "name": "Chromecast receiver (#1008)"
     },
     {
@@ -167,6 +170,59 @@
           "Legal pages"
         ],
         "summary": "Support page (HTML)",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app": {
+      "get": {
+        "tags": [
+          "Share previews (#1113)"
+        ],
+        "summary": "Share landing page (HTML): Open Graph/Twitter large image, Smart App Banner, App Store button",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/og/{file}": {
+      "get": {
+        "tags": [
+          "Share previews (#1113)"
+        ],
+        "summary": "Share art JPEG: link.jpg 1200×630, story.jpg 1080×1920, post.jpg 1080×1080, event.jpg 1920×1080 (cached 1 day)",
+        "description": "Errors / limits: 404 not_found",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [],
         "responses": {
           "default": {

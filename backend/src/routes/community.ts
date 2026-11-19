@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { shareMeta } from './appShare.ts';
 import { householdOnBlock } from './household.ts';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -894,7 +895,7 @@ export const communityPublicRoutes = (app: FastifyInstance, db: DB, appName: str
     const avatar = p.avatar_id ? `<img src="/v1/community/avatars/${p.avatar_id}" alt="">` : '';
     const stats = (d.stats ?? []).map((s) => `<span><b>${esc(s.value)}</b> ${esc(s.label)}</span>`).join('');
     return reply.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(p.nickname)} on ${esc(appName)}</title><meta property="og:title" content="${esc(p.nickname)}: ${esc(d.title)}">
+<title>${esc(p.nickname)} on ${esc(appName)}</title>${shareMeta(req, `${p.nickname}: ${d.title}`, d.subtitle ?? `${appName}: gym plans, AI Coach, Apple Watch`)}
 <style>body{margin:0;background:#090a0e;color:#fff;font-family:-apple-system,system-ui,sans-serif;display:flex;justify-content:center;padding:24px}
 .c{max-width:420px;width:100%;border-radius:28px;padding:22px;background:linear-gradient(135deg,#2F6BFF,#8A4DFF)}
 .a{display:flex;align-items:center;gap:10px;font-weight:800}.a img{width:40px;height:40px;border-radius:50%;border:2px solid #fff}

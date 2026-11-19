@@ -21,6 +21,15 @@ Table columns: **Method**, **Path**, **Auth** (`–` public, `Bearer` access tok
 | GET | `/terms` | – | Terms of Use / EULA (HTML) | |
 | GET | `/support` | – | Support page (HTML) | |
 
+## Share previews (#1113)
+
+The App Store's own link card shows only the icon, so the app shares `/app`. Invite and public post pages carry the same preview image. Art is rendered by `backend/scripts/share-art/render.mjs` into `backend/content/share/` (A: link preview; C: Instagram story/post, In-App Event). App ID: `APP_STORE_ID` (default `6819971090`).
+
+| Method | Path | Auth | Summary | Errors / limits |
+|---|---|---|---|---|
+| GET | `/app` | – | Share landing page (HTML): Open Graph/Twitter large image, Smart App Banner, App Store button | |
+| GET | `/og/:file` | – | Share art JPEG: `link.jpg` 1200×630, `story.jpg` 1080×1920, `post.jpg` 1080×1080, `event.jpg` 1920×1080 (cached 1 day) | 404 `not_found` |
+
 ## Chromecast receiver (#1008)
 
 The TV draws the workout itself: the iPhone sends live state over the Cast channel `urn:x-cast:cloud.monkeygrade.workout`, see [`../ios/devices.md`](../ios/devices.md). Register `/cast/receiver` as the Custom Receiver URL in the Google Cast console; its App ID goes in the OTA value `castReceiverAppId`.
