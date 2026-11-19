@@ -91,6 +91,8 @@ struct AccountView: View {
                     if let user = model.user {
                         profileHero(user).padding(.horizontal, 16).padding(.top, 16)
                     }
+                    // Share MonkeyWorkout (#1113): story, post or link.
+                    if !search.active { ShareAppTile().padding(.horizontal, 16) }
                     Section {
                         VStack(alignment: .leading, spacing: 10) {
                             if let user = model.user {

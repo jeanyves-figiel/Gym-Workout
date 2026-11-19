@@ -23,6 +23,7 @@ struct InviteView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 hero
+                ShareAppTile() // Share MonkeyWorkout (#1113)
                 whatYouSend
                 shareButtons
                 stats
