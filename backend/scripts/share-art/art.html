@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+/* Share art (#1113). Rendered by render.mjs: ?k=link|story|post|event. Fonts: system heavy sans. */
+*{box-sizing:border-box;margin:0}html,body{overflow:hidden}
+body{font-family:-apple-system,"SF Pro Display",Inter,"Helvetica Neue",Arial,sans-serif;color:#fff}
+.c{position:relative;overflow:hidden}
+.ph{position:absolute;border:solid #111;box-shadow:0 30px 70px #0007;background:#111}
+.icon{border-radius:22%;box-shadow:0 10px 30px #0004}
+/* A: link preview */
+.a{background:linear-gradient(120deg,#FF2D87 0%,#FF6A3C 55%,#FFB03C 100%)}
+.a .k{position:absolute;left:70px;top:80px;display:flex;gap:22px;align-items:center;font-weight:900;font-size:40px}
+.a .t{position:absolute;left:70px;top:210px;font-weight:900;font-size:76px;line-height:.98;letter-spacing:-2px;width:660px}
+.pill{position:absolute;background:#C8FF3C;color:#111;font-weight:900;border-radius:18px}
+.a .pill{left:70px;bottom:60px;font-size:30px;padding:14px 28px}
+/* C: fan */
+.fan{background:linear-gradient(135deg,#6A3CFF 0%,#2D7BFF 50%,#00D1B2 100%)}
+.fan .h{position:absolute;left:0;right:0;text-align:center;font-weight:900;letter-spacing:-1px}
+.fan .h small{display:block;font-weight:700;opacity:.9;letter-spacing:0}
+</style></head><body><div id="root"></div><script>
+const k=new URLSearchParams(location.search).get('k')||'link';
+const S={week:'shots/01-week.jpg',coach:'shots/03-coach-chat.jpg',fuel:'shots/08-fuel.jpg'};
+const phone=(src,x,y,w,rot,z=1)=>`<img class="ph" src="${src}" style="left:${x}px;top:${y}px;width:${w}px;border-width:${w*.035}px;border-radius:${w*.14}px;transform:rotate(${rot}deg);z-index:${z}">`;
+const icon=(s)=>`<img class="icon" src="icon.png" style="width:${s}px;height:${s}px">`;
+const fan=(W,H,o)=>`<div class="c fan" style="width:${W}px;height:${H}px">
+ <div class="h" style="top:${o.top}px;font-size:${o.fs}px">${o.inline?icon(o.fs*1.1)+' ':''}Train smarter.${o.br?'<br>':' '}Zero typing.<small style="font-size:${o.fs*.48}px;margin-top:${o.fs*.15}px">Gym plans · AI Coach · Apple Watch</small></div>
+ ${phone(S.coach,W/2-o.pw*(.5+o.off),o.py+o.drop,o.pw,-10)}
+ ${phone(S.fuel,W/2+o.pw*(o.off-.5),o.py+o.drop,o.pw,10)}
+ ${phone(S.week,W/2-o.pw/2,o.py,o.pw,0,2)}
+ ${o.foot?`<div style="position:absolute;left:0;right:0;bottom:${o.foot}px;display:flex;flex-direction:column;align-items:center;gap:22px;z-index:3">
+   <div style="display:flex;align-items:center;gap:20px;font-weight:900;font-size:${o.fs*.62}px">${icon(o.fs*1.4)}MonkeyWorkout</div>
+   <div class="pill" style="position:static;font-size:${o.fs*.45}px;padding:${o.fs*.22}px ${o.fs*.5}px">Free on the App Store</div></div>`:''}
+</div>`;
+const V={
+ link:[1200,630,()=>`<div class="c a" style="width:1200px;height:630px"><div class="k">${icon(96)}MonkeyWorkout</div>
+  <div class="t">Your gym week, built around your machines.</div><div class="pill">Free on the App Store</div>
+  ${phone(S.week,790,60,340,6)}</div>`],
+ story:[1080,1920,()=>fan(1080,1920,{top:200,fs:96,br:true,pw:370,py:560,drop:80,off:.72,foot:150})],
+ post:[1080,1080,()=>fan(1080,1080,{top:70,fs:64,pw:310,py:290,drop:70,off:.9,inline:true})],
+ event:[1920,1080,()=>fan(1920,1080,{top:70,fs:72,pw:400,py:270,drop:70,off:1.05,inline:true})],
+};
+const [W,H,f]=V[k];document.body.style.width=W+'px';document.body.style.height=H+'px';root.innerHTML=f();
+</script></body></html>
