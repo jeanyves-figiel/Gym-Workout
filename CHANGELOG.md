@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
-- **App Store listing for 1.2** (#1111, pending approval): description leads with Apple Watch rep counting (auto-logged sets, bar speed, machine mode) and *Film my workout* (camera names moves, counts reps, reads weight, video never saved), then the one-minute Coach setup chat and tracking without typing; new subtitle and promotional text (`ios/AppStore/listing.json`). Screenshot set: Train, Film my workout, Ask Coach, Coach setup chat, Session, 3D guide, Insights, Fuel, Mind, Social; extra review captures after the first 10.
+- **App Store listing for 1.2** (#1111, pending approval): description leads with Apple Watch rep counting (auto-logged sets, bar speed, machine mode) and *Film my workout* (camera names moves, counts reps, reads weight, video never saved), then the one-minute Coach setup chat and tracking without typing; new subtitle and promotional text (`ios/AppStore/listing.json`). Screenshot set: Train, Film my workout, Player (renders again, #1078), Ask Coach, Plan reveal, Session, 3D guide, Insights, Fuel, Mind; extra review captures after the first 10.
 
 ### Added
 - **Screenshots workflow: iPhone Duo opt-in** (#1111): `duo` input, off by default (the Duo captures timed the job out and are not uploaded); timeout 110 min.

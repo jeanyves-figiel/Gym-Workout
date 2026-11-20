@@ -59,8 +59,8 @@ jobs:
         run: |
           APP=build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
           # Order = App Store order; the upload takes the first 10 per size (#1111). Extra captures after them are for review only.
-          # 1.2 set (#1111): Train, Film my workout, Ask Coach, Coach setup chat, Session, 3D guide, Insights, Fuel, Mind, Social.
-          SCREENS="week film-session coach-chat onboarding-chat session exercise progress fuel mind community watch-lift fuel-auto onboarding-reveal explore-machines player"
+          # 1.2 set (#1111): Train, Film my workout, Player, Ask Coach, Plan reveal, Session, 3D guide, Insights, Fuel, Mind.
+          SCREENS="week film-session player coach-chat onboarding-reveal session exercise progress fuel mind community onboarding-chat watch-lift fuel-auto explore-machines"
           mkdir -p out preview
 
           # $1 = folder name, $2 = device type regex (first match wins)
