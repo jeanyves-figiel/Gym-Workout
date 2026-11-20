@@ -6,8 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **What's new 2026-11-20.1** (bundle 106): one card (Share MonkeyWorkout #1113); 2026-11-15.3 moved to history as build 108.
 - **Share MonkeyWorkout** (#1113, placement 3 from `share-preview/ios-proposals.png`): gradient tile on Invite and on the You hub opens a sheet: Story (1080×1920), Post (1080×1080) or Link (`/app`, big preview). Story/Post send the picture with the link in the text, ready for Instagram/TikTok stories (`ShareAppViews.swift`, art bundled as `share-story`/`share-post`).
 - **Rich share previews** (#1113, designs A + C from `share-preview/proposals.png`): new `/app` share page shows a big pink→orange preview (headline, Train screen, *Free on the App Store*) in iMessage, WhatsApp, Slack and Instagram DMs instead of the App Store's icon-only card; Smart App Banner + App Store button (`APP_STORE_ID`). Invite (`/i/:code`) and public post (`/share/:id`) links get the same image. Share art at `/og/*.jpg`: link 1200×630, Instagram story 1080×1920 and post 1080×1080, App Store In-App Event 1920×1080 (violet→teal phone fan); regenerate with `backend/scripts/share-art/render.mjs`.
+
+### Changed
+- **Backend dependencies** (bundle 106): `@anthropic-ai/sdk` 1.3.0 → 1.8.0 (#1116), `nodemailer` 10.4.0 → 10.6.0 (#1117).
 
 ### Fixed
 - **No more random sign-outs with Sign in with Apple** (#1106): the launch check now signs out only when the Apple credential is revoked; iOS sometimes answers *not found* for a valid credential, which signed members out on a relaunch (`AppleCredentialCheck.verify`).
