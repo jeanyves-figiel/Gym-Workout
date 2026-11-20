@@ -888,7 +888,7 @@ struct FilmSessionView: View {
         let c = SIMD2((x0 + x1) / 2, (y0 + y1) / 2)
         return { p in
             var q = p
-            q.points = p.points.mapValues { ($0 - c) * k + SIMD2(0.5, 0.5) }
+            q.points = p.points.mapValues { ($0 - c) * k + SIMD2(9.0 / 32, 0.5) }  // x runs 0…aspect (9:16), y 0…1 (FormFrameMap)
             return q
         }
     }
