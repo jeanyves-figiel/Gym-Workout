@@ -15,6 +15,12 @@ public enum FilmWorkout {
         public let confidence: Int
         /// Reps seen on the member's movement.
         public let reps: Int
+
+        public init(exerciseId: String, confidence: Int, reps: Int) {
+            self.exerciseId = exerciseId
+            self.confidence = confidence
+            self.reps = reps
+        }
     }
 
     /// Every move the camera can name: the catalog exercises with a form check model.

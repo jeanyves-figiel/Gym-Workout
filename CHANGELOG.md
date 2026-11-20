@@ -10,7 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - **Screenshots workflow: iPhone Duo opt-in** (#1111): `duo` input, off by default (the Duo captures timed the job out and are not uploaded); timeout 110 min.
-- **Film my workout demo screen** (#1111): `-demoScreen film-session` plays a made-up member (squats and bench found, a bench set counted live) with no camera or voice, for App Store screenshots (`FilmSessionView(demo:)`).
+- **Film my workout demo screen** (#1111): `-demoScreen film-session` plays a made-up member (bench and squat sets found with weights read, a squat set counted live) with no camera or voice; `FilmWorkout.Guess` gets a public init, for App Store screenshots (`FilmSessionView(demo:)`).
 
 ### Fixed
 - **No more random sign-outs with Sign in with Apple** (#1106): the launch check now signs out only when the Apple credential is revoked; iOS sometimes answers *not found* for a valid credential, which signed members out on a relaunch (`AppleCredentialCheck.verify`).

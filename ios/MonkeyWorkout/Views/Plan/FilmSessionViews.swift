@@ -729,7 +729,7 @@ struct FilmSessionView: View {
     }
 
     private func guessIfDue() {
-        guard session.needsGuess, !guessing else { return }
+        guard !demo, session.needsGuess, !guessing else { return }
         guessing = true
         let frames = session.pending, plan = planned, recent = model.recentExerciseIds(), last = session.moves.last?.exerciseId
         let seen = scene, gym = model.profile.map { Set($0.equipment) }
@@ -834,7 +834,8 @@ struct FilmSessionView: View {
         }
     }
 
-    /// Demo: squats and a bench set found at once, then a bench set counted live, the way the camera would see them.
+    /// Demo: bench sets and squats found at once (named as the camera would, weights read off the kit), then a squat set
+    /// counted live.
     private func playDemo() async {
         aspect = 9.0 / 16
         setup = false
@@ -842,9 +843,10 @@ struct FilmSessionView: View {
         rawIssue = nil
         started = Date().addingTimeInterval(-14 * 60)
         var t = 0.0
-        func play(_ id: String, reps: Int, live: Bool) async {
+        func play(_ id: String, reps: Int, kg: Double, live: Bool) async {
             guard let m = FormModel(exercise: Exercise.get(id)) else { return }
             let still = FormDemo.pose(m, progress: 0)
+            session.read(kg: kg)
             for k in 0..<36 { add(still, at: t + Double(k) / 30) }
             t += 1.2
             var named = false
@@ -856,9 +858,8 @@ struct FilmSessionView: View {
                 }
                 t = t0 + dt
                 add(p, at: t)
-                if !named, session.needsGuess, dt > 2.4 + 0.5 {
-                    if let e = session.accept(FilmWorkout.guess(session.pending, models: FilmWorkout.models,
-                                                                current: session.moves.last?.exerciseId)) { handle(e) }
+                if !named, session.needsGuess {
+                    if let e = session.accept([FilmWorkout.Guess(exerciseId: id, confidence: 90, reps: FilmWorkout.repsToGuess)]) { handle(e) }
                     named = session.inSet
                 }
             }
@@ -866,10 +867,9 @@ struct FilmSessionView: View {
             for k in 1...240 { add(still, at: t + Double(k) / 30) }
             t += 8
         }
-        await play("back-squat", reps: 5, live: false)
-        await play("back-squat", reps: 5, live: false)
-        await play("bench-press", reps: 6, live: false)
-        await play("bench-press", reps: 8, live: true)
+        for _ in 0..<3 { await play("bench-press", reps: 8, kg: 80, live: false) }
+        for _ in 0..<2 { await play("back-squat", reps: 5, kg: 100, live: false) }
+        await play("back-squat", reps: 8, kg: 100, live: true)
     }
 
     private func add(_ p: FormPose, at t: Double) {
