@@ -153,6 +153,7 @@ struct FilmSessionView: View {
     @State private var clips: [UUID: URL] = [:]
     @State private var playing: AVPlayer?
     @State private var open: UUID?
+    @State private var demoFit: (FormPose) -> FormPose = { $0 }
 
     private var planned: Set<String> {
         Set((model.todaySession?.blocks ?? []).flatMap(\.items).map(\.exerciseId))
@@ -846,6 +847,7 @@ struct FilmSessionView: View {
         func play(_ id: String, reps: Int, kg: Double, live: Bool) async {
             guard let m = FormModel(exercise: Exercise.get(id)) else { return }
             let still = FormDemo.pose(m, progress: 0)
+            demoFit = Self.fit(still)
             session.read(kg: kg)
             for k in 0..<36 { add(still, at: t + Double(k) / 30) }
             t += 1.2
@@ -873,8 +875,22 @@ struct FilmSessionView: View {
     }
 
     private func add(_ p: FormPose, at t: Double) {
-        pose = p
+        pose = demoFit(p)
         if let e = session.add(p, at: t) { handle(e) }
+    }
+
+    /// Demo skeleton drawn standing mid-screen, about half its height, whatever the model's own framing.
+    private static func fit(_ still: FormPose) -> (FormPose) -> FormPose {
+        let pts = Array(still.points.values)
+        guard let x0 = pts.map(\.x).min(), let x1 = pts.map(\.x).max(),
+              let y0 = pts.map(\.y).min(), let y1 = pts.map(\.y).max(), y1 - y0 > 0.01 else { return { $0 } }
+        let k = 0.5 / (y1 - y0)
+        let c = SIMD2((x0 + x1) / 2, (y0 + y1) / 2)
+        return { p in
+            var q = p
+            q.points = p.points.mapValues { ($0 - c) * k + SIMD2(0.5, 0.5) }
+            return q
+        }
     }
 
     private func dropClips() {
