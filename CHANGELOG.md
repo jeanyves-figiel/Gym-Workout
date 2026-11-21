@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Release an approved App Store version by API** (#1090): workflow *App Store listing* → review `release` (with apply) releases a version in *Pending Developer Release*; `asc_review.py` posts an `appStoreVersionReleaseRequest`.
 - **App version 1.2** (bundle 106): `MARKETING_VERSION` 1.1 → 1.2 in `ios/project.yml`; 1.1 is live on the App Store, so its TestFlight train is closed (upload of build 110 was refused).
 - **What's new 2026-11-20.1** (bundle 106): one card (Share MonkeyWorkout #1113); 2026-11-15.3 moved to history as build 108.
 - **Share MonkeyWorkout** (#1113, placement 3 from `share-preview/ios-proposals.png`): gradient tile on Invite and on the You hub opens a sheet: Story (1080×1920), Post (1080×1080) or Link (`/app`, big preview). Story/Post send the picture with the link in the text, ready for Instagram/TikTok stories (`ShareAppViews.swift`, art bundled as `share-story`/`share-post`).

@@ -16,9 +16,9 @@ on:
         type: boolean
         default: false
       review:
-        description: 'App Review only, no listing sync: status, or cancel (withdraw the open submission; needs apply)'
+        description: 'App Review only, no listing sync: status, cancel (withdraw the open submission) or release (approved version); cancel/release need apply'
         type: choice
-        options: [none, status, cancel]
+        options: [none, status, cancel, release]
         default: none
 
 permissions:
