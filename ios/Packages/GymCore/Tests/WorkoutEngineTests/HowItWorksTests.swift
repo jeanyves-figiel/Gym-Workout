@@ -54,6 +54,8 @@ import Testing
         #expect(text("pain").contains("after \(PainProtect.checkInDays) days"))
         #expect(text("life").contains(LifeStage.talkTest))
         #expect(text("coach").contains("\(CoachNudges.driftMissed) planned sessions missed"))
+        // The Mind score is a guide, never passed off as a validated scale (#979).
+        #expect(text("mind").contains("a guide to your day, not a validated scale"))
     }
 
     @Test func rankBandsMatchTheLadder() {

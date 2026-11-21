@@ -536,7 +536,7 @@ struct MindView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Text("Mood check-ins and sessions stay on this iPhone. With Health connected they are also saved there as State of Mind and mindful minutes. Not medical advice: if you feel low for weeks, talk to someone you trust or a doctor.")
+                Text("The Mind score is a guide made from these parts, not a validated test. Mood check-ins and sessions stay on this iPhone. With Health connected they are also saved there as State of Mind and mindful minutes. Not medical advice: if you feel low for weeks, talk to someone you trust or a doctor.")
                     .font(.caption).foregroundStyle(Theme.muted)
             }
             .padding(16)

@@ -240,6 +240,8 @@ public struct MindSession: Codable, Sendable, Hashable {
 
 /// Daily Mind score 0–100 (design C): mood, HRV against the 30-day baseline, sleep and recent training load,
 /// plus a small bonus for calm minutes today. A part with no reading drops out and the rest are reweighted.
+/// Each part is backed by a study; the weights and bands are app design, so the score is shown as a guide, never as a
+/// validated scale (#979).
 public enum MindScore {
     public static let moodWeight = 35.0
     public static let hrvWeight = 25.0

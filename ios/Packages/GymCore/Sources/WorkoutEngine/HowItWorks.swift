@@ -487,11 +487,11 @@ public enum HowItWorks {
     private static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded())) %" }
     static let mind = Topic(
         id: "mind", title: "Mind score & calm", symbol: "brain.head.profile",
-        summary: "Mood, HRV, sleep and training → 0–100",
+        summary: "Mood, HRV, sleep and training → a 0–100 guide",
         colors: [0x7A2CFF, 0x2E8BFF],
         shows: "Train check-in card, Insights Body + Mind and Mind widgets, Explore → Calm, Mind page",
         parts: [
-            Part("Mind score", "Your check-in mood, your 7-day HRV average against your 30-day one (a single reading is too noisy), last night's sleep (adults need 7 h or more) and recent training (exercise lifts mood, so a day or two scores best), each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score. The weights are app design, not a validated scale.",
+            Part("Mind score", "Your check-in mood, your 7-day HRV average against your 30-day one (a single reading is too noisy), last night's sleep (adults need 7 h or more) and recent training (exercise lifts mood, so a day or two scores best), each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score. It is a guide to your day, not a validated scale or a mental health test: each part is backed by studies, the weights and bands that combine them are app design.",
                  rule: ["mood \(fmt(MindScore.moodWeight)) · HRV \(fmt(MindScore.hrvWeight)) · sleep \(fmt(MindScore.sleepWeight)) · training \(fmt(MindScore.loadWeight))",
                         "mood: 1 → 0, 5 → 1",
                         "HRV ÷ baseline: \(fmt(MindScore.hrvLow)) → 0, \(fmt(MindScore.hrvHigh)) → 1",
@@ -521,7 +521,7 @@ public enum HowItWorks {
                   "Weil A. Breathing: The Master Key to Self Healing. Sounds True, 1999 (4-7-8: four breaths twice a day, up to eight).",
                   "Vierra J, Boonla O, Prasertsri P. Effects of sleep deprivation and 4-7-8 breathing control on heart rate variability, blood pressure, blood glucose, and endothelial function in healthy young adults. Physiol Rep 2022;10(13):e15389.",
                   "Plews DJ, Laursen PB, Kilding AE, Buchheit M. Evaluating training adaptation with heart-rate measures: a methodological comparison. Int J Sports Physiol Perform 2013;8(6):688-694 (7-day HRV average over single readings).",
-                  "App design: the score weights and bands; not a validated scale."])
+                  "App design: the score weights and bands, so the score is a guide, not a validated scale; Coach pick's 85 % HRV cut-off."])
 
     static let coach = Topic(
         id: "coach", title: "Coach nudges", symbol: "bell.badge.fill",
