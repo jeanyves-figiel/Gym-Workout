@@ -66,11 +66,16 @@ public struct BlockReview: Codable, Hashable, Sendable {
 /// The member's growth over blocks: level, block reviews, long-term goal (#495).
 public enum Growth {
     public static let blockWeeks = Generator.mesocycleWeeks
-    /// Adherence and strength gain a block needs to level up.
+    /// Adherence and strength gain a block needs to level up. App design (#983): the gain is set at the low end of
+    /// reported strength gains, about 40 % untrained down to 2 % elite over 4 weeks to 2 years (ACSM 2009), so a
+    /// block of steady training can reach it at any training age.
     static let levelUpAdherence = 0.75
     static let levelUpGain = 0.02
     /// Lagging: under 70 % of the counterpart's sets.
     static let laggingRatio = 0.7
+    /// Plateau: this many weekly bests in a row within `plateauWithin` of the best before them (app design, #983).
+    static let plateauWeeks = 3
+    static let plateauWithin = 0.01
 
     /// Experience a growth level stands for: level 3 → intermediate, 6 → advanced.
     public static func experience(forLevel level: Int) -> Experience {
@@ -139,16 +144,17 @@ public enum Growth {
             lagging: lag?.0, laggingVs: lag?.1, easyEffort: easy)
     }
 
-    /// Weekly bests that stayed within 1 % of the best before them: 3 or more, all since `since`, else nil.
+    /// Weekly bests that stayed within `plateauWithin` of the best before them: `plateauWeeks` or more, all since
+    /// `since`, else nil.
     static func flatWeeks(_ trend: [(Date, Double)], since: Date) -> Int? {
         guard trend.count >= 4 else { return nil }
         var flat = 0
         for i in stride(from: trend.count - 1, through: 1, by: -1) {
             let earlierBest = trend[..<i].map { $0.1 }.max() ?? 0
-            guard trend[i].1 <= earlierBest * 1.01, trend[i].0 >= since else { break }
+            guard trend[i].1 <= earlierBest * (1 + plateauWithin), trend[i].0 >= since else { break }
             flat += 1
         }
-        return flat >= 3 ? flat : nil
+        return flat >= plateauWeeks ? flat : nil
     }
 
     /// Hard sets per muscle group (primary muscles) of strength and power work.

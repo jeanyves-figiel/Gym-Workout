@@ -54,6 +54,15 @@ private func workout(_ at: Date, _ lifts: [(String, Int, Double)], deload: Bool 
         #expect(!r.plateaus.contains { $0.exerciseId == "back-squat" })
     }
 
+    /// Plateau margin and weeks are named constants the page quotes (#983): within 1 % counts as flat, a bigger rise resets it.
+    @Test func plateauNeedsThreeFlatWeeksWithinTheMargin() {
+        let flat: [(Date, Double)] = [(day(0), 100), (day(7), 100.5), (day(14), 101), (day(21), 100.8)]
+        #expect(Growth.flatWeeks(flat, since: day(0)) == Growth.plateauWeeks)
+        let rising: [(Date, Double)] = [(day(0), 100), (day(7), 100.5), (day(14), 102), (day(21), 101.5)]
+        #expect(Growth.flatWeeks(rising, since: day(0)) == nil)
+        #expect(Growth.flatWeeks(Array(flat.prefix(3)), since: day(0)) == nil)
+    }
+
     @Test func skippedBlockDoesNotLevelUp() throws {
         let few = history(benchStart: 60, benchStep: 2.5).enumerated().filter { $0.offset < 12 || $0.offset % 3 == 0 }.map(\.element)
         let r = try #require(Growth.review(records: few, blockStart: monday, profile: profile, level: 2, number: 1, calendar: utc))

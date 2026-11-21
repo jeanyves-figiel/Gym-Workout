@@ -35,6 +35,7 @@ import Testing
         #expect(HowItWorks.topic("methods")!.parts.count == TrainingMethod.allCases.count + 1)
         #expect(text("form").contains("trunk lean: \(HowItWorks.fmt(FormModel.Limit.torsoLean))° more"))
         #expect(text("form").contains("−\(FormFault.kneesIn.penalty)"))
+        #expect(text("growth").contains("\(Growth.plateauWeeks) or more weekly bests in a row stay within 1 %"))
         // A guide, not an assessment (#981).
         #expect(text("form").contains("not a movement assessment"))
     }

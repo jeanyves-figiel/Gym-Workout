@@ -239,7 +239,7 @@ public enum HowItWorks {
             Part("Level up", "Each finished block is compared with the 4 weeks before it.",
                  rule: ["≥ \(Int(Growth.levelUpAdherence * 100)) % of planned sessions done and main lifts ≥ +\(Int(Growth.levelUpGain * 100)) % estimated 1RM → growth level +1 (needs 2+ workouts in the block)",
                         "growth level 3 → intermediate · 6 → advanced"]),
-            Part("Plateau", "A lift is flat when 3 or more weekly bests in a row stay within 1 % of its best before; the next block swaps in a variation.", rule: []),
+            Part("Plateau", "A lift is flat when \(Growth.plateauWeeks) or more weekly bests in a row stay within \(pct(Growth.plateauWithin)) of its best before; the next block swaps in a variation.", rule: []),
             Part("Lagging muscle", "A muscle group well behind its counterpart (e.g. back vs chest) is offered as a focus for the next block.",
                  rule: ["lagging = < \(Int(Growth.laggingRatio * 100)) % of its counterpart's hard sets (counterpart ≥ 12)"]),
             Part("Effort trending easy", "Flagged in the review when your logged sets end with 3+ reps in reserve on average (6+ sets logged).", rule: []),
@@ -247,7 +247,8 @@ public enum HowItWorks {
         sources: ["Kraemer WJ, Ratamess NA. Fundamentals of resistance training: progression and exercise prescription. Med Sci Sports Exerc 2004;36(4):674-688.",
                   "Kassiano W et al. Does varying resistance exercises promote superior muscle hypertrophy and strength gains? A systematic review. J Strength Cond Res 2022;36(6):1753-1762 (swapping variations helps when gains stall).",
                   "Helms ER et al. Application of the repetitions in reserve-based RPE scale for resistance training. Strength Cond J 2016;38(4):42-49.",
-                  "App design: the level-up, plateau and lagging thresholds."])
+                  "American College of Sports Medicine. Progression models in resistance training for healthy adults. Med Sci Sports Exerc 2009;41(3):687-708 (strength gains of about 40 % untrained down to 2 % elite over 4 weeks to 2 years: why +\(pct(Growth.levelUpGain)) a block is set low).",
+                  "App design: the level-up adherence and gain, the plateau weeks and margin and the lagging ratio; to review once enough blocks are logged."])
 
     // MARK: Heart and cardio
 
