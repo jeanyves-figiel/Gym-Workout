@@ -457,7 +457,7 @@ public enum HowItWorks {
 
     static let form = Topic(
         id: "form", title: "Form check", symbol: "video.fill",
-        summary: "Camera reps, faults and a score out of 100",
+        summary: "Camera reps, faults and a guide score out of 100",
         colors: [0xFF4D6D, 0xFF9A3C],
         shows: "Exercise page Check my form, Coach Watch my form, player camera chip, form report",
         parts: [
@@ -472,7 +472,7 @@ public enum HowItWorks {
                         "hips sag: \(pct(FormModel.Limit.hipSag)) of body length under the shoulder–ankle line",
                         "one side ahead: left and right \(fmt(FormModel.Limit.uneven))° apart",
                         "too fast: rep under \(fmt(FormModel.Limit.minRepSeconds)) s (not jumps or throws)"]),
-            Part("Score", "Each rep starts at 100 and loses points once per fault; the set score is the average.",
+            Part("Score", "Each rep starts at 100 and loses points once per fault; the set score is the average. It is a guide to practise with, not a movement assessment: one camera reads joint angles less exactly than a lab's motion capture, and the limits are the app's own.",
                  rule: [FormFault.allCases.map { "\($0.title.lowercased()) −\($0.penalty)" }.joined(separator: " · "),
                         "faded from: every rep from there scores \(FormReport.fadeScore) or less"]),
             Part("Match", "How close your joints are to the guide at the bottom of the rep.",
@@ -482,7 +482,8 @@ public enum HowItWorks {
         sources: ["Apple Vision framework, VNDetectHumanBodyPoseRequest (2D body pose).",
                   "Myer GD et al. The back squat: a proposed assessment of functional deficits and technical factors that limit performance. Strength Cond J 2014;36(6):4-27.",
                   "Hewett TE et al. Biomechanical measures of neuromuscular control and valgus loading of the knee predict anterior cruciate ligament injury risk in female athletes: a prospective study. Am J Sports Med 2005;33(4):492-501 (why knees caving is flagged).",
-                  "App design: the thresholds and points, tuned on the 3D position guide's poses."])
+                  "McLean SG, Walker K, Ford KR, Myer GD, Hewett TE, van den Bogert AJ. Evaluation of a two dimensional analysis method as a screening and evaluation tool for anterior cruciate ligament injury. Br J Sports Med 2005;39(6):355-362 (single-camera knee valgus tracks 3D motion capture only in part: why the score is a guide).",
+                  "App design: the thresholds and points, tuned on the 3D position guide's poses; not validated against motion capture."])
 
     private static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded())) %" }
     static let mind = Topic(

@@ -35,6 +35,8 @@ import Testing
         #expect(HowItWorks.topic("methods")!.parts.count == TrainingMethod.allCases.count + 1)
         #expect(text("form").contains("trunk lean: \(HowItWorks.fmt(FormModel.Limit.torsoLean))° more"))
         #expect(text("form").contains("−\(FormFault.kneesIn.penalty)"))
+        // A guide, not an assessment (#981).
+        #expect(text("form").contains("not a movement assessment"))
     }
 
     /// Every topic names at least one study (#976); the app's own choices are marked as such, never passed off as science.
