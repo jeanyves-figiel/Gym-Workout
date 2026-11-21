@@ -59,10 +59,17 @@ public struct PainProtect: Codable, Hashable, Sendable {
         (calendar.dateComponents([.day], from: calendar.startOfDay(for: since), to: calendar.startOfDay(for: now)).day ?? 0) + 1
     }
 
+    /// Days before the "Still hurts?" card. App design (#984): a reminder, not a clinical cut-off.
+    public static let checkInDays = 14
+
     /// Two weeks in and still on: time to get it looked at.
-    public func longRunning(now: Date = Date(), calendar: Calendar = .current) -> Bool { day(now: now, calendar: calendar) > 14 }
+    public func longRunning(now: Date = Date(), calendar: Calendar = .current) -> Bool { day(now: now, calendar: calendar) > Self.checkInDays }
 
     public static let notAdvice = "Not medical advice. Sharp pain, swelling or numbness: see a doctor."
+
+    /// How much pain is fine while training around it (#984): the pain-monitoring model (Thomeé 1997, Silbernagel
+    /// 2007), the studied rule, where the levels and which moves load a joint are the app's own map.
+    public static let painMonitoring = "Pain up to 5 of 10 during or after training is OK if it settles by the next morning and isn't worse week to week. More than that: pick a higher level."
 
     // MARK: What loads the spot
 

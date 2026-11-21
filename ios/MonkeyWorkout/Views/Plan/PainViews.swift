@@ -53,6 +53,8 @@ struct PainSheet: View {
                         levelChips
                         Text("Coach changes · until better").eyebrow()
                         changes
+                        // The studied rule for how much pain is fine (#984).
+                        Text(PainProtect.painMonitoring).font(.caption).foregroundStyle(Theme.muted)
                     } else {
                         Text("Tap the sore spot. Coach swaps the moves that load it across your whole plan, until it feels better.")
                             .font(.subheadline).foregroundStyle(Theme.muted)

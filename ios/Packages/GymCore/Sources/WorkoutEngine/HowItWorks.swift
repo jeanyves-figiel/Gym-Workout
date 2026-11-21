@@ -399,17 +399,20 @@ public enum HowItWorks {
         colors: [0xE11D48, 0xF59E0B],
         shows: "Body figure, Ask Coach, 🛡 swapped moves",
         parts: [
-            Part("Three levels", "Tell the app where it hurts and how bad. Each level swaps more; training the rest of the body goes on, pain-free range only.",
+            Part("How much pain is OK", PainProtect.painMonitoring,
+                 rule: ["during training: up to 5 of 10", "next morning: back to how it was", "week to week: not worse"]),
+            Part("Three levels", "Tell the app where it hurts and how bad. Each level swaps more; training the rest of the body goes on, pain-free range only. Which moves count for each level is the app's own map, not a clinical test.",
                  rule: ["mild: the harshest moves for that joint (legs: jumps and running · shoulder: overhead · back: swings and barbell hinges)",
                         "sore when loaded: also the moves that load it most (knee: lunges, leg extensions, free squats)",
                         "sharp: every move that loads the joint"]),
             Part("Swap", "Each risky move swaps to the closest one that spares the joint (same role, most muscles in common, your kit), or goes when nothing fits.", rule: []),
             Part("When to see someone", PainProtect.notAdvice,
-                 rule: ["still on after 14 days → Still hurts after 2 weeks? card with Get advice"]),
+                 rule: ["still on after \(PainProtect.checkInDays) days → Still hurts after 2 weeks? card with Get advice (a reminder, not a medical cut-off)"]),
         ],
         sources: ["Smith BE et al. Should exercises be painful in the management of chronic musculoskeletal pain? A systematic review and meta-analysis. Br J Sports Med 2017;51(23):1679-1687 (some pain during exercise is acceptable, hence mild only swaps the harshest moves).",
-                  "Silbernagel KG, Thomeé R, Eriksson BI, Karlsson J. Continued sports activity, using a pain-monitoring model, during rehabilitation in patients with Achilles tendinopathy: a randomized controlled study. Am J Sports Med 2007;35(6):897-906 (keep training while pain stays low).",
-                  "App design: which moves load which joint, and the 14-day check-in."])
+                  "Silbernagel KG, Thomeé R, Eriksson BI, Karlsson J. Continued sports activity, using a pain-monitoring model, during rehabilitation in patients with Achilles tendinopathy: a randomized controlled study. Am J Sports Med 2007;35(6):897-906 (keep training while pain stays at 5 of 10 or less and settles by the next morning: the How much pain is OK rule).",
+                  "Thomeé R. A comprehensive treatment approach for patellofemoral pain syndrome in young women. Phys Ther 1997;77(12):1690-1703 (where the pain-monitoring model comes from).",
+                  "App design: the three levels and which moves load which joint at each one (not yet reviewed by a physio), and the 14-day check-in."])
 
     static let lifeStage = Topic(
         id: "life", title: "Life stages", symbol: "figure.and.child.holdinghands",

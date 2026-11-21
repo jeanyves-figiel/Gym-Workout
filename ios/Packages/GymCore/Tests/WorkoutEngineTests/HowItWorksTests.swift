@@ -49,6 +49,8 @@ import Testing
         #expect(HowItWorks.topic("load")!.sources.contains { $0.hasPrefix(HowItWorks.appDesign) && $0.contains("implement factors") })
         #expect(text("warmup").contains("\(PRPlanner.maxAttempts) attempts at most"))
         #expect(text("pain").contains(PainProtect.notAdvice))
+        #expect(text("pain").contains(PainProtect.painMonitoring))
+        #expect(text("pain").contains("after \(PainProtect.checkInDays) days"))
         #expect(text("life").contains(LifeStage.talkTest))
         #expect(text("coach").contains("\(CoachNudges.driftMissed) planned sessions missed"))
     }
