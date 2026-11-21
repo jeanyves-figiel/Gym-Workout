@@ -150,7 +150,7 @@ public enum HowItWorks {
         colors: [0xF97316, 0xEF4444],
         shows: "Player weight suggestions, exercise history, PRs",
         parts: [
-            Part("Starting load", "Never logged? From a related lift you did log (bench → incline), else from your body. Deliberately light: the first session calibrates, it doesn't test.",
+            Part("Starting load", "Never logged? From a related lift you did log (bench → incline), else from your body. The ratios are the app's own rough guess, not a measured norm, and deliberately light: the first session calibrates, it doesn't test.",
                  rule: ["1RM ≈ body kg × pattern ratio × sex × level × age × implement",
                         "sex (upper / lower): men 1 · women 0.6 / 0.75",
                         "level: beginner 0.65 · intermediate 1 · advanced 1.3",
@@ -172,7 +172,7 @@ public enum HowItWorks {
                   "Miller AE, MacDougall JD, Tarnopolsky MA, Sale DG. Gender differences in strength and muscle fiber characteristics. Eur J Appl Physiol Occup Physiol 1993;66(3):254-262 (women about 52 % of men's upper and 66 % of lower-body strength).",
                   "Keller K, Engelhardt M. Strength and muscle mass loss with aging process. Age and strength loss. Muscles Ligaments Tendons J 2013;3(4):346-350.",
                   "Mujika I, Padilla S. Detraining: loss of training-induced physiological and performance adaptations. Part I. Sports Med 2000;30(2):79-87 (strength dips after weeks off, hence −10 %).",
-                  "App design: the pattern and level ratios, set light on purpose; the first session calibrates.",
+                  "App design: the pattern ratios, the level factors (0.65 / 1 / 1.3), the implement factors and the −15 % margin, set light on purpose; no study gives these per movement, and your first logged session replaces them.",
                   "Helms ER et al. RPE vs. percentage 1RM loading in periodized programs matched for sets and repetitions. Front Physiol 2018;9:247.",
                   "Graham T, Cleather DJ. Autoregulation by \"repetitions in reserve\" leads to greater improvements in strength over a 12-week training program than fixed loading. J Strength Cond Res 2021;35(9):2451-2456."])
 

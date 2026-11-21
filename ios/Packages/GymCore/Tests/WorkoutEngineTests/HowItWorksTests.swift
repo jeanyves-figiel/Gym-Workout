@@ -45,6 +45,8 @@ import Testing
             }
         }
         for id in ["warmup", "pain", "life", "coach"] { #expect(HowItWorks.topic(id) != nil, "\(id) missing") }
+        // Starting-load ratios have no study behind them (#980): marked as the app's own.
+        #expect(HowItWorks.topic("load")!.sources.contains { $0.hasPrefix(HowItWorks.appDesign) && $0.contains("implement factors") })
         #expect(text("warmup").contains("\(PRPlanner.maxAttempts) attempts at most"))
         #expect(text("pain").contains(PainProtect.notAdvice))
         #expect(text("life").contains(LifeStage.talkTest))
