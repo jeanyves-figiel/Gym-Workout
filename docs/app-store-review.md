@@ -19,7 +19,7 @@ Store text lives in `ios/AppStore/listing.json` (name, subtitle, categories, des
 
 App Store build: run **TestFlight (Staging)** with `backend = production` (#1075). It archives the `MonkeyWorkout` scheme in Release (API `workout.monkeygrade.cloud`); select that build on the App Store version. Default `staging` builds stay for testers.
 
-Screenshots: run **App Store listing** with `screenshots` checked (uploads the `app-store-screenshots` branch `full/` sets, blank captures skipped). Still by hand (no API): App Privacy labels (table below).
+Screenshots: run **App Store listing** with `screenshots` checked (uploads the `app-store-screenshots` branch `full/` sets, blank captures skipped). The set comes from **App Store screenshots** (`SCREENS` in `app-store-screenshots.yml`, demo mode, e.g. `film-session`); only the first 10 per size are uploaded, later ones are review captures. Description and screenshots only change on a new editable version (live version: promotional text only). Still by hand (no API): App Privacy labels (table below).
 
 ## First submission runbook (#1090)
 

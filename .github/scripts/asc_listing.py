@@ -102,7 +102,11 @@ def diff(current: dict, wanted: dict) -> dict:
 def app_info():
     infos, _ = get_all(f"/v1/apps/{APP}/appInfos")
     info = next((i for i in infos if i["attributes"].get("appStoreState") in EDITABLE
-                 or i["attributes"].get("state") in {"PREPARE_FOR_SUBMISSION", "WAITING_FOR_REVIEW"}), infos[0])
+                 or i["attributes"].get("state") in {"PREPARE_FOR_SUBMISSION", "WAITING_FOR_REVIEW"}), None)
+    if not info:
+        # Only the live app info (#1111): name, subtitle, categories and age rating are locked until a new version.
+        summary.append("! App info locked (no new version): name, subtitle, categories, age rating skipped.")
+        return
     iid = info["id"]
     cats = {k: {"data": {"type": "appCategories", "id": L[f"{k}"]}} for k in ("primaryCategory", "secondaryCategory")}
     current = {}
@@ -138,6 +142,14 @@ def version():
                                                              "REJECTED", "METADATA_REJECTED"}), None)
     if not v:
         summary.append("! No editable iOS version: App Store Connect → + Version first; version text skipped.")
+        # Promotional text can change on the live version (#1111).
+        live = next((x for x in vs if x["attributes"].get("appStoreState") == "READY_FOR_SALE"), None)
+        if live:
+            locs, _ = get_all(f"/v1/appStoreVersions/{live['id']}/appStoreVersionLocalizations")
+            for loc in (x for x in locs if x["attributes"]["locale"] in LOCS):
+                patch("appStoreVersionLocalizations", loc["id"],
+                      diff(loc["attributes"], {"promotionalText": L["promotionalText"]}),
+                      f"Live {live['attributes']['versionString']} {loc['attributes']['locale']} promo text")
         return
     vid, vname = v["id"], v["attributes"]["versionString"]
     wanted = {"description": "\n".join(L["description"]), "keywords": L["keywords"],
