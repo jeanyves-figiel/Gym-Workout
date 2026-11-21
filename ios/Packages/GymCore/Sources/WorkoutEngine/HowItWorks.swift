@@ -347,15 +347,16 @@ public enum HowItWorks {
         colors: [0x0EA5E9, 0x2563EB],
         shows: "Fuel tank water, water reminders",
         parts: [
-            Part("Daily target", "From your weight, the day's training and your steps, in glasses of your size.",
+            Part("Daily target", "From your weight, the day's training and your steps, in glasses of your size. A rule of thumb: the training top-up replaces sweat, and weighing yourself before and after a session shows your own loss.",
                  rule: ["ml = 35 × kg + 500 per training hour (750 for sweaty endurance) + 250 per 5,000 steps",
                         "glasses = ml ÷ glass size, at least 4",
-                        "creatine day: +1 glass"]),
+                        "creatine adds no water: it doesn't dehydrate"]),
             Part("Pace", "Reminders spread the target from waking to sleep, never during training, and recompute after every glass.", rule: []),
         ],
-        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390.",
+        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390 (drink to replace sweat lost in training; weigh before and after to know yours).",
                   "EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on dietary reference values for water. EFSA J 2010;8(3):1459 (2.0 L women, 2.5 L men a day, food included).",
-                  "App design: 35 ml/kg, the training, step and creatine top-ups are a rule of thumb around those references."])
+                  "Kreider RB et al. International Society of Sports Nutrition position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine. J Int Soc Sports Nutr 2017;14:18 (no dehydration or cramping from creatine, so no extra water).",
+                  "App design: 35 ml/kg, the 500 / 750 ml per training hour and the step top-up are a rule of thumb around those references."])
 
     static let caffeine = Topic(
         id: "caffeine", title: "Caffeine & supplements", symbol: "cup.and.saucer.fill",

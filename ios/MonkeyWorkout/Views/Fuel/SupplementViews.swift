@@ -286,7 +286,7 @@ struct SupplementsView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Text("Amounts come from your label: scan it when you add one. Fuel places each supplement around your training, counts protein from shakes, adds a glass on creatine days and checks caffeine against your bedtime. Pointers only, not medical advice.")
+                Text("Amounts come from your label: scan it when you add one. Fuel places each supplement around your training, counts protein from shakes and checks caffeine against your bedtime. Pointers only, not medical advice.")
                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
             }
             .padding(16)

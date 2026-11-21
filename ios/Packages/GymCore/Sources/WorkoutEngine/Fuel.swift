@@ -575,7 +575,8 @@ public enum Fuel {
         let fatG = (fat / 5).rounded() * 5
         let kcal = Int((4 * protein + 4 * carbs + 9 * fatG).rounded())
 
-        // Water: 35 ml/kg, +500 ml per training hour (750 for sweaty endurance), +250 per 5,000 steps.
+        // Water: 35 ml/kg (app rule of thumb near EFSA's daily totals), +500 ml per training hour (750 for sweaty
+        // endurance) to replace sweat (Sawka 2007), +250 per 5,000 steps (#982).
         var water = 35 * kg
         for a in acts { water += Double(a.minutes) / 60 * (a.endurance ? 750 : 500) }
         water += Double(input.steps / 5000) * 250

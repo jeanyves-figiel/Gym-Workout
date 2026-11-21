@@ -379,11 +379,14 @@ import Testing
         #expect(Supplements.schedule([boost], plan: plan(trainingAt: 15), prefs: prefs, calendar: cal).first?.late == true)
     }
 
-    @Test func creatineAddsAGlass() {
+    @Test func creatineAddsNoWater() {
+        // Creatine doesn't dehydrate (#982, Kreider 2017): the water target stays.
         let base = plan(trainingAt: 18)
         var p = base
         Supplements.apply([boost], to: &p, prefs: FuelPrefs(), calendar: cal)
-        #expect(p.glasses == base.glasses + 1)
+        #expect(p.glasses == base.glasses)
+        #expect(p.waterMl == base.waterMl)
+        #expect(!p.tips.contains { $0.contains("Creatine day") })
     }
 
     @Test func rhythmTwiceADayGivesTwoTicks() {

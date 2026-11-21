@@ -1,7 +1,8 @@
 import Foundation
 
 // Supplements in Fuel (#514): the member's stack placed on the day's timeline, a caffeine meter that knows their
-// bedtime, and what the supplements add to the day's numbers (protein counts, creatine days get an extra glass).
+// bedtime, and what the supplements add to the day's numbers (protein counts). Creatine adds no water: the ISSN
+// (Kreider 2017) finds no dehydration or cramping from it (#982).
 // A meal replacement (Huel…) stands in for the meal at its time: ticking it fills that meal with its macros.
 // Pointers only: amounts come from the member's label, never a dose recommendation.
 
@@ -513,14 +514,11 @@ public enum Supplements {
         .sorted { $0.minute < $1.minute }
     }
 
-    /// Adds the day's stack to the plan: doses on the plan, one more glass on creatine days, caffeine pointers first.
+    /// Adds the day's stack to the plan: doses on the plan, caffeine pointers first. No extra glass on creatine
+    /// days (#982): the ISSN finds creatine doesn't dehydrate, so the water target stays as it is.
     public static func apply(_ stack: [Supplement], to plan: inout FuelPlan, prefs: FuelPrefs, calendar cal: Calendar = Progression.calendar()) {
         let doses = schedule(stack, plan: plan, prefs: prefs, calendar: cal)
         plan.supplements = doses
-        if doses.contains(where: { $0.supplement.creatineG > 0 }) {
-            plan.glasses += 1
-            plan.waterMl += max(100, prefs.glassMl)
-        }
         plan.tips = pointers(doses, prefs: prefs) + plan.tips
     }
 
@@ -537,7 +535,7 @@ public enum Supplements {
         doses.filter { log.ticks[$0.id] != nil }.reduce(0) { $0 + $1.supplement.proteinG }
     }
 
-    /// Sleep and caffeine warnings, then creatine water.
+    /// Sleep and caffeine warnings.
     public static func pointers(_ doses: [SupplementDose], prefs: FuelPrefs) -> [String] {
         var out: [String] = []
         let sleep = clock(prefs.sleep)
@@ -548,9 +546,6 @@ public enum Supplements {
         let total = caffeine(doses)
         if total > caffeineGuideMg {
             out.append("\(total) mg caffeine planned today, over the \(caffeineGuideMg) mg guide. Skip a coffee.")
-        }
-        if doses.contains(where: { $0.supplement.creatineG > 0 }) {
-            out.append("Creatine day: one extra glass of water is in your target.")
         }
         return out
     }
