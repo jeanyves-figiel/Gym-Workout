@@ -66,8 +66,11 @@ struct MePill: View {
     var body: some View {
         Button { model.meOpen = true } label: {
             HStack(spacing: 6) {
-                Text("LV \(model.game.level)").font(Theme.label(14)).tracking(0.5).foregroundStyle(.white)
-                    .lineLimit(1).fixedSize()
+                // Game & XP off (#1058): the photo alone, no level.
+                if model.shows(.game) {
+                    Text("LV \(model.game.level)").font(Theme.label(14)).tracking(0.5).foregroundStyle(.white)
+                        .lineLimit(1).fixedSize()
+                }
                 MePhoto(size: 36)
             }
             .padding(.leading, 11).padding(.trailing, 4).padding(.vertical, 4)
@@ -75,7 +78,7 @@ struct MePill: View {
             .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("You, level \(model.game.level)")
+        .accessibilityLabel(model.shows(.game) ? "You, level \(model.game.level)" : "You")
         .accessibilityHint("Your profile, level and Settings")
         .accessibilityIdentifier("me.pill")
     }
@@ -148,16 +151,19 @@ struct MeSheet: View {
             .buttonStyle(.plain)
             .accessibilityHint("Your profile: name, photo, posts, followers")
             .accessibilityIdentifier("me.profile")
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Level \(g.level) · \(model.rank.title) ›").font(Theme.label(12)).tracking(1.2).textCase(.uppercase)
-                    Spacer()
-                    Text("\(g.xpInLevel) / \(GameProgress.perLevel) XP").font(Theme.label(12)).monospacedDigit().opacity(0.85)
+            // Game & XP off (#1058): no level bar.
+            if model.shows(.game) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Level \(g.level) · \(model.rank.title) ›").font(Theme.label(12)).tracking(1.2).textCase(.uppercase)
+                        Spacer()
+                        Text("\(g.xpInLevel) / \(GameProgress.perLevel) XP").font(Theme.label(12)).monospacedDigit().opacity(0.85)
+                    }
+                    XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
                 }
-                XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
+                .opensLevels()
+                .accessibilityIdentifier("me.levels")
             }
-            .opensLevels()
-            .accessibilityIdentifier("me.levels")
         }
         .foregroundStyle(.white)
         .padding(18)

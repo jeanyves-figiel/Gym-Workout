@@ -150,7 +150,7 @@ public enum HowItWorks {
         colors: [0xF97316, 0xEF4444],
         shows: "Player weight suggestions, exercise history, PRs",
         parts: [
-            Part("Starting load", "Never logged? From a related lift you did log (bench → incline), else from your body. Deliberately light: the first session calibrates, it doesn't test.",
+            Part("Starting load", "Never logged? From a related lift you did log (bench → incline), else from your body. The ratios are the app's own rough guess, not a measured norm, and deliberately light: the first session calibrates, it doesn't test.",
                  rule: ["1RM ≈ body kg × pattern ratio × sex × level × age × implement",
                         "sex (upper / lower): men 1 · women 0.6 / 0.75",
                         "level: beginner 0.65 · intermediate 1 · advanced 1.3",
@@ -172,7 +172,7 @@ public enum HowItWorks {
                   "Miller AE, MacDougall JD, Tarnopolsky MA, Sale DG. Gender differences in strength and muscle fiber characteristics. Eur J Appl Physiol Occup Physiol 1993;66(3):254-262 (women about 52 % of men's upper and 66 % of lower-body strength).",
                   "Keller K, Engelhardt M. Strength and muscle mass loss with aging process. Age and strength loss. Muscles Ligaments Tendons J 2013;3(4):346-350.",
                   "Mujika I, Padilla S. Detraining: loss of training-induced physiological and performance adaptations. Part I. Sports Med 2000;30(2):79-87 (strength dips after weeks off, hence −10 %).",
-                  "App design: the pattern and level ratios, set light on purpose; the first session calibrates.",
+                  "App design: the pattern ratios, the level factors (0.65 / 1 / 1.3), the implement factors and the −15 % margin, set light on purpose; no study gives these per movement, and your first logged session replaces them.",
                   "Helms ER et al. RPE vs. percentage 1RM loading in periodized programs matched for sets and repetitions. Front Physiol 2018;9:247.",
                   "Graham T, Cleather DJ. Autoregulation by \"repetitions in reserve\" leads to greater improvements in strength over a 12-week training program than fixed loading. J Strength Cond Res 2021;35(9):2451-2456."])
 
@@ -216,7 +216,8 @@ public enum HowItWorks {
                         "≥ \(AutoTune.pushFrom) with Health data: \(TuneLevel.push.title), \(TuneLevel.push.rule)",
                         "sore group: its moves swap to ones that spare it"]),
             Part("Readiness pill", "A quick read of Apple Health markers; advice only.",
-                 rule: ["flags: 7-day HRV < 85 % of 30-day normal · resting HR > normal + 5 · sleep < 6 h",
+                 rule: ["flags: 7-day HRV under 30-day normal by more than \(fmt(HRVFlag.swc)) × the SD of daily ln HRV (smallest worthwhile change) · resting HR > normal + 5 · sleep < 6 h",
+                        "under \(HRVFlag.minDays) days of HRV: 7-day HRV < \(pct(HRVFlag.fallbackFloor)) of normal",
                         "0 flags Ready · 1 Normal · 2+ Easy"]),
         ],
         sources: ["Plews DJ, Laursen PB, Stanley J, Kilding AE, Buchheit M. Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. Sports Med 2013;43(9):773-781.",
@@ -226,7 +227,8 @@ public enum HowItWorks {
                   "Buchheit M. Monitoring training status with HR measures: do all roads lead to Rome? Front Physiol 2014;5:73 (resting HR up and HRV down as fatigue markers).",
                   "Watson NF et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the AASM and SRS. Sleep 2015;38(6):843-844 (7 h or more).",
                   "Cheung K, Hume P, Maxwell L. Delayed onset muscle soreness: treatment strategies and performance factors. Sports Med 2003;33(2):145-164 (sore muscles are weaker for days).",
-                  "App design: the point values and the 85 % HRV and +5 bpm flags."])
+                  "Plews DJ, Laursen PB, Kilding AE, Buchheit M. Heart rate variability in elite triathletes, is variation in variability the key to effective training? A case comparison. Eur J Appl Physiol 2012;112(11):3729-3741 (HRV off when the 7-day ln average leaves the smallest worthwhile change, 0.5 × SD).",
+                  "App design: the point values, the +5 bpm resting HR flag and the \(pct(HRVFlag.fallbackFloor)) HRV stand-in until \(HRVFlag.minDays) days of readings."])
 
     static let growth = Topic(
         id: "growth", title: "Block review & growth", symbol: "chart.line.uptrend.xyaxis",
@@ -237,7 +239,7 @@ public enum HowItWorks {
             Part("Level up", "Each finished block is compared with the 4 weeks before it.",
                  rule: ["≥ \(Int(Growth.levelUpAdherence * 100)) % of planned sessions done and main lifts ≥ +\(Int(Growth.levelUpGain * 100)) % estimated 1RM → growth level +1 (needs 2+ workouts in the block)",
                         "growth level 3 → intermediate · 6 → advanced"]),
-            Part("Plateau", "A lift is flat when 3 or more weekly bests in a row stay within 1 % of its best before; the next block swaps in a variation.", rule: []),
+            Part("Plateau", "A lift is flat when \(Growth.plateauWeeks) or more weekly bests in a row stay within \(pct(Growth.plateauWithin)) of its best before; the next block swaps in a variation.", rule: []),
             Part("Lagging muscle", "A muscle group well behind its counterpart (e.g. back vs chest) is offered as a focus for the next block.",
                  rule: ["lagging = < \(Int(Growth.laggingRatio * 100)) % of its counterpart's hard sets (counterpart ≥ 12)"]),
             Part("Effort trending easy", "Flagged in the review when your logged sets end with 3+ reps in reserve on average (6+ sets logged).", rule: []),
@@ -245,7 +247,8 @@ public enum HowItWorks {
         sources: ["Kraemer WJ, Ratamess NA. Fundamentals of resistance training: progression and exercise prescription. Med Sci Sports Exerc 2004;36(4):674-688.",
                   "Kassiano W et al. Does varying resistance exercises promote superior muscle hypertrophy and strength gains? A systematic review. J Strength Cond Res 2022;36(6):1753-1762 (swapping variations helps when gains stall).",
                   "Helms ER et al. Application of the repetitions in reserve-based RPE scale for resistance training. Strength Cond J 2016;38(4):42-49.",
-                  "App design: the level-up, plateau and lagging thresholds."])
+                  "American College of Sports Medicine. Progression models in resistance training for healthy adults. Med Sci Sports Exerc 2009;41(3):687-708 (strength gains of about 40 % untrained down to 2 % elite over 4 weeks to 2 years: why +\(pct(Growth.levelUpGain)) a block is set low).",
+                  "App design: the level-up adherence and gain, the plateau weeks and margin and the lagging ratio; to review once enough blocks are logged."])
 
     // MARK: Heart and cardio
 
@@ -347,15 +350,16 @@ public enum HowItWorks {
         colors: [0x0EA5E9, 0x2563EB],
         shows: "Fuel tank water, water reminders",
         parts: [
-            Part("Daily target", "From your weight, the day's training and your steps, in glasses of your size.",
+            Part("Daily target", "From your weight, the day's training and your steps, in glasses of your size. A rule of thumb: the training top-up replaces sweat, and weighing yourself before and after a session shows your own loss.",
                  rule: ["ml = 35 × kg + 500 per training hour (750 for sweaty endurance) + 250 per 5,000 steps",
                         "glasses = ml ÷ glass size, at least 4",
-                        "creatine day: +1 glass"]),
+                        "creatine adds no water: it doesn't dehydrate"]),
             Part("Pace", "Reminders spread the target from waking to sleep, never during training, and recompute after every glass.", rule: []),
         ],
-        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390.",
+        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390 (drink to replace sweat lost in training; weigh before and after to know yours).",
                   "EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on dietary reference values for water. EFSA J 2010;8(3):1459 (2.0 L women, 2.5 L men a day, food included).",
-                  "App design: 35 ml/kg, the training, step and creatine top-ups are a rule of thumb around those references."])
+                  "Kreider RB et al. International Society of Sports Nutrition position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine. J Int Soc Sports Nutr 2017;14:18 (no dehydration or cramping from creatine, so no extra water).",
+                  "App design: 35 ml/kg, the 500 / 750 ml per training hour and the step top-up are a rule of thumb around those references."])
 
     static let caffeine = Topic(
         id: "caffeine", title: "Caffeine & supplements", symbol: "cup.and.saucer.fill",
@@ -365,12 +369,12 @@ public enum HowItWorks {
         parts: [
             Part("Caffeine", "Logged drinks and supplements add up; Fuel warns past the guide or too close to bed.",
                  rule: ["guide \(Supplements.caffeineGuideMg) mg a day for healthy adults",
-                        "last caffeine \(Supplements.caffeineHoursBeforeSleep) h before your bedtime"]),
+                        "last caffeine before your bedtime: \(Supplements.caffeineHoursSmallDose) h for up to \(Supplements.caffeineSmallDoseMg) mg (a coffee), \(Supplements.caffeineHoursLargeDose) h for more (a pre-workout)"]),
             Part("Supplement schedule", "Doses land on your meals; cycles count weeks on and off from the start date you set.", rule: []),
         ],
         sources: ["EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on the safety of caffeine. EFSA J 2015;13(5):4102.",
                   "Drake C, Roehrs T, Shambroom J, Roth T. Caffeine effects on sleep taken 0, 3, or 6 hours before going to bed. J Clin Sleep Med 2013;9(11):1195-1200.",
-                  "Gardiner C et al. The effect of caffeine on subsequent sleep: a systematic review and meta-analysis. Sleep Med Rev 2023;69:101764 (a coffee about 9 h and a pre-workout about 13 h before bed still cost sleep).",
+                  "Gardiner C et al. The effect of caffeine on subsequent sleep: a systematic review and meta-analysis. Sleep Med Rev 2023;69:101764 (a coffee about 9 h and a pre-workout about 13 h before bed still cost sleep, hence the two cut-offs).",
                   "Guest NS et al. International Society of Sports Nutrition position stand: caffeine and exercise performance. J Int Soc Sports Nutr 2021;18(1):1 (3–6 mg/kg about an hour before).",
                   "Kreider RB et al. International Society of Sports Nutrition position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine. J Int Soc Sports Nutr 2017;14:18."])
 
@@ -398,17 +402,20 @@ public enum HowItWorks {
         colors: [0xE11D48, 0xF59E0B],
         shows: "Body figure, Ask Coach, 🛡 swapped moves",
         parts: [
-            Part("Three levels", "Tell the app where it hurts and how bad. Each level swaps more; training the rest of the body goes on, pain-free range only.",
+            Part("How much pain is OK", PainProtect.painMonitoring,
+                 rule: ["during training: up to 5 of 10", "next morning: back to how it was", "week to week: not worse"]),
+            Part("Three levels", "Tell the app where it hurts and how bad. Each level swaps more; training the rest of the body goes on, pain-free range only. Which moves count for each level is the app's own map, not a clinical test.",
                  rule: ["mild: the harshest moves for that joint (legs: jumps and running · shoulder: overhead · back: swings and barbell hinges)",
                         "sore when loaded: also the moves that load it most (knee: lunges, leg extensions, free squats)",
                         "sharp: every move that loads the joint"]),
             Part("Swap", "Each risky move swaps to the closest one that spares the joint (same role, most muscles in common, your kit), or goes when nothing fits.", rule: []),
             Part("When to see someone", PainProtect.notAdvice,
-                 rule: ["still on after 14 days → Still hurts after 2 weeks? card with Get advice"]),
+                 rule: ["still on after \(PainProtect.checkInDays) days → Still hurts after 2 weeks? card with Get advice (a reminder, not a medical cut-off)"]),
         ],
         sources: ["Smith BE et al. Should exercises be painful in the management of chronic musculoskeletal pain? A systematic review and meta-analysis. Br J Sports Med 2017;51(23):1679-1687 (some pain during exercise is acceptable, hence mild only swaps the harshest moves).",
-                  "Silbernagel KG, Thomeé R, Eriksson BI, Karlsson J. Continued sports activity, using a pain-monitoring model, during rehabilitation in patients with Achilles tendinopathy: a randomized controlled study. Am J Sports Med 2007;35(6):897-906 (keep training while pain stays low).",
-                  "App design: which moves load which joint, and the 14-day check-in."])
+                  "Silbernagel KG, Thomeé R, Eriksson BI, Karlsson J. Continued sports activity, using a pain-monitoring model, during rehabilitation in patients with Achilles tendinopathy: a randomized controlled study. Am J Sports Med 2007;35(6):897-906 (keep training while pain stays at 5 of 10 or less and settles by the next morning: the How much pain is OK rule).",
+                  "Thomeé R. A comprehensive treatment approach for patellofemoral pain syndrome in young women. Phys Ther 1997;77(12):1690-1703 (where the pain-monitoring model comes from).",
+                  "App design: the three levels and which moves load which joint at each one (not yet reviewed by a physio), and the 14-day check-in."])
 
     static let lifeStage = Topic(
         id: "life", title: "Life stages", symbol: "figure.and.child.holdinghands",
@@ -451,7 +458,7 @@ public enum HowItWorks {
 
     static let form = Topic(
         id: "form", title: "Form check", symbol: "video.fill",
-        summary: "Camera reps, faults and a score out of 100",
+        summary: "Camera reps, faults and a guide score out of 100",
         colors: [0xFF4D6D, 0xFF9A3C],
         shows: "Exercise page Check my form, Coach Watch my form, player camera chip, form report",
         parts: [
@@ -466,7 +473,7 @@ public enum HowItWorks {
                         "hips sag: \(pct(FormModel.Limit.hipSag)) of body length under the shoulder–ankle line",
                         "one side ahead: left and right \(fmt(FormModel.Limit.uneven))° apart",
                         "too fast: rep under \(fmt(FormModel.Limit.minRepSeconds)) s (not jumps or throws)"]),
-            Part("Score", "Each rep starts at 100 and loses points once per fault; the set score is the average.",
+            Part("Score", "Each rep starts at 100 and loses points once per fault; the set score is the average. It is a guide to practise with, not a movement assessment: one camera reads joint angles less exactly than a lab's motion capture, and the limits are the app's own.",
                  rule: [FormFault.allCases.map { "\($0.title.lowercased()) −\($0.penalty)" }.joined(separator: " · "),
                         "faded from: every rep from there scores \(FormReport.fadeScore) or less"]),
             Part("Match", "How close your joints are to the guide at the bottom of the rep.",
@@ -476,16 +483,17 @@ public enum HowItWorks {
         sources: ["Apple Vision framework, VNDetectHumanBodyPoseRequest (2D body pose).",
                   "Myer GD et al. The back squat: a proposed assessment of functional deficits and technical factors that limit performance. Strength Cond J 2014;36(6):4-27.",
                   "Hewett TE et al. Biomechanical measures of neuromuscular control and valgus loading of the knee predict anterior cruciate ligament injury risk in female athletes: a prospective study. Am J Sports Med 2005;33(4):492-501 (why knees caving is flagged).",
-                  "App design: the thresholds and points, tuned on the 3D position guide's poses."])
+                  "McLean SG, Walker K, Ford KR, Myer GD, Hewett TE, van den Bogert AJ. Evaluation of a two dimensional analysis method as a screening and evaluation tool for anterior cruciate ligament injury. Br J Sports Med 2005;39(6):355-362 (single-camera knee valgus tracks 3D motion capture only in part: why the score is a guide).",
+                  "App design: the thresholds and points, tuned on the 3D position guide's poses; not validated against motion capture."])
 
     private static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded())) %" }
     static let mind = Topic(
         id: "mind", title: "Mind score & calm", symbol: "brain.head.profile",
-        summary: "Mood, HRV, sleep and training → 0–100",
+        summary: "Mood, HRV, sleep and training → a 0–100 guide",
         colors: [0x7A2CFF, 0x2E8BFF],
         shows: "Train check-in card, Insights Body + Mind and Mind widgets, Explore → Calm, Mind page",
         parts: [
-            Part("Mind score", "Your check-in mood, your 7-day HRV average against your 30-day one (a single reading is too noisy), last night's sleep (adults need 7 h or more) and recent training (exercise lifts mood, so a day or two scores best), each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score. The weights are app design, not a validated scale.",
+            Part("Mind score", "Your check-in mood, your 7-day HRV average against your 30-day one (a single reading is too noisy), last night's sleep (adults need 7 h or more) and recent training (exercise lifts mood, so a day or two scores best), each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score. It is a guide to your day, not a validated scale or a mental health test: each part is backed by studies, the weights and bands that combine them are app design.",
                  rule: ["mood \(fmt(MindScore.moodWeight)) · HRV \(fmt(MindScore.hrvWeight)) · sleep \(fmt(MindScore.sleepWeight)) · training \(fmt(MindScore.loadWeight))",
                         "mood: 1 → 0, 5 → 1",
                         "HRV ÷ baseline: \(fmt(MindScore.hrvLow)) → 0, \(fmt(MindScore.hrvHigh)) → 1",
@@ -515,7 +523,7 @@ public enum HowItWorks {
                   "Weil A. Breathing: The Master Key to Self Healing. Sounds True, 1999 (4-7-8: four breaths twice a day, up to eight).",
                   "Vierra J, Boonla O, Prasertsri P. Effects of sleep deprivation and 4-7-8 breathing control on heart rate variability, blood pressure, blood glucose, and endothelial function in healthy young adults. Physiol Rep 2022;10(13):e15389.",
                   "Plews DJ, Laursen PB, Kilding AE, Buchheit M. Evaluating training adaptation with heart-rate measures: a methodological comparison. Int J Sports Physiol Perform 2013;8(6):688-694 (7-day HRV average over single readings).",
-                  "App design: the score weights and bands; not a validated scale."])
+                  "App design: the score weights and bands, so the score is a guide, not a validated scale; Coach pick's 85 % HRV cut-off."])
 
     static let coach = Topic(
         id: "coach", title: "Coach nudges", symbol: "bell.badge.fill",

@@ -59,7 +59,7 @@ struct ReadinessSheet: View {
                         "HRV", "Heart rate variability", "waveform.path.ecg",
                         value: (snapshot.hrvWeek ?? snapshot.hrv).map { "\(Int($0)) ms" }, avg: snapshot.hrvBaseline.map { "\(Int($0)) ms" },
                         what: "Tiny changes in time between heartbeats, in milliseconds. Higher than your normal = well recovered. Lower = stress, poor sleep, illness or hard training is still in your body.",
-                        rule: "Counts as off when your 7-day average is more than \(Int((1 - Readiness.hrvFloor) * 100)) % below your 30-day average.",
+                        rule: hrvRule,
                         off: flags.contains("HRV below your baseline"), gradient: WorkoutEngine.Category.mobility.gradient)
                     marker(
                         "Rest HR", "Resting heart rate", "heart.fill",
@@ -138,6 +138,14 @@ struct ReadinessSheet: View {
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
             .fill(LinearGradient(colors: r.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white, lineWidth: current ? 3 : 0))
+    }
+
+    /// Personal HRV cut-off (#978): half the member's usual day-to-day swing, the fixed floor until a week is known.
+    private var hrvRule: String {
+        let pct = Int(((1 - HRVFlag.threshold(lnSD: snapshot.hrvLnSD)) * 100).rounded())
+        return snapshot.hrvLnSD == nil
+            ? "Counts as off when your 7-day average is more than \(pct) % below your 30-day average, until a week of readings shows your usual swing."
+            : "Counts as off when your 7-day average is more than \(pct) % below your 30-day average: half your usual day-to-day swing."
     }
 
     private func marker(_ short: String, _ name: String, _ icon: String, value: String?, avg: String?,

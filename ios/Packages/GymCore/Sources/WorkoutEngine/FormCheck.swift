@@ -194,7 +194,9 @@ public struct FormModel: Sendable {
     /// Seconds per rep below which a rep is "too fast"; nil for jumps and throws.
     public let minRepSeconds: Double?
 
-    /// Rep thresholds on the way from the start (0) to the main position (1), and the fault limits.
+    /// Rep thresholds on the way from the start (0) to the main position (1), and the fault limits. Tuned on the 3D
+    /// guide poses, not validated: one camera reads joint angles only roughly against motion capture (McLean 2005), so
+    /// the score is shown as a guide, never an assessment (#981).
     public enum Limit {
         /// A rep starts past this share of the way down…
         public static let repStart = 0.5

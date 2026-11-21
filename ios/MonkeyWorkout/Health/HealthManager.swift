@@ -87,6 +87,8 @@ struct HealthSnapshot: Equatable, Codable {
     var hrvBaseline: Double?
     /// 7-day HRV average (#862): the Mind score compares it with the baseline, a single reading is too noisy.
     var hrvWeek: Double?
+    /// SD of ln daily HRV over 30 days (#978): sets how far under normal the 7-day average must drop to count as off.
+    var hrvLnSD: Double?
     var vo2Max: Double?
     var sleepHours: Double?
     var climbingThisWeek = 0
@@ -140,8 +142,7 @@ enum Readiness: String {
         }
     }
 
-    /// Flag thresholds (also quoted in the info sheet).
-    static let hrvFloor = 0.85
+    /// Flag thresholds (also quoted in the info sheet). HRV: `HRVFlag` (#978).
     static let restHRRise = 5.0
     static let minSleep = 6.0
 
@@ -150,7 +151,8 @@ enum Readiness: String {
         guard s.hasRecoveryData else { return nil }
         var low: [String] = []
         // 7-day HRV average (#864): one reading is too noisy; the latest until a week is known.
-        if let h = s.hrvWeek ?? s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
+        // Past the smallest worthwhile change for this member's HRV (#978), not a fixed share.
+        if let h = s.hrvWeek ?? s.hrv, let b = s.hrvBaseline, HRVFlag.isLow(week: h, baseline: b, lnSD: s.hrvLnSD) { low.append("HRV below your baseline") }
         if let r = s.restingHR, let b = s.restingHRBaseline, r > b + restHRRise { low.append("Resting HR elevated") }
         if let sl = s.sleepHours, sl < minSleep { low.append("Short sleep") }
         return (low.count >= 2 ? .easy : low.count == 1 ? .normal : .ready, low)
@@ -285,6 +287,7 @@ final class HealthManager {
         async let hrv = latestValue(.heartRateVariabilitySDNN, unit: ms)
         async let hrvBaseline = average(.heartRateVariabilitySDNN, unit: ms, from: d30, to: now)
         async let hrvWeek = average(.heartRateVariabilitySDNN, unit: ms, from: now.addingTimeInterval(-7 * 86_400), to: now)
+        async let hrv30 = trend(.heartRateVariabilitySDNN, unit: ms, days: 30)
         async let vo2Max = latestValue(.vo2Max, unit: vo2Unit)
         async let sleep = sleepLastNight()
         async let weightTrend = trend(.bodyMass, unit: kg, days: 365)
@@ -320,6 +323,7 @@ final class HealthManager {
         s.hrv = await hrv?.value
         s.hrvBaseline = await hrvBaseline
         s.hrvWeek = await hrvWeek
+        s.hrvLnSD = HRVFlag.lnSD(daily: HRVFlag.dailyValues(await hrv30.map { (date: $0.date, value: $0.value) }))
         s.vo2Max = await vo2Max?.value
         s.sleepHours = await sleep
         s.weightTrend = await weightTrend

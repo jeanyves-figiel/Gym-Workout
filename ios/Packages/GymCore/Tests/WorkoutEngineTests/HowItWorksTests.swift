@@ -27,12 +27,17 @@ import Testing
         #expect(text("fuel").contains("build 2"))
         #expect(text("fuel").contains("lose 2.2"))
         #expect(text("readiness").contains("< \(AutoTune.lightBelow)"))
+        #expect(text("readiness").contains("by more than \(HowItWorks.fmt(HRVFlag.swc)) × the SD of daily ln HRV"))
         #expect(text("zones").contains("goal \(HeartZones.zone2Goal) min"))
         #expect(text("caffeine").contains("\(Supplements.caffeineGuideMg) mg"))
+        #expect(text("caffeine").contains("\(Supplements.caffeineHoursLargeDose) h for more"))
         #expect(text("plan").contains("Week 4: \(Generator.weekLabel(4))"))
         #expect(HowItWorks.topic("methods")!.parts.count == TrainingMethod.allCases.count + 1)
         #expect(text("form").contains("trunk lean: \(HowItWorks.fmt(FormModel.Limit.torsoLean))° more"))
         #expect(text("form").contains("−\(FormFault.kneesIn.penalty)"))
+        #expect(text("growth").contains("\(Growth.plateauWeeks) or more weekly bests in a row stay within 1 %"))
+        // A guide, not an assessment (#981).
+        #expect(text("form").contains("not a movement assessment"))
     }
 
     /// Every topic names at least one study (#976); the app's own choices are marked as such, never passed off as science.
@@ -44,10 +49,16 @@ import Testing
             }
         }
         for id in ["warmup", "pain", "life", "coach"] { #expect(HowItWorks.topic(id) != nil, "\(id) missing") }
+        // Starting-load ratios have no study behind them (#980): marked as the app's own.
+        #expect(HowItWorks.topic("load")!.sources.contains { $0.hasPrefix(HowItWorks.appDesign) && $0.contains("implement factors") })
         #expect(text("warmup").contains("\(PRPlanner.maxAttempts) attempts at most"))
         #expect(text("pain").contains(PainProtect.notAdvice))
+        #expect(text("pain").contains(PainProtect.painMonitoring))
+        #expect(text("pain").contains("after \(PainProtect.checkInDays) days"))
         #expect(text("life").contains(LifeStage.talkTest))
         #expect(text("coach").contains("\(CoachNudges.driftMissed) planned sessions missed"))
+        // The Mind score is a guide, never passed off as a validated scale (#979).
+        #expect(text("mind").contains("a guide to your day, not a validated scale"))
     }
 
     @Test func rankBandsMatchTheLadder() {

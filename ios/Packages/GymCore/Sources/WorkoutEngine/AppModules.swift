@@ -177,3 +177,24 @@ extension TrainLayout {
         return l
     }
 }
+
+extension ProgressWidgetKind {
+    /// The module an Insights widget belongs to (#1058); nil = always shown with Insights.
+    public var module: AppModule? {
+        switch self {
+        case .level, .chest, .badges: .game
+        case .programmes: .plan
+        case .streak, .training, .body, .records, .muscles, .history, .consistency, .weekly, .sport, .growth, .mood,
+             .today, .mind: nil
+        }
+    }
+}
+
+extension ProgressBoard {
+    /// Only the widgets whose module is on (#1058); the saved board keeps the others.
+    public func showing(_ modules: AppModules) -> ProgressBoard {
+        var b = self
+        b.widgets.removeAll { $0.kind.module.map { !modules.shows($0) } ?? false }
+        return b
+    }
+}

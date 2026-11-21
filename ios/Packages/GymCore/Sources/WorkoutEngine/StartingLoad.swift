@@ -49,6 +49,8 @@ public enum StartingLoad {
 
     /// Estimated one-rep max as a multiple of body weight for an intermediate male lifter, with the
     /// implement it is usually done with (lateral raises and isolation machines are rated on their own kit).
+    /// App design (#980): no study gives a norm per pattern, so these, the level and the implement factors are the
+    /// app's own light guesses; the first logged session replaces them.
     static func ratio(_ p: Pattern) -> Double? {
         switch p {
         case .squat: 1.25

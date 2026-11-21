@@ -83,4 +83,30 @@ import Testing
         #expect(t.plan.sessions[0] == plan.sessions[0])
         #expect(t.plan.sessions[1] != plan.sessions[1])
     }
+
+    /// HRV flag follows each member's own day-to-day swing (#978, Plews 2012): a steady HRV flags a small drop, a
+    /// noisy one needs a bigger drop; the 85 % floor stands in until a week of readings.
+    @Test func hrvFlagUsesTheSmallestWorthwhileChange() throws {
+        let steady = try #require(HRVFlag.lnSD(daily: [60, 62, 58, 61, 59, 60, 60]))
+        #expect(abs(steady - 0.0215) < 0.001)
+        #expect(HRVFlag.isLow(week: 57, baseline: 60, lnSD: steady))
+        #expect(!HRVFlag.isLow(week: 59.8, baseline: 60, lnSD: steady))
+        let noisy = try #require(HRVFlag.lnSD(daily: [40, 80, 45, 75, 50, 70, 60]))
+        #expect(abs(HRVFlag.threshold(lnSD: noisy) - 0.875) < 0.001)
+        #expect(!HRVFlag.isLow(week: 54, baseline: 60, lnSD: noisy))
+        #expect(HRVFlag.isLow(week: 50, baseline: 60, lnSD: noisy))
+        #expect(HRVFlag.lnSD(daily: [60, 62, 58, 61, 59, 60]) == nil)
+        #expect(HRVFlag.threshold(lnSD: nil) == HRVFlag.fallbackFloor)
+        #expect(HRVFlag.isLow(week: 50, baseline: 60, lnSD: nil) && !HRVFlag.isLow(week: 52, baseline: 60, lnSD: nil))
+        #expect(!HRVFlag.isLow(week: 50, baseline: 0, lnSD: nil))
+    }
+
+    @Test func hrvDailyValuesAverageEachDay() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let d0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let readings: [(date: Date, value: Double)] = [(d0, 50), (d0.addingTimeInterval(3_600), 70),
+                                                      (d0.addingTimeInterval(86_400), 40), (d0.addingTimeInterval(-86_400), 0)]
+        #expect(HRVFlag.dailyValues(readings, calendar: cal) == [60, 40])
+    }
 }

@@ -207,7 +207,8 @@ struct CaffeineMeter: View {
                   + (planned > 0 ? ["planned \(planned) mg"] : []))
                 .joined(separator: " · "))
                 .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.9)
-            Text("Last caffeine by \(Supplements.clock(Supplements.caffeineCutoff(prefs))) for \(Supplements.clock(prefs.sleep)) sleep")
+            // The cut-off depends on the dose (#977): a coffee, and anything stronger.
+            Text("Last coffee by \(Supplements.clock(Supplements.caffeineCutoff(prefs))), stronger by \(Supplements.clock(Supplements.caffeineCutoff(prefs, mg: Supplements.caffeineSmallDoseMg + 1))) for \(Supplements.clock(prefs.sleep)) sleep")
                 .font(.system(size: 11, weight: .heavy, design: .rounded))
         }
         .foregroundStyle(.white)
@@ -285,7 +286,7 @@ struct SupplementsView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Text("Amounts come from your label: scan it when you add one. Fuel places each supplement around your training, counts protein from shakes, adds a glass on creatine days and checks caffeine against your bedtime. Pointers only, not medical advice.")
+                Text("Amounts come from your label: scan it when you add one. Fuel places each supplement around your training, counts protein from shakes and checks caffeine against your bedtime. Pointers only, not medical advice.")
                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
             }
             .padding(16)

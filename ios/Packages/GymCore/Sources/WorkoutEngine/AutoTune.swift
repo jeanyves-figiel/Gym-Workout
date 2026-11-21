@@ -140,6 +140,46 @@ public enum AutoTune {
     }
 }
 
+/// Readiness pill's HRV flag (#978): off when the 7-day average sits below the 30-day normal by more than the smallest
+/// worthwhile change, half the day-to-day spread of ln HRV over those 30 days (Plews 2012, 2013). A fixed share of
+/// normal ignores how much each member's HRV moves anyway; until a week of readings gives a spread, the 85 % floor
+/// stands in (app design).
+public enum HRVFlag {
+    /// Smallest worthwhile change: this many SDs of the daily ln values.
+    public static let swc = 0.5
+    /// Days with a reading needed before the spread is used.
+    public static let minDays = 7
+    /// Stand-in while the spread is unknown: 7-day average under this share of normal.
+    public static let fallbackFloor = 0.85
+
+    /// One value per calendar day (the mean of that day's readings), oldest first.
+    public static func dailyValues(_ readings: [(date: Date, value: Double)], calendar: Calendar = .current) -> [Double] {
+        let byDay = Dictionary(grouping: readings.filter { $0.value > 0 }) { calendar.startOfDay(for: $0.date) }
+        return byDay.keys.sorted().map { day in
+            let v = byDay[day]!.map(\.value)
+            return v.reduce(0, +) / Double(v.count)
+        }
+    }
+
+    /// Sample SD of ln daily values; nil under `minDays` days.
+    public static func lnSD(daily: [Double]) -> Double? {
+        let ln = daily.filter { $0 > 0 }.map { log($0) }
+        guard ln.count >= minDays else { return nil }
+        let mean = ln.reduce(0, +) / Double(ln.count)
+        return (ln.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(ln.count - 1)).squareRoot()
+    }
+
+    /// The 7-day average as a share of normal under which the flag is off: exp(−0.5 × SD), or the fallback floor.
+    public static func threshold(lnSD: Double?) -> Double {
+        guard let sd = lnSD, sd > 0 else { return fallbackFloor }
+        return exp(-swc * sd)
+    }
+
+    public static func isLow(week: Double, baseline: Double, lnSD: Double?) -> Bool {
+        baseline > 0 && week < baseline * threshold(lnSD: lnSD)
+    }
+}
+
 /// One change auto-tune made to today's session; the member can undo each.
 public struct TuneChange: Codable, Hashable, Sendable, Identifiable {
     public enum Kind: String, Codable, Sendable {

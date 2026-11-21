@@ -76,7 +76,8 @@ struct ProgressTabView: View {
     // MARK: Board (#444)
 
     private func board(s: ProgressStats, fresh: Bool, top: ProgressHighlights) -> some View {
-        let layout = model.progressBoard
+        // Game & XP or Plan off (#1058): their widgets leave the board; the saved board keeps them.
+        let layout = model.progressBoard.showing(model.appModules)
         let items = model.historyItems(health: health)
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {

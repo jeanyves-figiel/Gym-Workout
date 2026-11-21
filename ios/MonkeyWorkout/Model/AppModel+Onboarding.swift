@@ -84,8 +84,10 @@ struct AppTourStep: Identifiable {
 }
 
 enum AppTour {
-    /// Stops for the tabs on show (#1004): a hidden tab has no stop.
-    static var steps: [AppTourStep] { all.filter { $0.tab.map(TabsPref.shared.shows) ?? true } }
+    /// Stops for the tabs on show (#1004): a hidden tab has no stop; Coach AI off (#1053) has no Coach stop.
+    static var steps: [AppTourStep] {
+        all.filter { ($0.tab.map(TabsPref.shared.shows) ?? true) && ($0.id != "coach" || TabsPref.shared.modules.shows(.coach)) }
+    }
 
     static let all: [AppTourStep] = [
         AppTourStep(id: "train", tab: .train, symbol: "bolt.heart.fill", title: "Train",

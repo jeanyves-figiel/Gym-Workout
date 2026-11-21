@@ -570,7 +570,9 @@ struct WeekView: View {
         case .fuel:
             FuelWidget(size: w.size)
         case .thisWeek:
-            thisWeek(plan: plan, profile: profile, quest: (w.look ?? (WatchHomePref.shared.style == .deck ? .quest : .list)) == .quest)
+            // Game & XP off (#1058): the plain list, not the quest map with XP.
+            thisWeek(plan: plan, profile: profile,
+                     quest: model.shows(.game) && (w.look ?? (WatchHomePref.shared.style == .deck ? .quest : .list)) == .quest)
         }
     }
 

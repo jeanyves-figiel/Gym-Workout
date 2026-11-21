@@ -642,7 +642,7 @@ struct FormReportView: View {
                         cleanTile
                     }
                     buttons
-                    Text("Scored on your joints only, on this iPhone. Kept in this exercise's history on this device.")
+                    Text("A guide to practise with, not a movement assessment. Scored on your joints only, on this iPhone. Kept in this exercise's history on this device.")
                         .font(.caption).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
