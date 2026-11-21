@@ -138,6 +138,14 @@ def version():
                                                              "REJECTED", "METADATA_REJECTED"}), None)
     if not v:
         summary.append("! No editable iOS version: App Store Connect → + Version first; version text skipped.")
+        # Promotional text can change on the live version (#1111).
+        live = next((x for x in vs if x["attributes"].get("appStoreState") == "READY_FOR_SALE"), None)
+        if live:
+            locs, _ = get_all(f"/v1/appStoreVersions/{live['id']}/appStoreVersionLocalizations")
+            for loc in (x for x in locs if x["attributes"]["locale"] in LOCS):
+                patch("appStoreVersionLocalizations", loc["id"],
+                      diff(loc["attributes"], {"promotionalText": L["promotionalText"]}),
+                      f"Live {live['attributes']['versionString']} {loc['attributes']['locale']} promo text")
         return
     vid, vname = v["id"], v["attributes"]["versionString"]
     wanted = {"description": "\n".join(L["description"]), "keywords": L["keywords"],

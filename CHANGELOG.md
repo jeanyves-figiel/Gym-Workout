@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **App Store listing for 1.2** (#1111, pending approval): description leads with Apple Watch rep counting (auto-logged sets, bar speed, machine mode) and *Film my workout* (camera names moves, counts reps, reads weight, video never saved), then the one-minute Coach setup chat and tracking without typing; new subtitle and promotional text (`ios/AppStore/listing.json`). Screenshot set: Train, Film my workout, Player (renders again, #1078), Ask Coach, Plan reveal, Session, 3D guide, Insights, Fuel, Mind; extra review captures after the first 10.
 
 ### Added
+- **App Store listing: promo text on the live version** (#1111): with no editable version, `asc_listing.py` updates only the promotional text of the version on sale.
 - **Screenshots workflow: iPhone Duo opt-in** (#1111): `duo` input, off by default (the Duo captures timed the job out and are not uploaded); timeout 110 min.
 - **Film my workout demo screen** (#1111): `-demoScreen film-session` plays a made-up member (bench and squat sets found with weights read, a squat set counted live) with no camera or voice; `FilmWorkout.Guess` gets a public init, for App Store screenshots (`FilmSessionView(demo:)`).
 
