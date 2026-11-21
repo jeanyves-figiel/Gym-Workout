@@ -1,11 +1,17 @@
 {
-  "id": "2026-11-20.1",
+  "id": "2026-11-21.1",
   "items": [
     {
-      "symbol": "square.and.arrow.up.fill",
+      "symbol": "switch.2",
       "tint": "stretch",
-      "title": "Share MonkeyWorkout",
-      "body": "Send friends a story, a post or a link with a big colourful preview. Find it on Invite and on You."
+      "title": "Game & XP off means off",
+      "body": "Turn off Game & XP and levels, XP banners, chests and badges leave every screen. Modules you turn off leave fewer dead ends too."
+    },
+    {
+      "symbol": "cup.and.saucer.fill",
+      "tint": "power",
+      "title": "Smarter caffeine cut-off",
+      "body": "A coffee stops 9 h before bed, a strong pre-workout 13 h. Water targets and readiness follow the latest science."
     }
   ]
 }

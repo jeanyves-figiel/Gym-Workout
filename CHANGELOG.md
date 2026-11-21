@@ -19,6 +19,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Off-site backups stream** (#923): file → gzip → AES-256-GCM → 16 MB multipart upload instead of the whole DB in RAM; same MWB1 format, restore unchanged. Fly volumes auto-extend at 80 % (production +2 GB to 50 GB, staging +1 GB to 5 GB).
 
 ### Added
+- **What's new 2026-11-21.1** (bundle 107): two cards (Game & XP off means off #1058/#1059, Smarter caffeine cut-off #977/#982/#978); 2026-11-20.1 moved to history as build 111.
 - **Release an approved App Store version by API** (#1090): workflow *App Store listing* → review `release` (with apply) releases a version in *Pending Developer Release*; `asc_review.py` posts an `appStoreVersionReleaseRequest`.
 - **App version 1.2** (bundle 106): `MARKETING_VERSION` 1.1 → 1.2 in `ios/project.yml`; 1.1 is live on the App Store, so its TestFlight train is closed (upload of build 110 was refused).
 - **What's new 2026-11-20.1** (bundle 106): one card (Share MonkeyWorkout #1113); 2026-11-15.3 moved to history as build 108.

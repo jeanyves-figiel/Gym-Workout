@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "id": "2026-11-20.1",
+      "build": 111,
+      "date": "2026-11-21",
+      "items": [
+        {
+          "symbol": "square.and.arrow.up.fill",
+          "tint": "stretch",
+          "title": "Share MonkeyWorkout",
+          "body": "Send friends a story, a post or a link with a big colourful preview. Find it on Invite and on You."
+        }
+      ]
+    },
+    {
       "id": "2026-11-15.3",
       "build": 108,
       "date": "2026-11-15",
