@@ -1,11 +1,11 @@
 {
-  "id": "2026-11-15.3",
+  "id": "2026-11-20.1",
   "items": [
     {
-      "symbol": "person.badge.key.fill",
+      "symbol": "square.and.arrow.up.fill",
       "tint": "stretch",
-      "title": "Stay signed in",
-      "body": "Sign in with Apple no longer signs you out at random, and sign up doesn't start over after you sign in."
+      "title": "Share MonkeyWorkout",
+      "body": "Send friends a story, a post or a link with a big colourful preview. Find it on Invite and on You."
     }
   ]
 }

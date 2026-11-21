@@ -99,6 +99,7 @@ describe('referrals', () => {
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain(code);
     expect(page.body).toContain('Djy invites you');
+    expect(page.body).toContain('/og/link.jpg');
     expect((await app.inject({ method: 'GET', url: '/i/NOPE123' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: '/i/%3Cscript%3E' })).statusCode).toBe(404);
   });
@@ -156,5 +157,27 @@ describe('find a friend (#747)', () => {
     const b = await join('b@example.com', 'Marco');
     await req('POST', '/v1/referrals/redeem', b.t, { code: await codeOf(a.t) });
     expect(follows(a.id, b.id) && follows(b.id, a.id)).toBe(true);
+  });
+});
+
+describe('share previews (#1113)', () => {
+  it('serves /app with a large preview image and the App Store link', async () => {
+    const res = await app.inject({ method: 'GET', url: '/app', headers: { host: 'workout.example' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<meta property="og:image" content="http://workout.example/og/link.jpg">');
+    expect(res.body).toContain('summary_large_image');
+    expect(res.body).toContain('app-id=6819971090');
+    expect(res.body).toContain('https://apps.apple.com/app/id6819971090');
+  });
+
+  it('serves the share art and nothing else', async () => {
+    for (const f of ['link.jpg', 'story.jpg', 'post.jpg', 'event.jpg']) {
+      const res = await app.inject({ method: 'GET', url: `/og/${f}` });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toBe('image/jpeg');
+      expect(res.rawPayload.subarray(0, 2).toString('hex')).toBe('ffd8');
+    }
+    expect((await app.inject({ method: 'GET', url: '/og/..%2Fconfig.json' })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: '/og/nope.jpg' })).statusCode).toBe(404);
   });
 });

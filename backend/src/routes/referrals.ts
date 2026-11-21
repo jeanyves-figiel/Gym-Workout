@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import { shareMeta } from './appShare.ts';
 import { z } from 'zod';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
@@ -144,7 +145,7 @@ export const referralPublicRoutes = (app: FastifyInstance, db: DB, appName: stri
     const who = nicknameOf(db, row.user_id);
     const title = who ? `${who} invites you to ${appName}` : `You're invited to ${appName}`;
     return reply.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="Train together. Use code ${esc(parsed.data)}.">
+<title>${esc(title)}</title>${shareMeta(req, title, `Train together. Use code ${parsed.data}.`)}
 <style>body{margin:0;background:#090a0e;color:#fff;font-family:-apple-system,system-ui,sans-serif;display:flex;justify-content:center;padding:24px}
 .c{max-width:420px;width:100%;border-radius:28px;padding:24px;background:linear-gradient(135deg,#FF2D87,#FF9A3C)}
 h1{font-size:32px;font-weight:900;margin:6px 0 10px;line-height:1.05}.k{font-size:11px;letter-spacing:2px;font-weight:800;opacity:.85}
