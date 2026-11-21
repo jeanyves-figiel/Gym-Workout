@@ -48,7 +48,7 @@ Design and controls. The repository is public: no secret values, keys, bucket na
 | Where | Control |
 |---|---|
 | In transit | HTTPS only (`force_https`), TLS at Fly's edge. iOS ATS without exceptions except local networking for DEV. No certificate pinning (deliberate: rotation risk). |
-| Server at rest | Fly volume encrypted. Secrets inside the DB: password hashes (Argon2id; scrypt until the member's next sign-in), codes and tokens hashed (HMAC/SHA-256), TOTP secrets and Apple refresh tokens AES-256-GCM (key derived from `CODE_PEPPER`). Training data is plain inside the encrypted volume (needed for Community and levels). |
+| Server at rest | Fly volume encrypted. Secrets inside the DB: password hashes (Argon2id; scrypt until the member's next sign-in), codes and tokens hashed (HMAC/SHA-256), TOTP secrets AES-256-GCM (key derived from `TOTP_KEY`, stored `v2:`; `CODE_PEPPER` when unset, `v1:`, which moves to `v2:` on the member's next 2-step check, #930) and Apple refresh tokens AES-256-GCM (key derived from `CODE_PEPPER`). Training data is plain inside the encrypted volume (needed for Community and levels). |
 | Backups off-site | Gzipped and encrypted on the server (AES-256-GCM, key derived from `BACKUP_KEY` via scrypt) before upload: the storage provider only holds ciphertext. |
 | iPhone / Watch | Files written with Data Protection `completeUntilFirstUserAuthentication` (readable by widgets and the Watch after first unlock); export file `complete`. API client keeps no HTTP cache; server sends `Cache-Control: no-store`. |
 
@@ -66,10 +66,10 @@ Names only. Values are generated in CI runners or pasted by the owner into GitHu
 
 | Store | Names |
 |---|---|
-| Fly app secrets | `JWT_SECRET`, `CODE_PEPPER`, `BACKUP_KEY`, `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SMTP_URL`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APNS_KEY_ID`, `APNS_PRIVATE_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID`, `POLLY_ACCESS_KEY_ID`, `POLLY_SECRET_ACCESS_KEY` (optional, else the SES keys), `GITHUB_REPORTS_TOKEN`, storage credentials (`AWS_*`, `BUCKET_NAME`) |
+| Fly app secrets | `JWT_SECRET`, `CODE_PEPPER`, `TOTP_KEY` (optional, 32+ chars, key for TOTP secrets), `BACKUP_KEY`, `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SMTP_URL`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APNS_KEY_ID`, `APNS_PRIVATE_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID`, `POLLY_ACCESS_KEY_ID`, `POLLY_SECRET_ACCESS_KEY` (optional, else the SES keys; a dedicated Polly-only IAM user is preferred, #930), `GITHUB_REPORTS_TOKEN`, storage credentials (`AWS_*`, `BUCKET_NAME`) |
 | GitHub Actions secrets | `FLY_API_TOKEN`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`, `BACKUP_KEY`, the Fly secrets above that **Fly setup** forwards, `GARMIN_DEVELOPER_KEY`, `GARMIN_USERNAME`, `GARMIN_PASSWORD`, `GARMIN_SETUP_TOKEN` |
 
-Rules: each cloud credential has least privilege (the SES IAM user may send mail and synthesize speech, nothing else). Workflows that create credentials hide their output (a public log once exposed storage keys; they were rotated and the workflow now suppresses output). After changing a Fly secret, run **Fly setup** for that environment. Rotating `CODE_PEPPER` invalidates pending codes and makes stored Apple refresh tokens and TOTP secrets unreadable.
+Rules: each cloud credential has least privilege (the SES IAM user may send mail and synthesize speech, nothing else). Workflows that create credentials hide their output (a public log once exposed storage keys; they were rotated and the workflow now suppresses output). After changing a Fly secret, run **Fly setup** for that environment. Rotating `CODE_PEPPER` invalidates pending codes and makes stored Apple refresh tokens and `v1:` TOTP secrets unreadable. Set `TOTP_KEY` once and keep it: `v2:` TOTP secrets need it, and removing or changing it locks members with 2-step out until they use a recovery code.
 
 ## Member rights (nFADP / GDPR)
 

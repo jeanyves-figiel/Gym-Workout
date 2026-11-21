@@ -9,6 +9,8 @@ export interface Config {
   dbPath: string;
   jwtSecret: string;
   codePepper: string;
+  /** Optional dedicated key for TOTP secrets at rest (#930): new writes are `v2:`, `v1:` (HKDF of CODE_PEPPER) is re-encrypted on read. */
+  totpKey?: string;
   appleBundleIds: string[];
   accessTtlSec: number;
   refreshTtlDays: number;
@@ -109,6 +111,13 @@ const backupDir = (env: NodeJS.ProcessEnv, prod: boolean, dbPath: string): strin
   return prod && dbPath !== ':memory:' ? join(dirname(dbPath), 'backups') : undefined;
 };
 
+const totpKey = (env: NodeJS.ProcessEnv): string | undefined => {
+  const v = env.TOTP_KEY;
+  if (!v) return undefined;
+  if (v.length < 32) throw new Error('TOTP_KEY must be ≥ 32 chars');
+  return v;
+};
+
 const pollyCreds = (env: NodeJS.ProcessEnv) => {
   if (['off', '0', 'false', 'no'].includes((env.POLLY ?? '').toLowerCase())) return undefined;
   const accessKeyId = env.POLLY_ACCESS_KEY_ID || env.SES_ACCESS_KEY_ID;
@@ -140,6 +149,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     dbPath: env.DB_PATH ?? (prod ? '/data/app.db' : './data/dev.db'),
     jwtSecret,
     codePepper: required('CODE_PEPPER', env, prod, 'dev-only-code-pepper'),
+    totpKey: totpKey(env),
     appleBundleIds: (env.APPLE_BUNDLE_IDS ?? 'Com.app.MonkeyWorkout,Com.app.MonkeyWorkout.dev')
       .split(',')
       .map((s) => s.trim())

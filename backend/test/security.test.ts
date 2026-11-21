@@ -32,6 +32,10 @@ const setup = (env: Record<string, string> = {}) => {
   clock = new Date('2026-10-13T10:00:00Z');
   mailer = new ConsoleMailer(() => {});
   db = openDb(':memory:');
+  start(env);
+};
+/** (Re)builds the app on the current database, e.g. after a secret changes. */
+const start = (env: Record<string, string> = {}) => {
   app = buildApp({
     config: loadConfig({ NODE_ENV: 'test', AUTH_RATE_LIMIT_PER_MIN: '1000', APPLE_TEAM_ID: 'TEAM123456', WEBAUTHN_RP_ID: 'workout.example.com', ...env }),
     db,
@@ -195,6 +199,42 @@ describe('2-step sign-in (TOTP)', () => {
     const bad = codeFor(secret) === '123456' ? '654321' : '123456';
     for (let i = 0; i < 4; i++) expect((await req('POST', '/v1/auth/mfa', { mfaToken, code: bad })).json().error).toBe('invalid_code');
     expect((await req('POST', '/v1/auth/mfa', { mfaToken, code: bad })).json().error).toBe('mfa_expired');
+  });
+
+  it('TOTP_KEY (#930): v1 secrets still work and move to v2 on read; new secrets are v2', async () => {
+    const key = { TOTP_KEY: 'k'.repeat(40) };
+    const stored = () => (db.prepare('SELECT secret_enc FROM totp_secrets').get() as { secret_enc: string }).secret_enc;
+    const signInWithCode = async (secret: string) => {
+      const mfaToken = (await req('POST', '/v1/auth/login', { email: EMAIL, password: PW })).json().mfaToken;
+      return req('POST', '/v1/auth/mfa', { mfaToken, code: codeFor(secret) });
+    };
+    setup();
+    const t = await signUp();
+    const grant = await passwordGrant(t);
+    const { secret } = (await req('POST', '/v1/me/mfa/totp/setup', {}, t, grant)).json();
+    expect(stored()).toMatch(/^v1:/);
+    await req('POST', '/v1/me/mfa/totp/enable', { code: codeFor(secret) }, t, grant);
+    expect(stored()).toMatch(/^v1:/); // unchanged without TOTP_KEY
+
+    await app.close();
+    start(key);
+    advance(30_000);
+    expect((await signInWithCode(secret)).statusCode).toBe(200);
+    expect(stored()).toMatch(/^v2:/);
+    advance(30_000);
+    expect((await signInWithCode(secret)).statusCode).toBe(200);
+
+    // a fresh enrolment under TOTP_KEY is written as v2 straight away
+    db.prepare('DELETE FROM totp_secrets').run();
+    db.prepare('DELETE FROM recovery_codes').run();
+    const tok = (await req('POST', '/v1/auth/login', { email: EMAIL, password: PW })).json().tokens.accessToken as string;
+    const g = await passwordGrant(tok);
+    await req('POST', '/v1/me/mfa/totp/setup', {}, tok, g);
+    expect(stored()).toMatch(/^v2:/);
+  });
+
+  it('rejects a short TOTP_KEY', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', TOTP_KEY: 'short' })).toThrow(/TOTP_KEY/);
   });
 });
 

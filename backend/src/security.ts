@@ -130,12 +130,16 @@ interface PasskeyRow {
 
 export class SecurityService {
   private readonly d: SecurityDeps;
-  private readonly encKey: Buffer;
+  /** TOTP-secret keys by stored version: v1 = HKDF(CODE_PEPPER), v2 = HKDF(TOTP_KEY) when set (#930). */
+  private readonly encKeys: Record<string, Buffer>;
+  private readonly writeVersion: 'v1' | 'v2';
   private readonly wa: WebAuthnVerifier;
   constructor(d: SecurityDeps) {
     this.d = d;
     this.wa = d.webauthn ?? defaultVerifier;
-    this.encKey = Buffer.from(hkdfSync('sha256', d.config.codePepper, 'totp-secret', 'v1', 32));
+    this.encKeys = { v1: Buffer.from(hkdfSync('sha256', d.config.codePepper, 'totp-secret', 'v1', 32)) };
+    if (d.config.totpKey) this.encKeys.v2 = Buffer.from(hkdfSync('sha256', d.config.totpKey, 'totp-secret', 'v2', 32));
+    this.writeVersion = d.config.totpKey ? 'v2' : 'v1';
     d.auth.setSecondFactorGate((userId, device) => this.gateLogin(userId, device));
   }
 
@@ -323,16 +327,26 @@ export class SecurityService {
   // ───────────── 2-step (TOTP)
 
   private encrypt(plain: string): string {
+    const v = this.writeVersion;
     const iv = randomBytes(12);
-    const c = createCipheriv('aes-256-gcm', this.encKey, iv);
+    const c = createCipheriv('aes-256-gcm', this.encKeys[v]!, iv);
     const ct = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
-    return ['v1', iv.toString('base64url'), c.getAuthTag().toString('base64url'), ct.toString('base64url')].join(':');
+    return [v, iv.toString('base64url'), c.getAuthTag().toString('base64url'), ct.toString('base64url')].join(':');
   }
   private decrypt(stored: string): string {
-    const [, iv, tag, ct] = stored.split(':');
-    const d = createDecipheriv('aes-256-gcm', this.encKey, Buffer.from(iv!, 'base64url'));
+    const [v, iv, tag, ct] = stored.split(':');
+    const key = this.encKeys[v!];
+    if (!key) throw new Error(`TOTP secret is ${v}: its key is not configured (TOTP_KEY)`);
+    const d = createDecipheriv('aes-256-gcm', key, Buffer.from(iv!, 'base64url'));
     d.setAuthTag(Buffer.from(tag!, 'base64url'));
     return Buffer.concat([d.update(Buffer.from(ct!, 'base64url')), d.final()]).toString('utf8');
+  }
+  /** Decrypts a member's TOTP secret; an older version is re-encrypted with the current key once it reads (#930). */
+  private totpSecret(userId: string, stored: string): string {
+    const plain = this.decrypt(stored);
+    if (!stored.startsWith(`${this.writeVersion}:`))
+      this.d.db.prepare('UPDATE totp_secrets SET secret_enc = ? WHERE user_id = ? AND secret_enc = ?').run(this.encrypt(plain), userId, stored);
+    return plain;
   }
 
   /** Starts (or restarts) enrolment. Nothing changes for sign-in until `enableTotp` confirms a code. */
@@ -355,7 +369,7 @@ export class SecurityService {
       | undefined;
     if (!row) throw new ApiError(400, 'mfa_not_started', 'Start 2-step setup first.');
     if (row.enabled_at) throw new ApiError(409, 'mfa_already_enabled', '2-step is already on.');
-    const step = verifyTotp(this.decrypt(row.secret_enc), code, this.d.now());
+    const step = verifyTotp(this.totpSecret(userId, row.secret_enc), code, this.d.now());
     if (step === undefined) throw new ApiError(400, 'invalid_code', 'Wrong code. Check the time on your phone and try again.');
     const codes = tx(this.d.db, () => {
       this.d.db.prepare('UPDATE totp_secrets SET enabled_at = ?, last_step = ? WHERE user_id = ?').run(this.iso(), step, userId);
@@ -418,7 +432,7 @@ export class SecurityService {
       | { secret_enc: string; last_step: number }
       | undefined;
     if (!row) return false;
-    const step = verifyTotp(this.decrypt(row.secret_enc), code, this.d.now(), row.last_step);
+    const step = verifyTotp(this.totpSecret(userId, row.secret_enc), code, this.d.now(), row.last_step);
     if (step === undefined) {
       this.missedGuess(userId, 'totp');
       return false;
