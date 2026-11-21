@@ -27,6 +27,7 @@ import Testing
         #expect(text("fuel").contains("build 2"))
         #expect(text("fuel").contains("lose 2.2"))
         #expect(text("readiness").contains("< \(AutoTune.lightBelow)"))
+        #expect(text("readiness").contains("by more than \(HowItWorks.fmt(HRVFlag.swc)) × the SD of daily ln HRV"))
         #expect(text("zones").contains("goal \(HeartZones.zone2Goal) min"))
         #expect(text("caffeine").contains("\(Supplements.caffeineGuideMg) mg"))
         #expect(text("caffeine").contains("\(Supplements.caffeineHoursLargeDose) h for more"))

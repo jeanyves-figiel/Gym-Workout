@@ -216,7 +216,8 @@ public enum HowItWorks {
                         "≥ \(AutoTune.pushFrom) with Health data: \(TuneLevel.push.title), \(TuneLevel.push.rule)",
                         "sore group: its moves swap to ones that spare it"]),
             Part("Readiness pill", "A quick read of Apple Health markers; advice only.",
-                 rule: ["flags: 7-day HRV < 85 % of 30-day normal · resting HR > normal + 5 · sleep < 6 h",
+                 rule: ["flags: 7-day HRV under 30-day normal by more than \(fmt(HRVFlag.swc)) × the SD of daily ln HRV (smallest worthwhile change) · resting HR > normal + 5 · sleep < 6 h",
+                        "under \(HRVFlag.minDays) days of HRV: 7-day HRV < \(pct(HRVFlag.fallbackFloor)) of normal",
                         "0 flags Ready · 1 Normal · 2+ Easy"]),
         ],
         sources: ["Plews DJ, Laursen PB, Stanley J, Kilding AE, Buchheit M. Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. Sports Med 2013;43(9):773-781.",
@@ -226,7 +227,8 @@ public enum HowItWorks {
                   "Buchheit M. Monitoring training status with HR measures: do all roads lead to Rome? Front Physiol 2014;5:73 (resting HR up and HRV down as fatigue markers).",
                   "Watson NF et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the AASM and SRS. Sleep 2015;38(6):843-844 (7 h or more).",
                   "Cheung K, Hume P, Maxwell L. Delayed onset muscle soreness: treatment strategies and performance factors. Sports Med 2003;33(2):145-164 (sore muscles are weaker for days).",
-                  "App design: the point values and the 85 % HRV and +5 bpm flags."])
+                  "Plews DJ, Laursen PB, Kilding AE, Buchheit M. Heart rate variability in elite triathletes, is variation in variability the key to effective training? A case comparison. Eur J Appl Physiol 2012;112(11):3729-3741 (HRV off when the 7-day ln average leaves the smallest worthwhile change, 0.5 × SD).",
+                  "App design: the point values, the +5 bpm resting HR flag and the \(pct(HRVFlag.fallbackFloor)) HRV stand-in until \(HRVFlag.minDays) days of readings."])
 
     static let growth = Topic(
         id: "growth", title: "Block review & growth", symbol: "chart.line.uptrend.xyaxis",
