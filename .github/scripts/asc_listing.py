@@ -102,7 +102,11 @@ def diff(current: dict, wanted: dict) -> dict:
 def app_info():
     infos, _ = get_all(f"/v1/apps/{APP}/appInfos")
     info = next((i for i in infos if i["attributes"].get("appStoreState") in EDITABLE
-                 or i["attributes"].get("state") in {"PREPARE_FOR_SUBMISSION", "WAITING_FOR_REVIEW"}), infos[0])
+                 or i["attributes"].get("state") in {"PREPARE_FOR_SUBMISSION", "WAITING_FOR_REVIEW"}), None)
+    if not info:
+        # Only the live app info (#1111): name, subtitle, categories and age rating are locked until a new version.
+        summary.append("! App info locked (no new version): name, subtitle, categories, age rating skipped.")
+        return
     iid = info["id"]
     cats = {k: {"data": {"type": "appCategories", "id": L[f"{k}"]}} for k in ("primaryCategory", "secondaryCategory")}
     current = {}
