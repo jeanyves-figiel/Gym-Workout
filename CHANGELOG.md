@@ -5,6 +5,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Caffeine cut-off scales with the dose** (#977): a coffee (≤ 120 mg) 9 h before bed, stronger doses such as a pre-workout 13 h, instead of a flat 6 h. Late warnings, caffeine meter, How it works and Learn card follow Gardiner 2023.
+- **Water target: no creatine glass** (#982): creatine days no longer add a glass (creatine doesn't dehydrate, Kreider 2017); How it works explains the training top-up as sweat replacement.
+- **Starting load marked as the app's own estimate** (#980): How it works says the pattern ratios, level and implement factors are a rough guess your first session replaces, not a published norm.
+- **Train around pain shows the pain-monitoring rule** (#984): up to 5/10 if it settles by next morning and isn't worse week to week (Thomeé 1997, Silbernagel 2007); level map and 14-day check-in marked as app design.
+- **Readiness HRV flag uses your own swing** (#978): low HRV flagged when the 7-day average drops below normal by more than the smallest worthwhile change (0.5 × SD of daily ln HRV, Plews 2012) instead of a fixed 85 %; 85 % stays the stand-in for the first 7 days. Readiness sheet shows your cut-off (`HRVFlag`).
+- **Mind score and form check described as guides** (#979, #981): not a validated scale / not a movement assessment, in How it works, the Mind page and the form report; single-camera validity study cited (McLean 2005).
+- **Growth thresholds** (#983): How it works cites ACSM 2009 for the level-up gain and quotes the plateau rule from the code (`Growth.plateauWithin`, `plateauWeeks`); own thresholds listed as app design.
+- **Game & XP off hides it all** (#1058, #1052): level on the Me pill and Me sheet, session XP banner, quest-map This week (plain list), finish reward (plain trophy), Coach card level tip, Levels taps, and Insights Level / Week chest / Badges widgets go when Game & XP is off; XP and badges still counted. Plan & Explore off hides the Insights Programmes widget (`ProgressWidgetKind.module`, `ProgressBoard.showing`).
+- **Module off, fewer dead ends** (#1059, #1053): Settings → Training hides Fuel when Fuel is off and Around sport days when Sports is off; My plan hides the Programme tile when Explore isn't shown; app tour skips the Coach Monkey stop when Coach AI is off.
+- **TOTP secrets can use their own key** (#930): optional `TOTP_KEY` Fly secret; new 2-step secrets stored `v2:` under it, `v1:` (from `CODE_PEPPER`) re-encrypted on the next successful code. Unset = unchanged.
+- **Off-site backups stream** (#923): file → gzip → AES-256-GCM → 16 MB multipart upload instead of the whole DB in RAM; same MWB1 format, restore unchanged. Fly volumes auto-extend at 80 % (production +2 GB to 50 GB, staging +1 GB to 5 GB).
+
 ### Added
 - **What's new 2026-11-20.1** (bundle 106): one card (Share MonkeyWorkout #1113); 2026-11-15.3 moved to history as build 108.
 - **Share MonkeyWorkout** (#1113, placement 3 from `share-preview/ios-proposals.png`): gradient tile on Invite and on the You hub opens a sheet: Story (1080×1920), Post (1080×1080) or Link (`/app`, big preview). Story/Post send the picture with the link in the text, ready for Instagram/TikTok stories (`ShareAppViews.swift`, art bundled as `share-story`/`share-post`).
