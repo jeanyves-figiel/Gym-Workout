@@ -45,4 +45,16 @@ import Testing
         #expect(!simple.widgets.contains { $0.kind == .coach })
         #expect(l.showing(.everything) == l)
     }
+
+    @Test func insightsBoardDropsGameWidgets() {
+        let b = ProgressBoard.classic
+        let simple = b.showing(AppModules(level: .workouts))
+        #expect(!simple.contains(.level))
+        #expect(!simple.contains(.chest))
+        #expect(!simple.contains(.badges))
+        #expect(!simple.contains(.programmes))
+        #expect(simple.contains(.streak))
+        #expect(simple.contains(.records))
+        #expect(b.showing(.everything) == b)
+    }
 }

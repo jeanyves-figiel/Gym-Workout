@@ -70,7 +70,8 @@ struct TrainingProfileView: View {
                     }
                     Text("ADD TO YOUR PLAN").eyebrow().padding(.top, 4)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
-                        if model.activeProgramme == nil {
+                        // Opens Explore → Programmes: not when Explore is hidden or Plan & Explore is off (#1059).
+                        if model.activeProgramme == nil, TabsPref.shared.shows(.explore) {
                             Button {
                                 dismiss()
                                 model.openExploreProgrammes()

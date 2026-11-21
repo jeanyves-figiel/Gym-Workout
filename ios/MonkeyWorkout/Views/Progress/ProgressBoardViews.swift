@@ -214,7 +214,8 @@ struct ProgressWidgetGallery: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    grid(ProgressWidgetKind.allCases.filter { $0 != .sport }.map { ProgressWidget($0) }, board: board)
+                    grid(ProgressWidgetKind.allCases.filter { k in k != .sport && (k.module.map { model.shows($0) } ?? true) }.map { ProgressWidget($0) },
+                         board: board)
                     Text("Your sports").eyebrow().padding(.top, 8)
                     Text("A card for each sport you want to follow: sessions, time and its best.")
                         .font(.caption).foregroundStyle(Theme.muted)
@@ -313,9 +314,11 @@ struct ProgressCustomiseSheet: View {
                         .onMove { from, to in model.editProgressBoard { $0.move(fromOffsets: from, toOffset: to) } }
                         .onDelete { idx in remove(idx.map { board.widgets[$0] }, from: board) }
                 }
-                if !board.addable.isEmpty {
+                // A module off (#1058): its widgets are not offered.
+                let addable = board.addable.filter { k in k.module.map { model.shows($0) } ?? true }
+                if !addable.isEmpty {
                     Section("Add") {
-                        ForEach(board.addable) { kind in
+                        ForEach(addable) { kind in
                             Button {
                                 withAnimation { model.editProgressBoard { $0.add(ProgressWidget(kind)) } }
                             } label: {

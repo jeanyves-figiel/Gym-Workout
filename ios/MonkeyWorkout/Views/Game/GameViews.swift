@@ -60,15 +60,20 @@ extension MonkeyFace.Mood {
 
 // MARK: - Shared pieces
 
-/// Every level display opens the ladder (#242): LV chip, level bar, banners, finish card.
+/// Every level display opens the ladder (#242): LV chip, level bar, banners, finish card. Game & XP off (#1058): no ladder.
 private struct OpensLevels: ViewModifier {
+    @Environment(AppModel.self) private var model
     @State private var open = false
 
-    func body(content: Content) -> some View {
-        Button { open = true } label: { content.contentShape(Rectangle()) }
-            .buttonStyle(.plain)
-            .accessibilityHint("Shows what each level brings")
-            .sheet(isPresented: $open) { LevelLadderSheet() }
+    @ViewBuilder func body(content: Content) -> some View {
+        if model.shows(.game) {
+            Button { open = true } label: { content.contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows what each level brings")
+                .sheet(isPresented: $open) { LevelLadderSheet() }
+        } else {
+            content
+        }
     }
 }
 
@@ -382,9 +387,12 @@ struct MonkeyCoachCard: View {
             out.append(Tip(text: "🏅 Best \(Exercise.get(r.exerciseId).name): \(Format.kg(r.kg)) kg. Beat it!", tint: (0x3D5AFF, 0x1E9BFF),
                            cta: "Open \(Exercise.get(r.exerciseId).name)", action: .exercise(r.exerciseId)))
         }
-        let g = model.game
-        out.append(Tip(text: "⭐ Level \(g.level): \(g.xpToNext) XP to level \(g.level + 1)", tint: (0x3DFFB0, 0x1E9BFF),
-                       cta: "See levels", action: .levels))
+        // Game & XP off (#1058): no level tip.
+        if model.shows(.game) {
+            let g = model.game
+            out.append(Tip(text: "⭐ Level \(g.level): \(g.xpToNext) XP to level \(g.level + 1)", tint: (0x3DFFB0, 0x1E9BFF),
+                           cta: "See levels", action: .levels))
+        }
         let left = max(0, target - stats.thisWeek)
         let text: String = if left == 0 {
             "\(stats.thisWeek)/\(target) this week. Bonus round?"
@@ -400,7 +408,8 @@ struct MonkeyCoachCard: View {
             let action: Action? = switch t.action {
             case "progress": .progress(.training)
             case "calendar": .calendar
-            case "levels": .levels
+            // Game & XP off (#1058): no tip to Levels.
+            case "levels": model.shows(.game) ? .levels : nil
             default: nil
             }
             if let action { out.append(Tip(text: t.text, tint: t.colors, cta: t.cta, action: action)) }
@@ -663,6 +672,11 @@ struct SessionGameBanner: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        // Game & XP off (#1058): nothing to earn on the session page.
+        if model.shows(.game) { banner }
+    }
+
+    @ViewBuilder private var banner: some View {
         let style = WatchHomePref.shared.style
         let g = model.game
         let gain = model.xp(for: session)

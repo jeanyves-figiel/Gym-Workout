@@ -290,15 +290,17 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                // Fuel (#496): goal, diet, avoid list, meals, day times, No numbers.
-                if search.matches(Find.fuel) {
+                // Fuel (#496): goal, diet, avoid list, meals, day times, No numbers. Fuel module off (#1059): no row.
+                if model.shows(.fuel), search.matches(Find.fuel) {
                     NavigationLink { FuelSetupView() } label: {
                         SettingsRow(symbol: "fork.knife", title: "Fuel")
                     }
                     .buttonStyle(.plain)
                 }
                 // Around sport days (#390, any sport #658): also on the Wall session and Sport prep pages. Members with a sport.
-                if let p = model.profile, Generator.isClimber(p) || !p.otherSports.isEmpty, search.matches(Find.climbing) {
+                // Sports & climbing off (#1059): no row.
+                if let p = model.profile, model.shows(.sports), Generator.isClimber(p) || !p.otherSports.isEmpty,
+                   search.matches(Find.climbing) {
                     Button { climbSettings = true } label: {
                         SettingsRow(symbol: "figure.mixed.cardio", title: "Around sport days") { AccountChevron() }
                     }

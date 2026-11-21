@@ -54,7 +54,8 @@ struct HiitPlayerView: View {
             Theme.bg.ignoresSafeArea()
             if let record {
                 SummaryView(session: session, elapsed: TimeInterval(record.durationSec), setsDone: record.totalSets, kcal: record.kcal,
-                            healthSaved: health.connected && health.writeWorkouts, reward: reward, wins: wins, record: record) {
+                            healthSaved: health.connected && health.writeWorkouts, reward: model.shows(.game) ? reward : nil,
+                            wins: wins, record: record) {
                     dismiss()
                 }
                 .transition(.scale.combined(with: .opacity))

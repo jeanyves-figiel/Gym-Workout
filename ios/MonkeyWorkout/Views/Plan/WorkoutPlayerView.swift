@@ -208,7 +208,9 @@ struct WorkoutPlayerView: View {
                     // The recorded duration once saved (#822): the clock doesn't keep running on the summary.
                     SummaryView(session: session, elapsed: record.map { TimeInterval($0.durationSec) } ?? Date().timeIntervalSince(started),
                                 setsDone: setsDone.values.reduce(0, +),
-                                kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward,
+                                kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts,
+                                // Game & XP off (#1058): the plain trophy finish, no XP or chest.
+                                reward: model.shows(.game) ? reward : nil,
                                 wins: wins, record: record, recap: recap, recapOnDevice: recapOnDevice, report: report) {
                         doneWithUndo()
                     }
