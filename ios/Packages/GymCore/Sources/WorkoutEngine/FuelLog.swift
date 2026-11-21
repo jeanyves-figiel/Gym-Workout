@@ -234,7 +234,7 @@ public enum FuelLearn {
                        "If your next meal is close, make it the recovery meal: no extra snack needed."]),
         .init(id: "caffeine", emoji: "☕", title: "Caffeine", summary: "A proven boost, if timed well.",
               points: ["3 mg per kg about 30 to 60 min before training improves performance for most people.",
-                       "Avoid it within 6 h of bedtime: poor sleep costs more than caffeine gives.",
+                       "Avoid a coffee within 9 h of bedtime, a pre-workout within 13 h: poor sleep costs more than caffeine gives.",
                        "Start lower if you're sensitive, and don't stack coffee with pre-workout drinks."]),
         .init(id: "creatine", emoji: "🧂", title: "Creatine", summary: "The best-studied supplement for strength.",
               points: ["3 to 5 g a day, any time, every day. No loading needed.",

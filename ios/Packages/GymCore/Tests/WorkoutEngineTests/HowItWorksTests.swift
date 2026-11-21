@@ -29,6 +29,7 @@ import Testing
         #expect(text("readiness").contains("< \(AutoTune.lightBelow)"))
         #expect(text("zones").contains("goal \(HeartZones.zone2Goal) min"))
         #expect(text("caffeine").contains("\(Supplements.caffeineGuideMg) mg"))
+        #expect(text("caffeine").contains("\(Supplements.caffeineHoursLargeDose) h for more"))
         #expect(text("plan").contains("Week 4: \(Generator.weekLabel(4))"))
         #expect(HowItWorks.topic("methods")!.parts.count == TrainingMethod.allCases.count + 1)
         #expect(text("form").contains("trunk lean: \(HowItWorks.fmt(FormModel.Limit.torsoLean))° more"))

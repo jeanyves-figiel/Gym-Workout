@@ -431,8 +431,15 @@ public struct SupplementDose: Codable, Hashable, Sendable, Identifiable {
 public enum Supplements {
     /// Upper guide for healthy adults, mg a day.
     public static let caffeineGuideMg = 400
-    /// No caffeine within this many hours of bedtime (same as the Learn card).
-    public static let caffeineHoursBeforeSleep = 6
+    /// The cut-off scales with the dose (#977): in the Gardiner 2023 meta-analysis a coffee (~107 mg) still cut sleep
+    /// when taken 8.8 h before bed, a pre-workout (~217 mg) 13.2 h before. Up to this many mg counts as a coffee.
+    public static let caffeineSmallDoseMg = 120
+    /// No caffeine within this many hours of bedtime: a coffee-sized dose, and anything stronger (#977).
+    public static let caffeineHoursSmallDose = 9
+    public static let caffeineHoursLargeDose = 13
+
+    /// Hours between a dose of `mg` caffeine and bedtime.
+    public static func caffeineHoursBeforeSleep(mg: Int) -> Int { mg > caffeineSmallDoseMg ? caffeineHoursLargeDose : caffeineHoursSmallDose }
 
     /// Recipe id of a product from the stack ("product-<supplement id>").
     public static let recipePrefix = "product-"
@@ -450,8 +457,8 @@ public enum Supplements {
     /// The first take keeps the key older logs used.
     public static func tickId(_ s: Supplement, take: Int = 0) -> String { take == 0 ? "supp-\(s.id)" : "supp-\(s.id)-\(take + 1)" }
 
-    /// Minute of the last caffeine for the member's bedtime.
-    public static func caffeineCutoff(_ prefs: FuelPrefs) -> Int { prefs.sleep - caffeineHoursBeforeSleep * 60 }
+    /// Minute of the last caffeine for the member's bedtime, for a dose of `mg` (a coffee when left out).
+    public static func caffeineCutoff(_ prefs: FuelPrefs, mg: Int = 0) -> Int { prefs.sleep - caffeineHoursBeforeSleep(mg: mg) * 60 }
 
     public static func clock(_ minute: Int) -> String { String(format: "%02d:%02d", minute / 60 % 24, minute % 60) }
 
@@ -466,7 +473,6 @@ public enum Supplements {
         let slot: (MealKind) -> FuelSlot? = { k in plan.slots.first { $0.kind == k } }
         let meal: (MealKind) -> Int? = { slot($0)?.minute }
         let breakfast = meal(.breakfast) ?? prefs.wake + 30
-        let cutoff = caffeineCutoff(prefs)
         let training = !acts.isEmpty
         return stack.filter { !$0.whenPicked }.flatMap { s -> [SupplementDose] in
             s.schedule.intakes(on: plan.day, training: training, calendar: cal).enumerated().compactMap { i, take -> SupplementDose? in
@@ -501,7 +507,7 @@ public enum Supplements {
                     reason = "Your \(k.label.lowercased())"
                 }
                 return SupplementDose(id: tickId(s, take: i), supplement: one, minute: m, reason: reason,
-                                      late: one.caffeineMg > 0 && m > cutoff, replaces: replaces)
+                                      late: one.caffeineMg > 0 && m > caffeineCutoff(prefs, mg: one.caffeineMg), replaces: replaces)
             }
         }
         .sorted { $0.minute < $1.minute }
@@ -534,8 +540,9 @@ public enum Supplements {
     /// Sleep and caffeine warnings, then creatine water.
     public static func pointers(_ doses: [SupplementDose], prefs: FuelPrefs) -> [String] {
         var out: [String] = []
-        let cutoff = clock(caffeineCutoff(prefs)), sleep = clock(prefs.sleep)
+        let sleep = clock(prefs.sleep)
         for d in doses where d.late {
+            let cutoff = clock(caffeineCutoff(prefs, mg: d.supplement.caffeineMg))
             out.append("\(d.supplement.name) at \(d.time) has \(d.supplement.caffeineMg) mg caffeine, after your \(cutoff) cut-off for \(sleep) sleep. Take half, or a caffeine-free one.")
         }
         let total = caffeine(doses)

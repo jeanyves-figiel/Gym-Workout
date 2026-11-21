@@ -365,12 +365,12 @@ public enum HowItWorks {
         parts: [
             Part("Caffeine", "Logged drinks and supplements add up; Fuel warns past the guide or too close to bed.",
                  rule: ["guide \(Supplements.caffeineGuideMg) mg a day for healthy adults",
-                        "last caffeine \(Supplements.caffeineHoursBeforeSleep) h before your bedtime"]),
+                        "last caffeine before your bedtime: \(Supplements.caffeineHoursSmallDose) h for up to \(Supplements.caffeineSmallDoseMg) mg (a coffee), \(Supplements.caffeineHoursLargeDose) h for more (a pre-workout)"]),
             Part("Supplement schedule", "Doses land on your meals; cycles count weeks on and off from the start date you set.", rule: []),
         ],
         sources: ["EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on the safety of caffeine. EFSA J 2015;13(5):4102.",
                   "Drake C, Roehrs T, Shambroom J, Roth T. Caffeine effects on sleep taken 0, 3, or 6 hours before going to bed. J Clin Sleep Med 2013;9(11):1195-1200.",
-                  "Gardiner C et al. The effect of caffeine on subsequent sleep: a systematic review and meta-analysis. Sleep Med Rev 2023;69:101764 (a coffee about 9 h and a pre-workout about 13 h before bed still cost sleep).",
+                  "Gardiner C et al. The effect of caffeine on subsequent sleep: a systematic review and meta-analysis. Sleep Med Rev 2023;69:101764 (a coffee about 9 h and a pre-workout about 13 h before bed still cost sleep, hence the two cut-offs).",
                   "Guest NS et al. International Society of Sports Nutrition position stand: caffeine and exercise performance. J Int Soc Sports Nutr 2021;18(1):1 (3–6 mg/kg about an hour before).",
                   "Kreider RB et al. International Society of Sports Nutrition position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine. J Int Soc Sports Nutr 2017;14:18."])
 

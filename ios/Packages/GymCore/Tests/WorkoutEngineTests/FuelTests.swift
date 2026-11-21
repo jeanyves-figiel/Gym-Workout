@@ -366,6 +366,19 @@ import Testing
         #expect(p.tips.first?.contains("cut-off") == true)
     }
 
+    @Test func caffeineCutoffScalesWithTheDose() {
+        // 23:00 sleep: a coffee-sized dose by 14:00, a strong pre-workout by 10:00 (#977, Gardiner 2023).
+        let prefs = FuelPrefs()
+        #expect(Supplements.caffeineCutoff(prefs) == 14 * 60)
+        #expect(Supplements.caffeineCutoff(prefs, mg: 120) == 14 * 60)
+        #expect(Supplements.caffeineCutoff(prefs, mg: 200) == 10 * 60)
+        var strong = boost
+        strong.caffeineMg = 200
+        #expect(Supplements.schedule([boost], plan: plan(trainingAt: 12), prefs: prefs, calendar: cal).first?.late == false)
+        #expect(Supplements.schedule([strong], plan: plan(trainingAt: 12), prefs: prefs, calendar: cal).first?.late == true)
+        #expect(Supplements.schedule([boost], plan: plan(trainingAt: 15), prefs: prefs, calendar: cal).first?.late == true)
+    }
+
     @Test func creatineAddsAGlass() {
         let base = plan(trainingAt: 18)
         var p = base
