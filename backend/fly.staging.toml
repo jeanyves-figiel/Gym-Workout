@@ -33,6 +33,10 @@ primary_region = 'fra'
 [mounts]
   source = 'data'
   destination = '/data'
+  # Grow the volume before it fills (#923): +1GB once 80 % is used, up to 5GB.
+  auto_extend_size_threshold = 80
+  auto_extend_size_increment = '1GB'
+  auto_extend_size_limit = '5GB'
 
 [http_service]
   internal_port = 8080

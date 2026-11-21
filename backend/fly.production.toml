@@ -30,6 +30,10 @@ primary_region = 'fra'
 [mounts]
   source = 'data'
   destination = '/data'
+  # Grow the volume before it fills (#923): +2GB once 80 % is used, up to 50GB.
+  auto_extend_size_threshold = 80
+  auto_extend_size_increment = '2GB'
+  auto_extend_size_limit = '50GB'
 
 [http_service]
   internal_port = 8080
@@ -46,7 +50,7 @@ primary_region = 'fra'
     path = '/healthz'
     timeout = '5s'
 
-# 1 GB (#923): room for the hourly encrypted backup (whole copy in RAM), photo uploads and more members.
+# 1 GB (#923): room for photo uploads and more members (off-site copies stream, about 16 MB at a time).
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '1gb'
