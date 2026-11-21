@@ -22,6 +22,7 @@ export interface Config {
   appName: string;
   /** Where the invite page (#745) sends friends to get the app: App Store once live, TestFlight public link until then. */
   inviteAppUrl: string;
+  appStoreId: string;
   authRateLimitPerMin: number;
   /** Sign in with Apple server-to-server (code exchange + token revocation). Unset → skipped. */
   /**
@@ -148,6 +149,8 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     mail: { transport, smtpUrl: env.SMTP_URL, ses: sesCreds, from: env.MAIL_FROM ?? 'MonkeyWorkout <no-reply@localhost>' },
     appName: env.APP_NAME ?? 'MonkeyWorkout',
     inviteAppUrl: env.INVITE_APP_URL ?? 'https://testflight.apple.com/join/cRjD9cQu',
+    /** App Store app ID for `/app` (#1113): Smart App Banner + App Store button. */
+    appStoreId: env.APP_STORE_ID ?? '6819971090',
     authRateLimitPerMin: Number(env.AUTH_RATE_LIMIT_PER_MIN ?? 10),
     appleSignIn: {
       teamId: env.APPLE_TEAM_ID || undefined,

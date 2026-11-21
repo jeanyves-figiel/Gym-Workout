@@ -60,6 +60,7 @@ import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscri
 import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
 import { legalRoutes } from './routes/legal.ts';
+import { appShareRoutes } from './routes/appShare.ts';
 import { castRoutes } from './routes/cast.ts';
 import { remoteRoutes } from './remote.ts';
 import { reauthToken, securityPublicRoutes, securityRoutes } from './routes/security.ts';
@@ -222,6 +223,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   communityPublicRoutes(app, deps.db, deps.config.appName);
   referralPublicRoutes(app, deps.db, deps.config.appName, deps.config.inviteAppUrl);
+  appShareRoutes(app, deps.config.appName, deps.config.appStoreId);
   appStoreNotificationRoutes(app, subscriptions);
   legalRoutes(app, deps.config);
   // Chromecast receiver + movement clips (#1008): the image's copy, else (dev) the app's own resources.

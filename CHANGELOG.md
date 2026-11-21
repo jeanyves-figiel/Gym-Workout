@@ -5,13 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Changed
-- **App Store listing for 1.2** (#1111, pending approval): description leads with Apple Watch rep counting (auto-logged sets, bar speed, machine mode) and *Film my workout* (camera names moves, counts reps, reads weight, video never saved), then the one-minute Coach setup chat and tracking without typing; new subtitle and promotional text (`ios/AppStore/listing.json`). Screenshot set: Train, Film my workout, Player (renders again, #1078), Ask Coach, Plan reveal, Session, 3D guide, Insights, Fuel, Mind; extra review captures after the first 10.
-
 ### Added
+- **App version 1.2** (bundle 106): `MARKETING_VERSION` 1.1 → 1.2 in `ios/project.yml`; 1.1 is live on the App Store, so its TestFlight train is closed (upload of build 110 was refused).
+- **What's new 2026-11-20.1** (bundle 106): one card (Share MonkeyWorkout #1113); 2026-11-15.3 moved to history as build 108.
+- **Share MonkeyWorkout** (#1113, placement 3 from `share-preview/ios-proposals.png`): gradient tile on Invite and on the You hub opens a sheet: Story (1080×1920), Post (1080×1080) or Link (`/app`, big preview). Story/Post send the picture with the link in the text, ready for Instagram/TikTok stories (`ShareAppViews.swift`, art bundled as `share-story`/`share-post`).
+- **Rich share previews** (#1113, designs A + C from `share-preview/proposals.png`): new `/app` share page shows a big pink→orange preview (headline, Train screen, *Free on the App Store*) in iMessage, WhatsApp, Slack and Instagram DMs instead of the App Store's icon-only card; Smart App Banner + App Store button (`APP_STORE_ID`). Invite (`/i/:code`) and public post (`/share/:id`) links get the same image. Share art at `/og/*.jpg`: link 1200×630, Instagram story 1080×1920 and post 1080×1080, App Store In-App Event 1920×1080 (violet→teal phone fan); regenerate with `backend/scripts/share-art/render.mjs`.
 - **App Store listing: promo text on the live version** (#1111): with no editable version, `asc_listing.py` updates only the promotional text of the version on sale.
 - **Screenshots workflow: iPhone Duo opt-in** (#1111): `duo` input, off by default (the Duo captures timed the job out and are not uploaded); timeout 110 min.
 - **Film my workout demo screen** (#1111): `-demoScreen film-session` plays a made-up member (bench and squat sets found with weights read, a squat set counted live) with no camera or voice; `FilmWorkout.Guess` gets a public init, for App Store screenshots (`FilmSessionView(demo:)`).
+
+### Changed
+- **Backend dependencies** (bundle 106): `@anthropic-ai/sdk` 1.3.0 → 1.8.0 (#1116), `nodemailer` 10.4.0 → 10.6.0 (#1117).
+- **App Store listing for 1.2** (#1111, user OK 2026-11-21; ships with App Store 1.2): description leads with Apple Watch rep counting (auto-logged sets, bar speed, machine mode) and *Film my workout* (camera names moves, counts reps, reads weight, video never saved), then the one-minute Coach setup chat and tracking without typing; new subtitle and promotional text (`ios/AppStore/listing.json`). Screenshot set: Train, Film my workout, Player (renders again, #1078), Ask Coach, Plan reveal, Session, 3D guide, Insights, Fuel, Mind; extra review captures after the first 10.
 
 ### Fixed
 - **No more random sign-outs with Sign in with Apple** (#1106): the launch check now signs out only when the Apple credential is revoked; iOS sometimes answers *not found* for a valid credential, which signed members out on a relaunch (`AppleCredentialCheck.verify`).

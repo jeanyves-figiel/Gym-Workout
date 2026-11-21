@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "id": "2026-11-15.3",
+      "build": 108,
+      "date": "2026-11-15",
+      "items": [
+        {
+          "symbol": "person.badge.key.fill",
+          "tint": "stretch",
+          "title": "Stay signed in",
+          "body": "Sign in with Apple no longer signs you out at random, and sign up doesn't start over after you sign in."
+        }
+      ]
+    },
+    {
       "id": "2026-11-15.2",
       "build": 106,
       "date": "2026-11-15",
