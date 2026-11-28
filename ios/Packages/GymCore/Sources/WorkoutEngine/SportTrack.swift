@@ -51,17 +51,21 @@ public struct SportTrack: Equatable, Sendable {
 
     public var points: [Point]
     public var laps: [Lap]
+    /// Lift rides the Watch detected live from the barometer (#1129), saved as Health segments. When present they split
+    /// the runs instead of the GPS altitude, which wobbles too much to tell a slow lift from a flat stretch.
+    public var lifts: [Lap]
 
-    public init(points: [Point], laps: [Lap] = []) {
+    public init(points: [Point], laps: [Lap] = [], lifts: [Lap] = []) {
         self.points = points
         self.laps = laps
+        self.lifts = lifts
     }
 
     /// At most `max` points, evenly picked (first and last kept), so maps and charts stay light.
     public func thinned(max: Int = 600) -> SportTrack {
         guard points.count > max, max > 1 else { return self }
         let step = Double(points.count - 1) / Double(max - 1)
-        return SportTrack(points: (0..<max).map { points[Int((Double($0) * step).rounded())] }, laps: laps)
+        return SportTrack(points: (0..<max).map { points[Int((Double($0) * step).rounded())] }, laps: laps, lifts: lifts)
     }
 
     /// Fastest speed in km/h, as the median of 3 neighbours so a single GPS jump doesn't count.
@@ -91,6 +95,7 @@ public struct SportTrack: Equatable, Sendable {
     /// Downhill runs: a drop of at least `minDrop` metres ends when the track climbs `lift` metres again (a lift).
     public func runs(minDrop: Double = 40, lift: Double = 25) -> [Run] {
         guard !points.isEmpty else { return [] }
+        if !lifts.isEmpty { return liftRuns(minDrop: min(minDrop, 30)) }
         let dist = distances
         var out: [Run] = []
         var top = 0, low = 0
@@ -119,6 +124,33 @@ public struct SportTrack: Equatable, Sendable {
         if low > top { close(low) }
         return out
     }
+
+    /// Runs between the Watch's lift rides (#1129): in each stretch off a lift, from its highest point to the lowest after it.
+    private func liftRuns(minDrop: Double) -> [Run] {
+        let dist = distances
+        var out: [Run] = []
+        var i = 0
+        while i < points.count {
+            guard !onLift(points[i].time) else { i += 1; continue }
+            var j = i
+            while j + 1 < points.count && !onLift(points[j + 1].time) { j += 1 }
+            // Stretch i...j off the lifts.
+            let top = (i...j).max { points[$0].alt < points[$1].alt } ?? i
+            let low = (top...j).min { points[$0].alt < points[$1].alt } ?? top
+            let drop = points[top].alt - points[low].alt
+            if low > top, drop >= minDrop {
+                var start = top
+                while start < low - 1 && points[start + 1].alt >= points[top].alt - 2 { start += 1 }
+                let fastest = points[start...low].map(\.speed).max() ?? 0
+                out.append(Run(from: start, to: low, drop: drop, topKmh: fastest * 3.6, meters: dist[low] - dist[start],
+                               seconds: points[low].time.timeIntervalSince(points[start].time)))
+            }
+            i = j + 1
+        }
+        return out
+    }
+
+    private func onLift(_ t: Date) -> Bool { lifts.contains { t >= $0.start && t <= $0.end } }
 
     /// Index of the point nearest `time`.
     public func index(near time: Date) -> Int? {
@@ -238,7 +270,9 @@ extension SportTrack {
     /// The day split into riding (the runs), lifts (going up between them) and breaks (stopped `restMin` seconds or more).
     public func dayParts(restSpeed: Double = 0.8, restMin: TimeInterval = 180) -> [Part] {
         guard points.count > 1 else { return [] }
-        var kind = [Part.Kind](repeating: .lift, count: points.count - 1)
+        // With the Watch's lifts (#1129) everything off a lift and off a run is a break; without them, a guess from altitude.
+        var kind = [Part.Kind](repeating: lifts.isEmpty ? .lift : .rest, count: points.count - 1)
+        if !lifts.isEmpty { for i in kind.indices where onLift(points[i].time) && onLift(points[i + 1].time) { kind[i] = .lift } }
         for r in runs() { for i in r.from..<r.to { kind[i] = .ride } }
         // Long slow stretches outside the runs are breaks.
         var i = 0

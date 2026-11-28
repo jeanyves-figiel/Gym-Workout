@@ -135,10 +135,42 @@ struct SportTrackView: View {
             controls
         }
         .tabViewStyle(.verticalPage)
+        // Wrist down (#1128, W1): one grey value on black, whatever page is open, so the screen goes quiet like Apple's
+        // Workout app instead of looking switched on.
+        .overlay {
+            if dimmed {
+                TimelineView(.periodic(from: .now, by: 60)) { ctx in dimFace(now: ctx.date) }
+            }
+        }
         // FTP test result (#623 C) to the iPhone: zones there follow it.
         .onChange(of: BikeSensors.shared.testResult) { _, ftp in
             if let ftp { store.send(.bikeFTP(watts: ftp, date: Date())) }
         }
+    }
+
+    /// Always-on face (#1128): header and one big number in grey on black, nothing coloured, redrawn once a minute.
+    @ViewBuilder private func dimFace(now: Date) -> some View {
+        if let sport = tracker.sport {
+            let v = dimValue(sport)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(sport.downhill ? header(sport) : sport.label.uppercased()).font(W.label(11)).foregroundStyle(.gray).lineLimit(1)
+                Text(v.value).font(W.display(40)).foregroundStyle(Color(white: 0.55)).minimumScaleFactor(0.5).lineLimit(1)
+                Text("\(v.unit) · \(Self.clock(now.timeIntervalSince(tracker.started ?? now)))").font(W.label(11))
+                    .foregroundStyle(Color(white: 0.4)).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .watchMargins()
+            .background(Color.black.ignoresSafeArea())
+        }
+    }
+
+    private func dimValue(_ sport: TrackedSport) -> (value: String, unit: String) {
+        if sport.downhill { return ("\(Int(tracker.down.rounded()))", "m vert") }
+        if let c = tracker.climb { return ("\(c.attempts.filter { $0.result != "fall" }.count)", "sent") }
+        if sport.swingLever != nil { return ("\(tracker.impacts.swings.total)", "swings") }
+        if [TrackedSport.hike, .mountaineering, .trailRun].contains(sport) { return ("+\(Int(tracker.up.rounded()))", "m up") }
+        if sport.usesGPS { return (km, "km") }
+        return (hr, "bpm")
     }
 
     @ViewBuilder private func dashboard(now: Date) -> some View {

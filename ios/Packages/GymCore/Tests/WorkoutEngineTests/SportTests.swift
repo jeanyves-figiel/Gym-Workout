@@ -156,4 +156,21 @@ import Testing
         #expect(runs.count == 2)
         #expect(runs[0].meters > 1000 && runs[0].avgKmh > 20)
     }
+
+    /// Watch lifts (#1129): a 30 m bump mid-run looks like a lift to the altitude guess; the Watch's lift segments don't.
+    @Test func watchLiftsSplitRuns() {
+        let bumpy = [300.0, 280, 260, 240, 220, 200, 180, 160, 190, 170, 140, 110, 80, 50, 20, 0]
+        let up = stride(from: 0.0, through: 300, by: 20).map { $0 }
+        let down = stride(from: 300.0, through: 0, by: -20).map { $0 }
+        var t = track(bumpy + up + down)
+        #expect(t.runs().count == 3)
+        let t0 = Date(timeIntervalSince1970: 0)
+        t.lifts = [SportTrack.Lap(start: t0.addingTimeInterval(155), end: t0.addingTimeInterval(315))]
+        let runs = t.runs()
+        #expect(runs.count == 2)
+        #expect(runs.map(\.drop) == [300, 300])
+        let totals = t.dayTotals()
+        #expect(totals.lift >= 140 && totals.lift <= 160)
+        #expect(t.thinned(max: 20).lifts == t.lifts)
+    }
 }

@@ -715,6 +715,36 @@ struct WMirrorState: Codable, Equatable {
     var finished = false
 }
 
+/// A sport session on the Watch, as the iPhone follows it live (#1130): sent through workout mirroring with
+/// `sendToRemoteWorkoutSession`, every 10 s at most and on each lift / run change. Older iPhone apps can't decode it as a
+/// `WMirrorState` and ignore it.
+struct WSportLive: Codable, Equatable {
+    /// `TrackedSport` / `Sport` raw value, its label, SF Symbol and colours.
+    var sport: String
+    var label: String
+    var symbol: String
+    var tint: UInt32
+    var tint2: UInt32
+    var started: Date
+    var downhill: Bool
+    var paused: Bool
+    var km: Double
+    /// Downhill: metres down; others: metres up.
+    var vertical: Double
+    var kmh: Double
+    var topKmh: Double
+    var runs: Int
+    var onLift: Bool
+    var lastRunDrop: Double?
+    var lastRunTopKmh: Double?
+    var rideSeconds: Double
+    var liftSeconds: Double
+    var heartRate: Int?
+    /// Breadcrumb (lat, lon pairs flattened, 5 decimals), at most 60 points, for the live page's trail.
+    var trail: [Double]
+    var finished = false
+}
+
 enum WatchKeys {
     static let snapshot = "snapshot"
     static let event = "event"

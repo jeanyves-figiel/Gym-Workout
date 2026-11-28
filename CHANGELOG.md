@@ -9,8 +9,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **What's new 2026-11-28.1** (bundle 108): Ski & snowboard live, Real piste & trail maps (#1131); 2026-11-21.1 moved to history as build 112.
 - **nodemailer 10.6.1** (#1127, folded in after lockfile conflict).
 
+### Fixed
+- **Watch ski / snowboard: lift vs run** (#1129): lifts and runs now come from the barometer's altitude trend (vertical speed over 30 s, held 25 s for a lift, 8 s for riding) instead of raw GPS altitude jumps; queues and breaks count for neither, bumps and chairlift dips no longer flip it, works in Saver mode. Lift rides saved as Health segments; the iPhone's runs and day bar use them (`SlopeDetector`, `SportTrack.lifts`).
+- **Watch sport: screen quiet with wrist down** (#1128): always-on face shows one grey value on black, redrawn once a minute, instead of the full bright dashboard.
+
 ### Added
 - **App version 1.3** (bundle 108): `MARKETING_VERSION` 1.2 → 1.3 in `ios/project.yml`; 1.2 (build 113) released on the App Store 2026-11-23, so its TestFlight train is closed.
+- **Trails on the map for XC ski, hike, trail run, mountaineering and MTB** (#1133): same Map | Trails switch; nordic pistes, hiking paths by SAC scale (T1–T6) or MTB trails by MTB scale (S0–S6) from OpenStreetMap, and the trails your day used with km and the hardest.
+- **Ski day on the resort map** (#1132, design C): Apple Maps under runs and lifts on the session and live pages; Map | Pistes adds OpenStreetMap pistes by colour and named lifts, runs named after their piste ("Red 12 · Standard") and lifts taken listed. Asked once; only the area goes to our server (`GET /v1/me/pistes`), which fetches it from OpenStreetMap (cached tiles). Privacy policy updated.
+- **Follow a Watch sport live on iPhone** (#1130, A + B): Train banner and live page (lift / riding, last run, runs, vertical, top speed, ride vs lift time, trail, End & save on Watch) plus a lock-screen / Dynamic Island Live Activity, fed through workout mirroring.
 
 ### Changed
 - **Caffeine cut-off scales with the dose** (#977): a coffee (≤ 120 mg) 9 h before bed, stronger doses such as a pre-workout 13 h, instead of a flat 6 h. Late warnings, caffeine meter, How it works and Learn card follow Gardiner 2023.

@@ -4,7 +4,8 @@ import SwiftUI
 import WorkoutEngine
 
 // Sport maps (#445, design A + B): ski day with runs vs lifts, route profile for hikes / rides / runs.
-// Routes come from Apple Health and stay on this iPhone; nothing here is sent anywhere.
+// Routes come from Apple Health and stay on this iPhone. Only the piste map (#1132), when asked, sends the area around a
+// ski day (never the track) to our server, which fetches it from OpenStreetMap.
 
 extension Sport {
     /// Runs split at lifts, vertical counted down.
@@ -56,6 +57,9 @@ struct SportRouteMap: View {
     let runs: [SportTrack.Run]
     let selected: Int?
     @Binding var colour: RouteColour
+    /// Ski days (#1132) and trail sports (#1133): pistes, lifts or trails under the track, and the Map | Pistes switch.
+    var pistes: PisteMap? = nil
+    var pisteOn: Binding<Bool>? = nil
     @State private var camera: MapCameraPosition = .automatic
 
     private struct Piece: Identifiable {
@@ -132,6 +136,7 @@ struct SportRouteMap: View {
 
     var body: some View {
         Map(position: $camera) {
+            if let pistes, pisteOn?.wrappedValue == true { PisteLayer(map: pistes) }
             ForEach(pieces) { p in
                 MapPolyline(coordinates: p.coords)
                     .stroke(p.color.opacity(p.dim ? 0.3 : 1),
@@ -163,6 +168,11 @@ struct SportRouteMap: View {
                 .padding(10)
         }
         .overlay(alignment: .bottomLeading) { legend.padding(10) }
+        .overlay(alignment: .topTrailing) {
+            if let pisteOn {
+                PisteToggle(on: pisteOn, loading: PisteMaps.shared.loading, word: sport.trailWord, attribution: pistes?.attribution).padding(10)
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             if !sport.downhill {
                 HStack(spacing: 4) {
@@ -409,6 +419,8 @@ struct SportSection: View {
     let track: SportTrack?
     let runs: [SportTrack.Run]
     @Binding var selected: Int?
+    /// Piste map on (#1132): each run's piste and the lifts taken.
+    var pistes: PisteMap? = nil
 
     var body: some View {
         if let track {
@@ -416,13 +428,17 @@ struct SportSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Runs · \(runs.count) · tap to see one").eyebrow()
                     let best = runs.indices.max { runs[$0].topKmh < runs[$1].topKmh }
+                    let names = runs.map { r in pistes?.piste(for: r, in: track)?.label }
                     ForEach(Array(runs.enumerated()), id: \.offset) { i, r in
                         Button { selected = selected == i ? nil : i } label: {
                             HStack(spacing: 8) {
                                 Circle().fill(SportMapStyle.runColor(i)).frame(width: 9, height: 9)
                                 Text("\(i + 1)").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(width: 20, alignment: .leading)
-                                Text("\(Int(r.drop.rounded())) m ↓ · \(String(format: "%.1f", r.meters / 1000)) km\(i == best ? " 🔥" : "")")
-                                    .font(Theme.label(14))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("\(Int(r.drop.rounded())) m ↓ · \(String(format: "%.1f", r.meters / 1000)) km\(i == best ? " 🔥" : "")")
+                                        .font(Theme.label(14))
+                                    if let name = names[i] { Text(name).font(Theme.label(11)).foregroundStyle(Theme.muted).lineLimit(1) }
+                                }
                                 Spacer()
                                 Text("\(Int(r.topKmh.rounded())) · \(Int(r.avgKmh.rounded())) km/h").font(Theme.label(13)).foregroundStyle(Theme.muted)
                             }
@@ -433,6 +449,9 @@ struct SportSection: View {
                         .buttonStyle(.plain)
                     }
                     Text("Top · average speed").font(Theme.label(10)).foregroundStyle(Theme.muted)
+                    if let pistes, let lifts = liftsTaken(track, pistes) {
+                        Label(lifts, systemImage: "cablecar.fill").font(Theme.label(12)).foregroundStyle(Theme.muted).padding(.top, 4)
+                    }
                 }
                 .card(padding: 14)
             } else if !track.laps.isEmpty {
