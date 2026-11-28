@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Watch ski / snowboard: lift vs run** (#1129): lifts and runs now come from the barometer's altitude trend (vertical speed over 30 s, held 25 s for a lift, 8 s for riding) instead of raw GPS altitude jumps; queues and breaks count for neither, bumps and chairlift dips no longer flip it, works in Saver mode. Lift rides saved as Health segments; the iPhone's runs and day bar use them (`SlopeDetector`, `SportTrack.lifts`).
+- **Watch sport: screen quiet with wrist down** (#1128): always-on face shows one grey value on black, redrawn once a minute, instead of the full bright dashboard.
+
+### Added
+- **Follow a Watch sport live on iPhone** (#1130, A + B): Train banner and live page (lift / riding, last run, runs, vertical, top speed, ride vs lift time, trail, End & save on Watch) plus a lock-screen / Dynamic Island Live Activity, fed through workout mirroring.
+
 ### Changed
 - **Caffeine cut-off scales with the dose** (#977): a coffee (≤ 120 mg) 9 h before bed, stronger doses such as a pre-workout 13 h, instead of a flat 6 h. Late warnings, caffeine meter, How it works and Learn card follow Gardiner 2023.
 - **Water target: no creatine glass** (#982): creatine days no longer add a glass (creatine doesn't dehydrate, Kreider 2017); How it works explains the training top-up as sweat replacement.

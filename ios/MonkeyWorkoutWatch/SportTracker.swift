@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreLocation
+import CoreMotion
 import Foundation
 import HealthKit
 import LiftSensor
@@ -229,9 +230,13 @@ final class SportTracker: NSObject {
     private var pending: [CLLocation] = []
     private var last: CLLocation?
     private var altRef: Double?
-    private var runTop: Double?
-    private var runLow: Double?
     private var runTopSpeed: Double = 0
+    /// Lift vs run (#1129): barometric altitude trend + speed, GPS altitude when the Watch has no barometer.
+    private var slope = SlopeDetector()
+    private let altimeter = CMAltimeter()
+    private var baro = false
+    /// Last barometric altitude counted for up / down (3 m steps).
+    private var baroRef: Double?
     private var home: CLLocation?
     private var saverTimer: Timer?
     private let trailMax = 400
@@ -274,6 +279,8 @@ final class SportTracker: NSObject {
             discard()
             return
         }
+        // The iPhone follows the session live (#1130): Train banner, live page, Live Activity. Climbing has its own sync.
+        if sport != .climbing { try? await s.startMirroringToCompanionDevice() }
         if sport == .climbing { startClimb(now) }
         if sport.usesGPS { startLocation() }
         if run != nil { startRun() }
@@ -301,9 +308,11 @@ final class SportTracker: NSObject {
         pending = []
         last = nil
         altRef = nil
-        runTop = nil
-        runLow = nil
+        baroRef = nil
+        baroLast = nil
+        baroOffset = 0
         runTopSpeed = 0
+        slope = SlopeDetector()
         trail = []
         home = nil
         homeMeters = nil
@@ -415,24 +424,135 @@ final class SportTracker: NSObject {
                 Task { @MainActor in self?.location.requestLocation() }
             }
         }
+        startAltimeter()
     }
+
+    /// Barometer (#1129): about one reading a second at almost no battery cost, accurate to ~1 m vs 10–20 m for GPS
+    /// altitude. Gives vertical up / down and the lift vs run trend, also in Saver mode.
+    private func startAltimeter() {
+        guard CMAltimeter.isRelativeAltitudeAvailable() else { baro = false; return }
+        baro = true
+        baroRef = nil
+        altimeter.startRelativeAltitudeUpdates(to: .main) { [weak self] data, _ in
+            guard let data else { return }
+            let rel = data.relativeAltitude.doubleValue
+            let now = Date()
+            Task { @MainActor in self?.baroSample(rel, at: now) }
+        }
+    }
+
+    private func baroSample(_ rel: Double, at t: Date) {
+        guard !paused, let sport else { return }
+        baroLast = rel
+        // Relative to the start of this stretch (resume restarts at 0): carry the offset so the trend has no jump.
+        if let ref = baroRef {
+            let d = rel - ref
+            if abs(d) >= 3 {
+                if d > 0 { up += d } else { down -= d }
+                baroRef = rel
+            }
+        } else {
+            baroRef = rel
+        }
+        if sport.downhill { trend(rel + baroOffset, at: t) }
+    }
+
+    /// Keeps the barometer's altitude continuous across pause / resume (each start counts from 0).
+    private var baroOffset: Double = 0
+    private var baroLast: Double?
 
     private func stopLocation() {
         saverTimer?.invalidate()
         saverTimer = nil
         location.stopUpdatingLocation()
+        if baro {
+            altimeter.stopRelativeAltitudeUpdates()
+            // Resume counts from 0 again: continue from the last level.
+            baroOffset += baroLast ?? 0
+            baroLast = nil
+            baroRef = nil
+        }
     }
+
+    /// One altitude sample into the lift vs run detector; runs, lift state and times follow it.
+    private func trend(_ alt: Double, at t: Date) {
+        let events = slope.add(alt, at: t)
+        onLift = slope.phase == .lift
+        rideSeconds = slope.rideSeconds
+        liftSeconds = slope.liftSeconds
+        events.forEach(handle)
+    }
+
+    private func handle(_ e: SlopeDetector.Event) {
+        defer { sendLive(force: true) }
+        switch e {
+        case let .run(drop, _, _):
+            runs = slope.runs
+            lastRun = (drop, runTopSpeed)
+            runTopSpeed = 0
+            WKInterfaceDevice.current().play(.click)
+        case let .phase(p, at):
+            if p == .lift { runTopSpeed = 0 }
+            // Lift rides go to Health as segments: the iPhone's day bar and runs read them (#1129).
+            if p != .lift, let lift = slope.lifts.last, let end = lift.end, end == at { addLiftSegment(lift.start, end) }
+        }
+    }
+
+    private func addLiftSegment(_ start: Date, _ end: Date) {
+        guard let builder, end > start else { return }
+        let event = HKWorkoutEvent(type: .segment, dateInterval: DateInterval(start: start, end: end),
+                                   metadata: [Self.partKey: "lift"])
+        Task { try? await builder.addWorkoutEvents([event]) }
+    }
+
+    /// Metadata key on lift segments (#1129); the iPhone reads it (`HealthManager.track`).
+    static let partKey = "MonkeyWorkoutPart"
 
     func pause() {
         session?.pause()
         paused = true
         stopLocation()
+        sendLive(force: true)
     }
 
     func resume() {
         session?.resume()
         paused = false
         if sport?.usesGPS == true { startLocation() }
+        sendLive(force: true)
+    }
+
+    // MARK: Live on the iPhone (#1130)
+
+    private var liveSentAt = Date.distantPast
+
+    /// What the iPhone shows: every 10 s at most, at once on a lift / run change, pause and finish. Rides the mirrored
+    /// workout session (Bluetooth or Wi-Fi), so it costs no extra radio and reaches a locked phone.
+    private func sendLive(force: Bool = false) {
+        guard let session, sport != .climbing else { return }
+        let now = Date()
+        guard force || now.timeIntervalSince(liveSentAt) >= 10, let data = liveData(finished: false) else { return }
+        liveSentAt = now
+        Task { try? await session.sendToRemoteWorkoutSession(data: data) }
+    }
+
+    private func liveData(finished: Bool) -> Data? {
+        guard let sport, sport != .climbing, let started else { return nil }
+        let step = max(1, trail.count / 60 + (trail.count % 60 == 0 ? 0 : 1))
+        let pts = stride(from: 0, to: trail.count, by: step).map { trail[$0] } + (trail.last.map { [$0] } ?? [])
+        let flat = pts.flatMap { [($0.latitude * 1e5).rounded() / 1e5, ($0.longitude * 1e5).rounded() / 1e5] }
+        let live = WSportLive(sport: sport.rawValue, label: sport.label, symbol: sport.symbol, tint: sport.tint.0, tint2: sport.tint.1,
+                              started: started, downhill: sport.downhill, paused: paused, km: meters / 1000,
+                              vertical: sport.downhill ? down : up, kmh: speed, topKmh: topSpeed, runs: runs, onLift: onLift,
+                              lastRunDrop: lastRun?.drop, lastRunTopKmh: lastRun?.topKmh, rideSeconds: rideSeconds,
+                              liftSeconds: liftSeconds, heartRate: heartRate.map { Int($0.rounded()) }, trail: flat, finished: finished)
+        return try? JSONEncoder.watch.encode(live)
+    }
+
+    /// The iPhone's live page pressed End (#1130): same as End & save here.
+    fileprivate func received(_ data: [Data]) {
+        guard data.contains(where: { (try? JSONDecoder.watch.decode(WCommand.self, from: $0)) == .finish }), running else { return }
+        Task { await finish() }
     }
 
     /// LAP: closes the current lap / station as a workout segment (the iPhone shows them as splits).
@@ -451,8 +571,15 @@ final class SportTracker: NSObject {
     func finish() async {
         guard let session, let builder, let sport else { discard(); return }
         stopLocation()
+        if sport.downhill {
+            let open = slope.lifts.last.flatMap { $0.end == nil ? $0.start : nil }
+            for e in slope.finish(at: Date()) { handle(e) }
+            if let open { addLiftSegment(open, Date()) }
+        }
         flushRoute()
         impacts.stop()
+        // Last state to the iPhone before the mirrored session ends (#1130).
+        if let data = liveData(finished: true) { try? await session.sendToRemoteWorkoutSession(data: data) }
         session.end()
         let end = Date()
         let used = batteryStart.map { start -> Int in
@@ -668,22 +795,21 @@ final class SportTracker: NSObject {
                 let kmh = (l.speed >= 0 ? l.speed : d / dt) * 3.6
                 // Smoothed live speed; top speed only from a believable fix.
                 speed = speed * 0.5 + kmh * 0.5
-                if l.horizontalAccuracy <= 20, kmh < 150 {
+                // Top speed only from a believable fix, and never on a lift (#1129).
+                if l.horizontalAccuracy <= 20, kmh < 150, !onLift {
                     topSpeed = max(topSpeed, speed)
                     runTopSpeed = max(runTopSpeed, speed)
                 }
-                // Gaps (Saver, tunnels) longer than 2 minutes count for neither.
-                if sport.downhill && dt < 120 {
-                    if onLift { liftSeconds += dt } else { rideSeconds += dt }
-                }
+                if sport.downhill { slope.speed(speed) }
             }
             last = l
             pending.append(l)
             breadcrumb(l)
-            if l.verticalAccuracy >= 0 { climb(l.altitude, downhill: sport.downhill) }
+            if l.verticalAccuracy >= 0 { gpsAltitude(l.altitude, at: l.timestamp, downhill: sport.downhill) }
         }
         if pending.count >= 30 { flushRoute() }
         if run != nil { checkStep() }
+        sendLive()
     }
 
     /// Live map (#445 C): trail, distance and bearing home, direction of travel. Halves the trail when full.
@@ -701,35 +827,21 @@ final class SportTracker: NSObject {
         homeBearing = (atan2(y, x) / rad + 360).truncatingRemainder(dividingBy: 360)
     }
 
-    /// Vertical up/down ignoring < 3 m wobble; a downhill run counts once it dropped 40 m and the lift climbs 25 m.
-    private func climb(_ alt: Double, downhill: Bool) {
+    /// GPS altitude: shown altitude and summit; vertical and the lift trend only when there is no barometer (#1129).
+    private func gpsAltitude(_ alt: Double, at t: Date, downhill: Bool) {
         altitude = alt
         highest = max(highest ?? alt, alt)
-        guard let ref = altRef else { altRef = alt; runTop = alt; runLow = alt; return }
-        let d = alt - ref
-        if abs(d) >= 3 {
-            if d > 0 { up += d } else { down -= d }
+        guard !baro else { return }
+        if let ref = altRef {
+            let d = alt - ref
+            if abs(d) >= 3 {
+                if d > 0 { up += d } else { down -= d }
+                altRef = alt
+            }
+        } else {
             altRef = alt
         }
-        guard downhill, let top = runTop, let low = runLow else { return }
-        if alt < low { runLow = alt }
-        if alt - (runLow ?? alt) >= 25 {
-            if top - (runLow ?? top) >= 40 {
-                runs += 1
-                lastRun = (top - (runLow ?? top), runTopSpeed)
-                WKInterfaceDevice.current().play(.click)
-            }
-            onLift = true
-            runTop = alt
-            runLow = alt
-        } else if onLift && alt < top - 15 {
-            // Going down again: a new run.
-            onLift = false
-            runTopSpeed = 0
-        } else if alt > top && runLow == top {
-            runTop = alt
-            runLow = alt
-        }
+        if downhill { trend(alt, at: t) }
     }
 
     fileprivate func update(_ stats: HKStatistics) {
@@ -739,6 +851,7 @@ final class SportTracker: NSObject {
             heartRate = v
             maxHeartRate = max(maxHeartRate ?? 0, v)
             ZoneTracker.shared.heart(v)
+            sendLive()
             // Climbing live (#829): the iPhone screen shows it, every 10 s at most.
             if climb != nil, Date().timeIntervalSince(hrSentAt) >= 10, WCSession.default.isReachable {
                 hrSentAt = Date()
@@ -770,6 +883,10 @@ extension SportTracker: HKWorkoutSessionDelegate {
                                     from fromState: HKWorkoutSessionState, date: Date) {}
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {}
+
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession data: [Data]) {
+        Task { @MainActor in self.received(data) }
+    }
 }
 
 extension SportTracker: HKLiveWorkoutBuilderDelegate {
