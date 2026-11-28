@@ -1,11 +1,23 @@
+import MapKit
 import SwiftUI
+import WorkoutEngine
 
 /// A Watch sport session followed live on the iPhone (#1130, design A): lift / riding state, last run, runs, vertical,
 /// top speed, ride vs lift time and the trail. Opens from the Train banner; the Live Activity covers the lock screen.
 struct SportLiveView: View {
     let live: WSportLive
     @Environment(\.dismiss) private var dismiss
+    /// Piste map (#1132, design C): Apple Maps, Pistes on request.
+    @State private var pisteOn = false
+    @State private var pistes: PisteMap?
     private var mirror: MirroredWorkout { .shared }
+
+    /// The trail as a track, for the piste map's area.
+    private var trailTrack: SportTrack {
+        SportTrack(points: stride(from: 0, to: live.trail.count - 1, by: 2).map {
+            SportTrack.Point(lat: live.trail[$0], lon: live.trail[$0 + 1], alt: 0, speed: 0, time: live.started)
+        })
+    }
 
     var body: some View {
         ScrollView {
@@ -44,7 +56,13 @@ struct SportLiveView: View {
                         tile("TOP SPEED", "\(Int(live.topKmh.rounded())) km/h", 0x2F6BFF, 0x8A4DFF)
                     }
                 }
-                if live.trail.count >= 4 { SportLiveTrail(flat: live.trail).frame(height: 150) }
+                if live.trail.count >= 4 {
+                    SportLiveMap(flat: live.trail, pistes: pisteOn ? pistes : nil)
+                        .frame(height: 220)
+                        .overlay(alignment: .topTrailing) {
+                            if live.downhill { PisteToggle(on: $pisteOn, loading: PisteMaps.shared.loading).padding(8) }
+                        }
+                }
                 Button { mirror.endSportOnWatch() } label: {
                     Text("End & save on Watch").font(Theme.label(15)).frame(maxWidth: .infinity, minHeight: 50)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
@@ -56,6 +74,7 @@ struct SportLiveView: View {
         .foregroundStyle(.white)
         .background(Theme.bg.ignoresSafeArea())
         .onChange(of: mirror.sportLive) { _, on in if !on { dismiss() } }
+        .pisteSwitch(track: live.trail.count >= 4 ? trailTrack : nil, on: $pisteOn, map: $pistes)
     }
 
     private var stateLabel: String {
@@ -104,29 +123,34 @@ struct SportLiveView: View {
     }
 }
 
-/// The Watch's breadcrumb as a line (no map tiles, nothing leaves the phone), the current spot as a dot.
-struct SportLiveTrail: View {
+/// The Watch's breadcrumb on Apple Maps (terrain), the current spot as a dot; the resort's pistes under it when on.
+struct SportLiveMap: View {
     /// lat, lon pairs.
     let flat: [Double]
+    var pistes: PisteMap?
+
+    private var coords: [CLLocationCoordinate2D] {
+        stride(from: 0, to: flat.count - 1, by: 2).map { CLLocationCoordinate2D(latitude: flat[$0], longitude: flat[$0 + 1]) }
+    }
 
     var body: some View {
-        Canvas { ctx, size in
-            let pts = stride(from: 0, to: flat.count - 1, by: 2).map { (lat: flat[$0], lon: flat[$0 + 1]) }
-            guard let minLat = pts.map(\.lat).min(), let maxLat = pts.map(\.lat).max(),
-                  let minLon = pts.map(\.lon).min(), let maxLon = pts.map(\.lon).max() else { return }
-            let k = cos(((minLat + maxLat) / 2) * .pi / 180)
-            let w = max((maxLon - minLon) * k, 1e-6), h = max(maxLat - minLat, 1e-6)
-            let scale = min((size.width - 24) / w, (size.height - 24) / h)
-            let ox = (size.width - w * scale) / 2, oy = (size.height - h * scale) / 2
-            let xy = pts.map { CGPoint(x: ox + ($0.lon - minLon) * k * scale, y: oy + (maxLat - $0.lat) * scale) }
-            var path = Path()
-            path.addLines(xy)
-            ctx.stroke(path, with: .color(Color(hex: 0xFF5A5A)), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
-            if let last = xy.last {
-                ctx.fill(Path(ellipseIn: CGRect(x: last.x - 6, y: last.y - 6, width: 12, height: 12)), with: .color(Theme.lime))
+        Map(initialPosition: .automatic) {
+            if let pistes { PisteLayer(map: pistes) }
+            MapPolyline(coordinates: coords).stroke(Color(hex: 0xFF5A5A), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+            if let last = coords.last {
+                Annotation("", coordinate: last) {
+                    Circle().fill(Theme.lime).frame(width: 14, height: 14).overlay(Circle().stroke(Color.black, lineWidth: 2))
+                }
             }
         }
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x0D1A2B)))
+        .mapStyle(.standard(elevation: .realistic, emphasis: .muted))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            if let pistes {
+                Text(pistes.attribution).font(Theme.label(8)).foregroundStyle(.white)
+                    .padding(.horizontal, 6).padding(.vertical, 3).background(Capsule().fill(.black.opacity(0.55))).padding(8)
+            }
+        }
         .accessibilityLabel("Trail so far")
     }
 }

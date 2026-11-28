@@ -115,3 +115,15 @@ private struct SharedMapBody<L: Codable & Sendable>: Encodable, Sendable {
     var gym: GymPlace
     var layout: L
 }
+
+// MARK: Piste map (#1132)
+
+extension APIClient {
+    /// Pistes and lifts from OpenStreetMap in the box around a ski day (`GET /v1/me/pistes`), as JSON for
+    /// `WorkoutEngine.PisteMap`. The server asks OpenStreetMap, so this device's address never reaches it.
+    /// Errors: `too_large`, `map_unavailable` (502).
+    public func pisteMap(south: Double, west: Double, north: Double, east: Double) async throws -> Data {
+        let q = [south, west, north, east].map { String(format: "%.4f", $0) }
+        return try await authorizedRaw("GET", "/v1/me/pistes?s=\(q[0])&w=\(q[1])&n=\(q[2])&e=\(q[3])", Empty?.none)
+    }
+}

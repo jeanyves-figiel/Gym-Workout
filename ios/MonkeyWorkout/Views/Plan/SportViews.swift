@@ -775,6 +775,9 @@ struct SportSessionSheet: View {
     @State private var selectedRun: Int?
     @State private var colour: RouteColour = .speed
     @State private var runs: [SportTrack.Run] = []
+    /// Piste map (#1132, design C).
+    @State private var pisteOn = false
+    @State private var pistes: PisteMap?
 
     /// Today's workout, when not started or done, and the type that spares what this session loaded.
     private var swap: (Session, Focus)? {
@@ -793,7 +796,8 @@ struct SportSessionSheet: View {
                         HyroxReportView(race: race)
                     } else if let track, track.points.count >= 2 {
                         SportRouteMap(track: track, sport: entry.sport, source: entry.source, minutes: entry.minutes,
-                                      scrub: scrub, runs: runs, selected: selectedRun, colour: $colour)
+                                      scrub: scrub, runs: runs, selected: selectedRun, colour: $colour,
+                                      pistes: pistes, pisteOn: entry.sport.downhill ? $pisteOn : nil)
                         SportStatTiles(entry: entry, track: track, runs: runs.count)
                         if entry.sport.downhill { SkiDayCard(track: track) }
                         SportElevationChart(track: track, byDistance: !entry.sport.downhill, scrub: $scrub)
@@ -806,7 +810,7 @@ struct SportSessionSheet: View {
                         // Rated from Health: where it was can be added here too (#832).
                         PlaceChips(place: place, sport: entry.sport).gradientCard(entry.sport.gradient, padding: 14)
                     }
-                    SportSection(entry: entry, track: track, runs: runs, selected: $selectedRun)
+                    SportSection(entry: entry, track: track, runs: runs, selected: $selectedRun, pistes: pisteOn ? pistes : nil)
                     Text("How did it feel?").eyebrow()
                     HStack(spacing: 8) {
                         ForEach(FeelChips.feels.indices, id: \.self) { i in
@@ -855,6 +859,7 @@ struct SportSessionSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
+        .pisteSwitch(track: track, on: $pisteOn, map: $pistes)
         .task {
             guard !entry.local else { return }
             track = await health.track(for: entry.id)?.thinned()
