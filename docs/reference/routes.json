@@ -613,6 +613,10 @@
   },
   {
     "method": "GET",
+    "path": "/v1/me/pistes"
+  },
+  {
+    "method": "GET",
     "path": "/v1/me/pr-attempts"
   },
   {

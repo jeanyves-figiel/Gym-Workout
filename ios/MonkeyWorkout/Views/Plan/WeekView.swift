@@ -493,7 +493,7 @@ struct WeekView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     // Workout running on the Watch (#603): back to its twin player. Today's card is the live card itself
                     // (#822), so the banner only shows over another picked day.
-                    if !arranging, pickedDay != nil { WatchLiveBanner() }
+                    if !arranging, pickedDay != nil || MirroredWorkout.shared.sportLive { WatchLiveBanner() }
                     // Train around pain (#870 C): the Protected badge over the day.
                     if !arranging { PainProtectBar() }
                     nextUpCard(plan)

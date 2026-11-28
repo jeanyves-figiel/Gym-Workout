@@ -1,3 +1,4 @@
+import ActivityKit
 import HealthKit
 import SwiftUI
 import UIKit
@@ -17,6 +18,9 @@ final class MirroredWorkout: NSObject {
     private(set) var state: WMirrorState?
     private(set) var heartRate: Int?
     private(set) var kcal: Int?
+    /// A sport session tracked on the Watch (#1130): its live numbers; nil for a gym workout.
+    private(set) var sport: WSportLive?
+    private var sportActivity: Activity<SportActivityAttributes>?
     /// Twin player on screen; closing it leaves the Watch running and shows the banner on Train instead.
     var presented = false
     /// The Watch finished while the twin player was open (#822 A): it stays open on the finish screen.
@@ -25,6 +29,8 @@ final class MirroredWorkout: NSObject {
     private(set) var finished: (record: WorkoutRecord, session: Session?, reward: GameReward?)?
 
     var live: Bool { session != nil && state?.finished != true }
+    /// A Watch sport session is running (#1130): Train shows its banner, the live page opens from it.
+    var sportLive: Bool { session != nil && sport.map { !$0.finished } == true }
 
     /// Must be set before launch ends: watchOS starts mirroring as soon as the Watch session begins.
     func listen() {
@@ -37,6 +43,7 @@ final class MirroredWorkout: NSObject {
     private func attach(_ s: HKWorkoutSession) {
         session = s
         state = nil
+        sport = nil
         heartRate = nil
         kcal = nil
         s.delegate = self
@@ -47,6 +54,8 @@ final class MirroredWorkout: NSObject {
     private func ended() {
         session = nil
         state = nil
+        endSportActivity()
+        sport = nil
         heartRate = nil
         kcal = nil
         // A finish screen on show stays until its DONE (#822 A).
@@ -83,6 +92,10 @@ final class MirroredWorkout: NSObject {
     }
 
     fileprivate func received(_ data: [Data]) {
+        if let live = data.compactMap({ try? JSONDecoder.watch.decode(WSportLive.self, from: $0) }).last {
+            sportReceived(live)
+            return
+        }
         guard let last = data.compactMap({ try? JSONDecoder.watch.decode(WMirrorState.self, from: $0) }).last else { return }
         let first = state == nil
         state = last
@@ -90,6 +103,61 @@ final class MirroredWorkout: NSObject {
         if first, !last.finished { presented = true }
         // Finished with the twin player open: it turns into the finish screen (#822 A) instead of vanishing.
         if last.finished { if presented { finishedSessionId = last.sessionId } else { presented = false } }
+    }
+
+    // MARK: Sport live (#1130)
+
+    /// The Watch's sport numbers: the live page and Train banner read them, the Live Activity follows.
+    private func sportReceived(_ live: WSportLive) {
+        sport = live
+        if live.heartRate != nil { heartRate = live.heartRate }
+        let content = ActivityContent(state: Self.activityState(live, heartRate: heartRate), staleDate: Date().addingTimeInterval(5 * 60))
+        if live.finished {
+            // Done on the Watch: the card stays on the lock screen as the day's summary for 30 minutes.
+            if let a = sportActivity {
+                sportActivity = nil
+                Task { await a.end(content, dismissalPolicy: .after(Date().addingTimeInterval(30 * 60))) }
+            }
+            return
+        }
+        if let a = sportActivity {
+            Task { await a.update(content) }
+        } else {
+            startSportActivity(live, content: content)
+        }
+    }
+
+    /// iOS may refuse a new Live Activity while the app runs in the background (mirroring wakes it there): retried on
+    /// each update and when the app comes to the front.
+    private func startSportActivity(_ live: WSportLive, content: ActivityContent<SportActivityAttributes.ContentState>) {
+        guard sportActivity == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        for old in Activity<SportActivityAttributes>.activities { Task { await old.end(nil, dismissalPolicy: .immediate) } }
+        sportActivity = try? Activity.request(
+            attributes: SportActivityAttributes(label: live.label, symbol: live.symbol, tint: live.tint, tint2: live.tint2,
+                                                startedAt: live.started),
+            content: content)
+    }
+
+    func ensureSportActivity() {
+        guard let live = sport, sportLive else { return }
+        startSportActivity(live, content: ActivityContent(state: Self.activityState(live, heartRate: heartRate), staleDate: nil))
+    }
+
+    private func endSportActivity() {
+        guard let a = sportActivity else { return }
+        sportActivity = nil
+        Task { await a.end(nil, dismissalPolicy: .immediate) }
+    }
+
+    static func activityState(_ l: WSportLive, heartRate: Int?) -> SportActivityAttributes.ContentState {
+        .init(downhill: l.downhill, paused: l.paused, onLift: l.onLift, runs: l.runs, vertical: Int(l.vertical.rounded()), km: l.km,
+              topKmh: Int(l.topKmh.rounded()), heartRate: heartRate, lastRunDrop: l.lastRunDrop.map { Int($0.rounded()) },
+              finished: l.finished)
+    }
+
+    /// End on the live page: the Watch ends and saves the session (its summary and Health there).
+    func endSportOnWatch() {
+        send(.finish)
     }
 
     @available(iOS 26.0, *)
@@ -142,7 +210,9 @@ struct TwinPlayerView: View {
     private var mirror: MirroredWorkout { .shared }
 
     var body: some View {
-        if let f = mirror.finished, let session = f.session {
+        if let live = mirror.sport {
+            SportLiveView(live: live)
+        } else if let f = mirror.finished, let session = f.session {
             // Finished on the Watch (#822 A): the phone's own finish screen, DONE closes with "Workout saved · Undo".
             SummaryView(session: session, elapsed: TimeInterval(f.record.durationSec), setsDone: f.record.totalSets,
                         kcal: f.record.kcal, healthSaved: true, reward: f.reward, wins: model.wins(for: f.record),
@@ -314,7 +384,9 @@ struct WatchLiveBanner: View {
     private var mirror: MirroredWorkout { .shared }
 
     var body: some View {
-        if mirror.live, let s = mirror.state {
+        if mirror.sportLive, let l = mirror.sport {
+            SportLiveBanner(live: l)
+        } else if mirror.live, let s = mirror.state {
             Button { mirror.presented = true } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "applewatch").font(.system(size: 20, weight: .bold))

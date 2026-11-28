@@ -134,6 +134,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | GET | `/v1/me/sports` | Bearer | → `{sports, deleted?, serverTime}` other sport sessions (snowboard, MTB, Hyrox…; optional `place` as climbs, #832) | |
 | POST | `/v1/me/sports` | Bearer | `{sports[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/sports/:id` | Bearer | → 204 | |
+| GET | `/v1/me/pistes` | Bearer | Piste map (#1132) / trails (#1133): `?s&w&n&e&kind=downhill\|nordic\|hike\|mtb` (default downhill; hike = `sac_scale` paths as T1–T6, mtb = `mtb:scale` as S0–S6, lifts only for downhill) box around a session day (≤ 2 × 2 tiles of 0.1°) → `{pistes[{name?, ref?, difficulty?, pts}], lifts[{name?, kind, pts}], attribution}` from OpenStreetMap via Overpass, asked by this server (member's IP never sent), tiles cached 7 days, nothing stored; `pts` flat `[lat, lon, …]` | 400 `invalid_request` / `too_large`; 502 `map_unavailable`; 20/min |
 | POST | `/v1/me/watch-key` | Bearer | → `{key}`: upload key for the Apple Watch's direct sport upload (replaces the previous one) | |
 | POST | `/v1/watch/sports` | X-Watch-Key | Watch uploads finished sport sessions without the phone: `{sports[≤10]}` → `{saved, serverTime}` | 401 `invalid_token`; 30/min |
 | GET | `/v1/me/machine-notes` | Bearer | → `{notes, deleted?, serverTime}` private machine setup notes (gym, exercise, fields, text, `splitLoad?` push/lower loads apart #792, `photoId`) | |

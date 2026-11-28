@@ -108,6 +108,8 @@ struct MonkeyWorkoutApp: App {
                         model.flushPersist()
                     case .active:
                         lock.didBecomeActive()
+                        // Watch sport running (#1130): its lock-screen card, if iOS refused it while in the background.
+                        MirroredWorkout.shared.ensureSportActivity()
                         // A new programme week (#255), or a new calendar week for the plan (#266).
                         model.syncProgramme()
                         model.rollWeekIfNeeded()

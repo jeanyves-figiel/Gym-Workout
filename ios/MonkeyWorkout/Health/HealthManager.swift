@@ -611,7 +611,12 @@ final class HealthManager {
         guard connected, available else { return nil }
         let d = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForObject(with: id))], sortDescriptors: [], limit: 1)
         guard let workout = try? await d.result(for: store).first else { return nil }
-        let laps = (workout.workoutEvents ?? []).filter { $0.type == .lap || $0.type == .segment }
+        // Lift rides the Watch marked (#1129) are segments too, but not laps.
+        let isLift: (HKWorkoutEvent) -> Bool = { ($0.metadata?["MonkeyWorkoutPart"] as? String) == "lift" }
+        let events = workout.workoutEvents ?? []
+        let laps = events.filter { ($0.type == .lap || $0.type == .segment) && !isLift($0) }
+            .map { SportTrack.Lap(start: $0.dateInterval.start, end: $0.dateInterval.end) }
+        let lifts = events.filter { $0.type == .segment && isLift($0) }
             .map { SportTrack.Lap(start: $0.dateInterval.start, end: $0.dateInterval.end) }
         let routes = HKSampleQueryDescriptor(
             predicates: [.sample(type: HKSeriesType.workoutRoute(), predicate: HKQuery.predicateForObjects(from: workout))],
@@ -642,7 +647,7 @@ final class HealthManager {
             }
             points.append(.init(lat: l.coordinate.latitude, lon: l.coordinate.longitude, alt: l.altitude, speed: max(0, speed), time: l.timestamp, hr: hr))
         }
-        return SportTrack(points: points, laps: laps)
+        return SportTrack(points: points, laps: laps, lifts: lifts)
     }
 
     private func routeLocations(_ route: HKWorkoutRoute) async -> [CLLocation] {
