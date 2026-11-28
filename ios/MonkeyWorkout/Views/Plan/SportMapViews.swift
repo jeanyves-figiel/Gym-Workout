@@ -57,7 +57,7 @@ struct SportRouteMap: View {
     let runs: [SportTrack.Run]
     let selected: Int?
     @Binding var colour: RouteColour
-    /// Ski days (#1132): the resort's pistes and lifts under the track, and the Map | Pistes switch.
+    /// Ski days (#1132) and trail sports (#1133): pistes, lifts or trails under the track, and the Map | Pistes switch.
     var pistes: PisteMap? = nil
     var pisteOn: Binding<Bool>? = nil
     @State private var camera: MapCameraPosition = .automatic
@@ -169,17 +169,12 @@ struct SportRouteMap: View {
         }
         .overlay(alignment: .bottomLeading) { legend.padding(10) }
         .overlay(alignment: .topTrailing) {
-            if sport.downhill, let pisteOn {
-                PisteToggle(on: pisteOn, loading: PisteMaps.shared.loading).padding(10)
+            if let pisteOn {
+                PisteToggle(on: pisteOn, loading: PisteMaps.shared.loading, word: sport.trailWord, attribution: pistes?.attribution).padding(10)
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if sport.downhill, let pistes, pisteOn?.wrappedValue == true {
-                Text(pistes.attribution).font(Theme.label(8)).foregroundStyle(.white)
-                    .padding(.horizontal, 6).padding(.vertical, 3)
-                    .background(Capsule().fill(.black.opacity(0.55)))
-                    .padding(10)
-            } else if !sport.downhill {
+            if !sport.downhill {
                 HStack(spacing: 4) {
                     ForEach(RouteColour.allCases.filter { $0 != .heart || hasHeart }) { c in
                         Button { colour = c } label: {

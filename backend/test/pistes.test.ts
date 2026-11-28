@@ -64,6 +64,32 @@ describe('piste map (#1132)', () => {
     expect(parseOverpass(null)).toEqual({ pistes: [], lifts: [] });
   });
 
+  it('reads hiking, MTB and cross-country trails (#1133)', () => {
+    const geometry = [{ lat: 46.5, lon: 7.9 }, { lat: 46.51, lon: 7.91 }];
+    const trails = {
+      elements: [
+        { tags: { sac_scale: 'demanding_mountain_hiking', name: 'Gratweg' }, geometry },
+        { tags: { 'mtb:scale': '2+', name: 'Flowtrail' }, geometry },
+        { tags: { 'piste:type': 'nordic', 'piste:difficulty': 'easy', name: 'Loipe Goms' }, geometry },
+        { tags: { aerialway: 'chair_lift' }, geometry },
+      ],
+    };
+    expect(parseOverpass(trails, 'hike')).toEqual({ pistes: [{ name: 'Gratweg', difficulty: 'T3', pts: [46.5, 7.9, 46.51, 7.91] }], lifts: [] });
+    expect(parseOverpass(trails, 'mtb').pistes.map((p) => p.difficulty)).toEqual(['S2']);
+    expect(parseOverpass(trails, 'nordic').pistes.map((p) => p.name)).toEqual(['Loipe Goms']);
+    expect(parseOverpass(trails, 'downhill').lifts).toHaveLength(1);
+  });
+
+  it('asks Overpass for the kind of trail, cached per kind', async () => {
+    const t = await signUp('hike@example.com');
+    expect((await pistes(t, 's=46.51&w=7.91&n=46.53&e=7.95&kind=hike')).statusCode).toBe(200);
+    expect(decodeURIComponent(asked[0]!.body)).toContain('way["sac_scale"]');
+    expect(decodeURIComponent(asked[0]!.body)).not.toContain('aerialway');
+    expect((await pistes(t, 's=46.51&w=7.91&n=46.53&e=7.95')).statusCode).toBe(200);
+    expect(asked).toHaveLength(2);
+    expect((await pistes(t, 's=46.51&w=7.91&n=46.53&e=7.95&kind=golf')).statusCode).toBe(400);
+  });
+
   it('needs sign-in', async () => {
     expect((await app.inject({ method: 'GET', url: '/v1/me/pistes?s=46.5&w=7.9&n=46.52&e=7.95' })).statusCode).toBe(401);
   });

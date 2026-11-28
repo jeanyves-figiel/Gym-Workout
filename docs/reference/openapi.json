@@ -1920,7 +1920,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "Piste map (#1132): ?s&w&n&e box around a ski day (≤ 2 × 2 tiles of 0.1°) → {pistes[{name?, ref?, difficulty?, pts}], lifts[{name?, kind, pts}], attribution} from OpenStreetMap via Overpass, asked by this server (member's IP never sent), tiles cached 7 days, nothing stored; pts flat [lat, lon, …]",
+        "summary": "Piste map (#1132) / trails (#1133): ?s&w&n&e&kind=downhill|nordic|hike|mtb (default downhill; hike = sac_scale paths as T1–T6, mtb = mtb:scale as S0–S6, lifts only for downhill) box around a session day (≤ 2 × 2 tiles of 0.1°) → {pistes[{name?, ref?, difficulty?, pts}], lifts[{name?, kind, pts}], attribution} from OpenStreetMap via Overpass, asked by this server (member's IP never sent), tiles cached 7 days, nothing stored; pts flat [lat, lon, …]",
         "description": "Errors / limits: 400 invalid_request / too_large; 502 map_unavailable; 20/min",
         "security": [
           {

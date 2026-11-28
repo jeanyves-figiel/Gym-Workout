@@ -4,12 +4,13 @@ import type { Fetch } from '../appleTokens.ts';
 import { ApiError } from '../errors.ts';
 
 /**
- * Piste map (#1132): ski pistes and lifts from OpenStreetMap (`piste:type=downhill`, `aerialway=*`, ODbL), for the
- * iPhone's ski session map. The app asks for the box around a day's track only after the member said yes; this server
+ * Piste map (#1132) and trails (#1133): ski pistes and lifts (`piste:type=downhill`, `aerialway=*`), cross-country
+ * trails (`piste:type=nordic`), hiking paths by SAC scale (`sac_scale`) and MTB trails (`mtb:scale`) from OpenStreetMap
+ * (ODbL), for the iPhone's sport session map. The app asks for the box around a day's track only after the member said yes; this server
  * asks Overpass on its behalf so the member's IP never reaches a third party, and serves the same 0.1° tiles to
  * everyone from a cache (Overpass asks for light use). Nothing about the request is stored.
  *
- * `GET /v1/me/pistes?s=&w=&n=&e=` → `{pistes: [{name?, ref?, difficulty?, pts}], lifts: [{name?, kind, pts}], attribution}`,
+ * `GET /v1/me/pistes?s=&w=&n=&e=&kind=downhill|nordic|hike|mtb` → `{pistes: [{name?, ref?, difficulty?, pts}], lifts: [{name?, kind, pts}], attribution}`,
  * `pts` = flat `[lat, lon, …]` with 5 decimals.
  */
 
@@ -29,14 +30,30 @@ const query = z.object({
   w: z.coerce.number().min(-180).max(180),
   n: z.coerce.number().min(-90).max(90),
   e: z.coerce.number().min(-180).max(180),
+  kind: z.enum(['downhill', 'nordic', 'hike', 'mtb']).default('downhill'),
 });
+
+export type TrailKind = 'downhill' | 'nordic' | 'hike' | 'mtb';
+
+/** Overpass filter per kind; lifts only matter on a ski day. */
+const FILTERS: Record<TrailKind, string[]> = {
+  downhill: ['way["piste:type"="downhill"]', 'way["aerialway"]'],
+  nordic: ['way["piste:type"="nordic"]'],
+  hike: ['way["sac_scale"]'],
+  mtb: ['way["mtb:scale"]'],
+};
+
+const SAC: Record<string, string> = {
+  hiking: 'T1', mountain_hiking: 'T2', demanding_mountain_hiking: 'T3',
+  alpine_hiking: 'T4', demanding_alpine_hiking: 'T5', difficult_alpine_hiking: 'T6',
+};
 
 const DIFFICULTIES = new Set(['novice', 'easy', 'intermediate', 'advanced', 'expert', 'freeride', 'extreme']);
 const text = (v: unknown, max = 60) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 const round = (v: number) => Math.round(v * 1e5) / 1e5;
 
 /** Overpass `out geom` ways → compact pistes and lifts. Unknown shapes are skipped, never trusted. */
-export const parseOverpass = (json: unknown): { pistes: PisteLine[]; lifts: LiftLine[] } => {
+export const parseOverpass = (json: unknown, kind: TrailKind = 'downhill'): { pistes: PisteLine[]; lifts: LiftLine[] } => {
   const pistes: PisteLine[] = [];
   const lifts: LiftLine[] = [];
   const elements = (json as { elements?: unknown })?.elements;
@@ -52,7 +69,17 @@ export const parseOverpass = (json: unknown): { pistes: PisteLine[]; lifts: Lift
     }
     if (pts.length < 4) continue;
     const name = text(tags.name) ?? text(tags['piste:name']);
-    if (tags['piste:type'] === 'downhill') {
+    if (kind === 'hike' && typeof tags.sac_scale === 'string') {
+      pistes.push({ name, difficulty: SAC[tags.sac_scale], pts });
+    } else if (kind === 'mtb' && typeof tags['mtb:scale'] === 'string') {
+      const m = /^([0-6])/.exec(tags['mtb:scale']);
+      pistes.push({ name, difficulty: m ? `S${m[1]}` : undefined, pts });
+    } else if (kind === 'nordic' && tags['piste:type'] === 'nordic') {
+      const d = text(tags['piste:difficulty'], 20);
+      pistes.push({ name, ref: text(tags['piste:ref'] ?? tags.ref, 10), difficulty: d && DIFFICULTIES.has(d) ? d : undefined, pts });
+    } else if (kind !== 'downhill') {
+      continue;
+    } else if (tags['piste:type'] === 'downhill') {
       const d = text(tags['piste:difficulty'], 20);
       pistes.push({ name, ref: text(tags['piste:ref'] ?? tags.ref, 10), difficulty: d && DIFFICULTIES.has(d) ? d : undefined, pts });
     } else if (typeof tags.aerialway === 'string' && !['station', 'pylon', 'goods', 'zip_line'].includes(tags.aerialway)) {
@@ -65,12 +92,12 @@ export const parseOverpass = (json: unknown): { pistes: PisteLine[]; lifts: Lift
 export const pisteRoutes = (r: FastifyInstance, fetch: Fetch, now: () => Date = () => new Date()) => {
   const cache = new Map<string, Tile>();
 
-  const tile = async (lat: number, lon: number): Promise<Tile> => {
-    const key = `${lat.toFixed(1)},${lon.toFixed(1)}`;
+  const tile = async (lat: number, lon: number, kind: TrailKind): Promise<Tile> => {
+    const key = `${kind}:${lat.toFixed(1)},${lon.toFixed(1)}`;
     const hit = cache.get(key);
     if (hit && now().getTime() - hit.at < TTL_MS) return hit;
     const box = `${lat.toFixed(1)},${lon.toFixed(1)},${(lat + TILE).toFixed(1)},${(lon + TILE).toFixed(1)}`;
-    const q = `[out:json][timeout:25];(way["piste:type"="downhill"](${box});way["aerialway"](${box}););out geom tags;`;
+    const q = `[out:json][timeout:25];(${FILTERS[kind].map((f) => `${f}(${box});`).join('')});out geom tags;`;
     let res: Response;
     try {
       res = await fetch(OVERPASS_URL, {
@@ -83,7 +110,7 @@ export const pisteRoutes = (r: FastifyInstance, fetch: Fetch, now: () => Date = 
       throw new ApiError(502, 'map_unavailable', 'The piste map could not be loaded. Try again later.');
     }
     if (!res.ok) throw new ApiError(502, 'map_unavailable', 'The piste map could not be loaded. Try again later.');
-    const t: Tile = { ...parseOverpass(await res.json().catch(() => null)), at: now().getTime() };
+    const t: Tile = { ...parseOverpass(await res.json().catch(() => null), kind), at: now().getTime() };
     cache.delete(key);
     cache.set(key, t);
     while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
@@ -99,7 +126,7 @@ export const pisteRoutes = (r: FastifyInstance, fetch: Fetch, now: () => Date = 
     const cols = Math.floor(q.data.e / TILE) - Math.floor(q.data.w / TILE) + 1;
     if (rows * cols > MAX_TILES) throw new ApiError(400, 'too_large', 'Pick a smaller area: one resort at a time.');
     const tiles: Tile[] = [];
-    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) tiles.push(await tile(s0 + i * TILE, w0 + j * TILE));
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) tiles.push(await tile(s0 + i * TILE, w0 + j * TILE, q.data.kind));
     // A way crossing a tile edge comes back from both tiles: keep it once.
     const seen = new Set<string>();
     const once = <T extends { pts: number[] }>(l: T) => {

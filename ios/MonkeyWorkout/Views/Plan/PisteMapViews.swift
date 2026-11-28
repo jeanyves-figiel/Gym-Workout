@@ -7,6 +7,22 @@ import WorkoutEngine
 // resort's pistes (by colour) and named lifts from OpenStreetMap, asked once. The request carries the area around the
 // day, never the track, and goes through our server so OpenStreetMap never sees the member's address.
 
+extension Sport {
+    /// OpenStreetMap layer for this sport's map (#1132, #1133); nil where Apple Maps is enough (road, run) or indoors.
+    var trailKind: String? {
+        switch self {
+        case .ski, .snowboard: "downhill"
+        case .crossCountrySki: "nordic"
+        case .hike, .trailRun, .mountaineering: "hike"
+        case .mountainBike: "mtb"
+        default: nil
+        }
+    }
+
+    /// The switch's word: pistes on a ski day, trails otherwise.
+    var trailWord: String { trailKind == "downhill" || trailKind == "nordic" ? "Pistes" : "Trails" }
+}
+
 /// Loads and keeps piste maps by area, for the session page and the live page.
 @MainActor @Observable
 final class PisteMaps {
@@ -19,24 +35,22 @@ final class PisteMaps {
     private(set) var failed = false
     private var cache: [String: PisteMap] = [:]
 
-    private static func key(_ b: (s: Double, w: Double, n: Double, e: Double)) -> String {
-        // Same 0.01° steps as the server's tiles round to, so a re-open hits the cache.
-        [b.s, b.w, b.n, b.e].map { String(format: "%.2f", $0) }.joined(separator: ",")
+    private static func key(_ b: (s: Double, w: Double, n: Double, e: Double), _ kind: String) -> String {
+        // 0.01° steps, so a re-open hits the cache.
+        kind + ":" + [b.s, b.w, b.n, b.e].map { String(format: "%.2f", $0) }.joined(separator: ",")
     }
 
-    func cached(_ box: (s: Double, w: Double, n: Double, e: Double)) -> PisteMap? { cache[Self.key(box)] }
-
-    func load(_ box: (s: Double, w: Double, n: Double, e: Double), api: APIClient) async -> PisteMap? {
-        if let hit = cached(box) { return hit }
+    func load(_ box: (s: Double, w: Double, n: Double, e: Double), kind: String, api: APIClient) async -> PisteMap? {
+        if let hit = cache[Self.key(box, kind)] { return hit }
         loading = true
         failed = false
         defer { loading = false }
-        guard let data = try? await api.pisteMap(south: box.s, west: box.w, north: box.n, east: box.e),
+        guard let data = try? await api.pisteMap(south: box.s, west: box.w, north: box.n, east: box.e, kind: kind),
               let map = try? PisteMap.decode(data) else {
             failed = true
             return nil
         }
-        cache[Self.key(box)] = map
+        cache[Self.key(box, kind)] = map
         return map
     }
 }
@@ -50,6 +64,8 @@ extension PisteMap.Line {
         case .red: Color(hex: 0xE5142B)
         case .black: Color(hex: 0x111111)
         case .orange: Color(hex: 0xFF8A00)
+        case .yellow: Color(hex: 0xF2C200)
+        case .green: Color(hex: 0x1FAA59)
         case .unknown: Color(hex: 0x8E9BB0)
         }
     }
@@ -68,7 +84,7 @@ struct PisteLayer: MapContent {
         ForEach(Array(map.pistes.enumerated()), id: \.offset) { _, p in
             MapPolyline(coordinates: p.mapCoordinates)
                 .stroke(p.tint.opacity(0.75), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round,
-                                                                 dash: p.colour == .orange ? [4, 3] : []))
+                                                                 dash: p.colour == .orange || (p.difficulty?.hasPrefix("T") == true && p.difficulty != "T1") ? [4, 3] : []))
         }
         ForEach(Array(map.lifts.enumerated()), id: \.offset) { _, l in
             MapPolyline(coordinates: l.mapCoordinates).stroke(Color(hex: 0x333A48), lineWidth: 2)
@@ -87,14 +103,23 @@ struct PisteLayer: MapContent {
 struct PisteToggle: View {
     @Binding var on: Bool
     let loading: Bool
+    var word = "Pistes"
+    /// Shown under the switch while the layer is on.
+    var attribution: String?
 
     var body: some View {
-        HStack(spacing: 2) {
-            seg("Map", !on) { on = false }
-            seg(loading ? "Pistes…" : "Pistes", on) { on = true }
+        VStack(alignment: .trailing, spacing: 4) {
+            HStack(spacing: 2) {
+                seg("Map", !on) { on = false }
+                seg(loading ? "\(word)…" : word, on) { on = true }
+            }
+            .padding(3)
+            .background(Capsule().fill(.black.opacity(0.55)))
+            if on, let attribution {
+                Text(attribution).font(Theme.label(8)).foregroundStyle(.white)
+                    .padding(.horizontal, 6).padding(.vertical, 3).background(Capsule().fill(.black.opacity(0.55)))
+            }
         }
-        .padding(3)
-        .background(Capsule().fill(.black.opacity(0.55)))
     }
 
     private func seg(_ title: String, _ selected: Bool, _ tap: @escaping () -> Void) -> some View {
@@ -110,6 +135,7 @@ struct PisteToggle: View {
 /// Owns the Pistes switch for one screen: asks once, loads the area around `track`, falls back to Map on failure.
 struct PisteSwitch: ViewModifier {
     let track: SportTrack?
+    let kind: String?
     @Binding var on: Bool
     @Binding var map: PisteMap?
     @Environment(AppModel.self) private var model
@@ -122,26 +148,26 @@ struct PisteSwitch: ViewModifier {
                 guard wanted else { return }
                 if consent { load() } else { asking = true }
             }
-            .confirmationDialog("Show the resort's pistes?", isPresented: $asking, titleVisibility: .visible) {
-                Button("Download piste map") { consent = true; load() }
+            .confirmationDialog("Show pistes and trails on the map?", isPresented: $asking, titleVisibility: .visible) {
+                Button("Download the map layer") { consent = true; load() }
                 Button("Not now", role: .cancel) { on = false }
             } message: {
-                Text("MonkeyWorkout asks OpenStreetMap for the pistes and lifts around this day. Only the area is sent, never your track or your address.")
+                Text("MonkeyWorkout asks OpenStreetMap for the pistes, lifts or trails around this day. Only the area is sent, never your track or your address.")
             }
     }
 
     private func load() {
-        guard let track, let box = PisteMap.box(track) else { on = false; return }
+        guard let track, let kind, let box = PisteMap.box(track) else { on = false; return }
         Task {
-            map = await PisteMaps.shared.load(box, api: model.api)
+            map = await PisteMaps.shared.load(box, kind: kind, api: model.api)
             if map == nil { on = false }
         }
     }
 }
 
 extension View {
-    func pisteSwitch(track: SportTrack?, on: Binding<Bool>, map: Binding<PisteMap?>) -> some View {
-        modifier(PisteSwitch(track: track, on: on, map: map))
+    func pisteSwitch(track: SportTrack?, kind: String?, on: Binding<Bool>, map: Binding<PisteMap?>) -> some View {
+        modifier(PisteSwitch(track: track, kind: kind, on: on, map: map))
     }
 }
 
@@ -157,4 +183,34 @@ func liftsTaken(_ track: SportTrack, _ map: PisteMap) -> String? {
     }
     guard !order.isEmpty else { return nil }
     return order.map { counts[$0]! > 1 ? "\($0) ×\(counts[$0]!)" : $0 }.joined(separator: " · ")
+}
+
+/// Trails a hike, ride or XC ski day used (#1133): the longest four with their km, hardest grade first when graded.
+struct TrailsUsedCard: View {
+    let used: [(line: PisteMap.Line, meters: Double)]
+
+    var body: some View {
+        if !used.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Trails · \(used.count)").eyebrow()
+                ForEach(Array(used.prefix(4).enumerated()), id: \.offset) { i, u in
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2).fill(u.line.tint).frame(width: 12, height: 5)
+                        Text(u.line.label).font(Theme.label(14)).lineLimit(1)
+                        Spacer()
+                        Text(String(format: "%.1f km", u.meters / 1000) + (i == hardest ? " · hardest" : ""))
+                            .font(Theme.label(13)).foregroundStyle(Theme.muted)
+                    }
+                }
+            }
+            .card(padding: 14)
+        }
+    }
+
+    /// Index of the hardest graded trail in the top four (T6 / S6 highest), when grades differ.
+    private var hardest: Int? {
+        let grades = used.prefix(4).map { $0.line.difficulty.flatMap { Int($0.dropFirst()) } }
+        guard let top = grades.compactMap({ $0 }).max(), Set(grades.compactMap { $0 }).count > 1 else { return nil }
+        return grades.firstIndex(of: top)
+    }
 }

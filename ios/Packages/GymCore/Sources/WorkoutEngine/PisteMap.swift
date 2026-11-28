@@ -25,16 +25,23 @@ public struct PisteMap: Codable, Equatable, Sendable {
             stride(from: 0, to: pts.count - 1, by: 2).map { (pts[$0], pts[$0 + 1]) }
         }
 
-        /// European piste colour: blue (novice, easy), red, black (advanced, expert), orange off-piste.
+        /// European piste colour: blue (novice, easy), red, black (advanced, expert), orange off-piste. Hiking paths
+        /// (#1133) as Swiss signs: T1 yellow, T2–T3 red (white-red-white), T4–T6 blue (white-blue-white). MTB: S0–S1
+        /// green, S2 blue, S3 red, S4–S6 black.
         public var colour: Colour {
             switch difficulty {
-            case "novice", "easy": .blue
-            case "intermediate": .red
-            case "advanced", "expert": .black
+            case "novice", "easy", "T4", "T5", "T6", "S2": .blue
+            case "intermediate", "T2", "T3", "S3": .red
+            case "advanced", "expert", "S4", "S5", "S6": .black
             case "freeride", "extreme": .orange
+            case "T1": .yellow
+            case "S0", "S1": .green
             default: .unknown
             }
         }
+
+        /// A graded trail (#1133): "T3", "S2".
+        var grade: String? { difficulty.flatMap { $0.count == 2 && ($0.hasPrefix("T") || $0.hasPrefix("S")) ? $0 : nil } }
 
         /// "Red 12 Standard", "Gondola Alpha", "Chair lift".
         public var label: String {
@@ -42,6 +49,7 @@ public struct PisteMap: Codable, Equatable, Sendable {
                 let k = kind.map(Self.liftKind) ?? "Lift"
                 return name.map { $0.localizedCaseInsensitiveContains(k) ? $0 : "\(k) \($0)" } ?? k
             }
+            if let grade { return name.map { "\(grade) · \($0)" } ?? grade }
             let head = [colour == .unknown ? "Piste" : colour.rawValue.capitalized, ref].compactMap { $0 }.joined(separator: " ")
             return name.map { "\(head) · \($0)" } ?? head
         }
@@ -58,7 +66,7 @@ public struct PisteMap: Codable, Equatable, Sendable {
         }
     }
 
-    public enum Colour: String, Sendable { case blue, red, black, orange, unknown }
+    public enum Colour: String, Sendable { case blue, red, black, orange, yellow, green, unknown }
 
     public var pistes: [Line]
     public var lifts: [Line]
@@ -103,6 +111,19 @@ public struct PisteMap: Codable, Equatable, Sendable {
             if hits >= share, hits > (top?.1 ?? 0) { top = (l, hits) }
         }
         return top?.0
+    }
+
+    /// Trails a hike, ride or XC ski day used (#1133): metres on each (by label), longest first, at least 200 m each.
+    public func usage(_ track: SportTrack, near: Double = 30) -> [(line: Line, meters: Double)] {
+        guard track.points.count > 1 else { return [] }
+        var metres: [String: (Line, Double)] = [:]
+        let dist = track.distances
+        for i in 1..<track.points.count {
+            let p = track.points[i]
+            guard let (l, d) = pistes.map({ ($0, Self.distance(p, to: $0)) }).min(by: { $0.1 < $1.1 }), d <= near else { continue }
+            metres[l.label, default: (l, 0)].1 += dist[i] - dist[i - 1]
+        }
+        return metres.values.filter { $0.1 >= 200 }.sorted { $0.1 > $1.1 }.map { ($0.0, $0.1) }
     }
 
     /// Metres from a point to a polyline (flat-earth, fine within a resort).

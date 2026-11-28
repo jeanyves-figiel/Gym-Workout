@@ -778,6 +778,7 @@ struct SportSessionSheet: View {
     /// Piste map (#1132, design C).
     @State private var pisteOn = false
     @State private var pistes: PisteMap?
+    @State private var trailsUsed: [(line: PisteMap.Line, meters: Double)] = []
 
     /// Today's workout, when not started or done, and the type that spares what this session loaded.
     private var swap: (Session, Focus)? {
@@ -797,7 +798,7 @@ struct SportSessionSheet: View {
                     } else if let track, track.points.count >= 2 {
                         SportRouteMap(track: track, sport: entry.sport, source: entry.source, minutes: entry.minutes,
                                       scrub: scrub, runs: runs, selected: selectedRun, colour: $colour,
-                                      pistes: pistes, pisteOn: entry.sport.downhill ? $pisteOn : nil)
+                                      pistes: pistes, pisteOn: entry.sport.trailKind != nil ? $pisteOn : nil)
                         SportStatTiles(entry: entry, track: track, runs: runs.count)
                         if entry.sport.downhill { SkiDayCard(track: track) }
                         SportElevationChart(track: track, byDistance: !entry.sport.downhill, scrub: $scrub)
@@ -811,6 +812,7 @@ struct SportSessionSheet: View {
                         PlaceChips(place: place, sport: entry.sport).gradientCard(entry.sport.gradient, padding: 14)
                     }
                     SportSection(entry: entry, track: track, runs: runs, selected: $selectedRun, pistes: pisteOn ? pistes : nil)
+                    if pisteOn { TrailsUsedCard(used: trailsUsed) }
                     Text("How did it feel?").eyebrow()
                     HStack(spacing: 8) {
                         ForEach(FeelChips.feels.indices, id: \.self) { i in
@@ -859,7 +861,12 @@ struct SportSessionSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
-        .pisteSwitch(track: track, on: $pisteOn, map: $pistes)
+        .pisteSwitch(track: track, kind: entry.sport.trailKind, on: $pisteOn, map: $pistes)
+        // Trails used (#1133), worked out once per map, not on every redraw.
+        .task(id: pisteOn && pistes != nil) {
+            guard pisteOn, let pistes, let track, !entry.sport.downhill else { trailsUsed = []; return }
+            trailsUsed = await Task.detached(priority: .userInitiated) { pistes.usage(track) }.value
+        }
         .task {
             guard !entry.local else { return }
             track = await health.track(for: entry.id)?.thinned()

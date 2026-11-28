@@ -60,7 +60,10 @@ struct SportLiveView: View {
                     SportLiveMap(flat: live.trail, pistes: pisteOn ? pistes : nil)
                         .frame(height: 220)
                         .overlay(alignment: .topTrailing) {
-                            if live.downhill { PisteToggle(on: $pisteOn, loading: PisteMaps.shared.loading).padding(8) }
+                            if let sport = Sport(rawValue: live.sport), sport.trailKind != nil {
+                                PisteToggle(on: $pisteOn, loading: PisteMaps.shared.loading, word: sport.trailWord,
+                                            attribution: pistes?.attribution).padding(8)
+                            }
                         }
                 }
                 Button { mirror.endSportOnWatch() } label: {
@@ -74,7 +77,7 @@ struct SportLiveView: View {
         .foregroundStyle(.white)
         .background(Theme.bg.ignoresSafeArea())
         .onChange(of: mirror.sportLive) { _, on in if !on { dismiss() } }
-        .pisteSwitch(track: live.trail.count >= 4 ? trailTrack : nil, on: $pisteOn, map: $pistes)
+        .pisteSwitch(track: live.trail.count >= 4 ? trailTrack : nil, kind: Sport(rawValue: live.sport)?.trailKind, on: $pisteOn, map: $pistes)
     }
 
     private var stateLabel: String {
@@ -145,12 +148,6 @@ struct SportLiveMap: View {
         }
         .mapStyle(.standard(elevation: .realistic, emphasis: .muted))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(alignment: .bottomTrailing) {
-            if let pistes {
-                Text(pistes.attribution).font(Theme.label(8)).foregroundStyle(.white)
-                    .padding(.horizontal, 6).padding(.vertical, 3).background(Capsule().fill(.black.opacity(0.55))).padding(8)
-            }
-        }
         .accessibilityLabel("Trail so far")
     }
 }

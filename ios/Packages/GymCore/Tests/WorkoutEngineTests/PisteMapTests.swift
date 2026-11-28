@@ -60,3 +60,30 @@ import Testing
         #expect(b.s < 46.519 && b.n > 46.52 && b.w < 7.9 && b.e > 7.9)
     }
 }
+
+/// Trails (#1133): graded hiking / MTB labels and the trails a day used.
+@Suite struct TrailMapTests {
+    @Test func gradedLabelsAndColours() {
+        #expect(PisteMap.Line(name: "Gratweg", difficulty: "T3", pts: []).label == "T3 · Gratweg")
+        #expect(PisteMap.Line(difficulty: "T1", pts: []).colour == .yellow)
+        #expect(PisteMap.Line(difficulty: "T5", pts: []).colour == .blue)
+        #expect(PisteMap.Line(difficulty: "S1", pts: []).colour == .green)
+        #expect(PisteMap.Line(difficulty: "S4", pts: []).label == "S4")
+    }
+
+    @Test func usageCountsMetresPerTrail() {
+        let t0 = Date(timeIntervalSince1970: 0)
+        // 3 km south along lon 7.9: the first 2 km on the T1, the rest on the T3.
+        let pts = (0...60).map { i in
+            SportTrack.Point(lat: 46.6 - Double(i) * 0.00045, lon: 7.9, alt: 1000 + Double(i) * 10, speed: 1, time: t0.addingTimeInterval(Double(i) * 60))
+        }
+        let map = PisteMap(pistes: [
+            .init(name: "Talweg", difficulty: "T1", pts: [46.6, 7.9, 46.582, 7.9]),
+            .init(name: "Gratweg", difficulty: "T3", pts: [46.582, 7.9, 46.57, 7.9]),
+            .init(name: "Elsewhere", difficulty: "T2", pts: [46.6, 7.95, 46.57, 7.95]),
+        ], lifts: [])
+        let used = map.usage(SportTrack(points: pts))
+        #expect(used.map(\.line.label) == ["T1 · Talweg", "T3 · Gratweg"])
+        #expect(abs(used[0].meters - 2000) < 120)
+    }
+}
