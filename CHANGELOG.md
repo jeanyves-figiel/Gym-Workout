@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **What's new 2026-11-28.1** (bundle 108): Ski & snowboard live, Real piste & trail maps (#1131); 2026-11-21.1 moved to history as build 112.
+- **nodemailer 10.6.1** (#1127, folded in after lockfile conflict).
+
 ### Added
 - **App version 1.3** (bundle 108): `MARKETING_VERSION` 1.2 → 1.3 in `ios/project.yml`; 1.2 (build 113) released on the App Store 2026-11-23, so its TestFlight train is closed.
 
