@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **What's new 2026-11-28.1** (bundle 108): Ski & snowboard live, Real piste & trail maps (#1131); 2026-11-21.1 moved to history as build 112.
+- **nodemailer 10.6.1** (#1127, folded in after lockfile conflict).
+
 ### Fixed
 - **Watch ski / snowboard: lift vs run** (#1129): lifts and runs now come from the barometer's altitude trend (vertical speed over 30 s, held 25 s for a lift, 8 s for riding) instead of raw GPS altitude jumps; queues and breaks count for neither, bumps and chairlift dips no longer flip it, works in Saver mode. Lift rides saved as Health segments; the iPhone's runs and day bar use them (`SlopeDetector`, `SportTrack.lifts`).
 - **Watch sport: screen quiet with wrist down** (#1128): always-on face shows one grey value on black, redrawn once a minute, instead of the full bright dashboard.

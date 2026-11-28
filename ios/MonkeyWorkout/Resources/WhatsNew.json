@@ -1,17 +1,17 @@
 {
-  "id": "2026-11-21.1",
+  "id": "2026-11-28.1",
   "items": [
     {
-      "symbol": "switch.2",
-      "tint": "stretch",
-      "title": "Game & XP off means off",
-      "body": "Turn off Game & XP and levels, XP banners, chests and badges leave every screen. Modules you turn off leave fewer dead ends too."
+      "symbol": "figure.snowboarding",
+      "tint": "cardio",
+      "title": "Ski & snowboard, live",
+      "body": "Lifts and runs read from your Watch's barometer, a quiet face with your wrist down, and your iPhone follows the day live, lock screen too."
     },
     {
-      "symbol": "cup.and.saucer.fill",
-      "tint": "power",
-      "title": "Smarter caffeine cut-off",
-      "body": "A coffee stops 9 h before bed, a strong pre-workout 13 h. Water targets and readiness follow the latest science."
+      "symbol": "map.fill",
+      "tint": "warmup",
+      "title": "Real piste & trail maps",
+      "body": "Ski, hike and bike days now show on real piste and trail maps."
     }
   ]
 }
