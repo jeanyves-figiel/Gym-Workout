@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **App version 1.3** (bundle 108): `MARKETING_VERSION` 1.2 → 1.3 in `ios/project.yml`; 1.2 (build 113) released on the App Store 2026-11-23, so its TestFlight train is closed.
+
 ### Changed
 - **Caffeine cut-off scales with the dose** (#977): a coffee (≤ 120 mg) 9 h before bed, stronger doses such as a pre-workout 13 h, instead of a flat 6 h. Late warnings, caffeine meter, How it works and Learn card follow Gardiner 2023.
 - **Water target: no creatine glass** (#982): creatine days no longer add a glass (creatine doesn't dehydrate, Kreider 2017); How it works explains the training top-up as sweat replacement.
