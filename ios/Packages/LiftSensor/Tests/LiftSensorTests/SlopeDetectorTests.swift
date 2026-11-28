@@ -10,7 +10,7 @@ struct SlopeDetectorTests {
         var state: UInt64
         mutating func next() -> Double {
             state = state &* 6364136223846793005 &+ 1442695040888963407
-            return Double(state >> 33) / Double(1 << 31) - 1
+            return Double(state >> 33) / Double(1 << 30) - 1
         }
     }
 
